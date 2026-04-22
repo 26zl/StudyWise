@@ -33,6 +33,9 @@ function capitalizeLabel(label: string) {
 function getCalendarLabels(language: "nb" | "en") {
   if (language === "en") {
     return {
+      pageTitle: "Calendar",
+      pageDescription:
+        "All assignments, exams, and lectures from your Canvas courses — color-coded per course. Use the filters to focus on what matters.",
       missingToken: "You must save a Canvas API token to fetch the calendar.",
       loadError: "Could not fetch calendar data. Try again.",
       today: "Today",
@@ -67,6 +70,9 @@ function getCalendarLabels(language: "nb" | "en") {
   }
 
   return {
+    pageTitle: "Kalender",
+    pageDescription:
+      "Alle innleveringer, eksamener og forelesninger fra dine Canvas-emner — fargekodet per emne. Bruk filtrene for å fokusere på det som betyr noe.",
     missingToken: "Du må lagre en Canvas API-token for å hente kalenderen.",
     loadError: "Kunne ikke hente kalenderdata. Prøv igjen.",
     today: "I dag",
@@ -236,13 +242,23 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
 
   return (
     <div className="calendar-page">
+      {/* Side-tittel + beskrivelse — gir konsistent landings-info på tvers av dashboard-sider. */}
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100">
+          {labels.pageTitle}
+        </h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {labels.pageDescription}
+        </p>
+      </div>
+
       {/* Header: måned/år, navigasjon, filter */}
       <div className="flex flex-col gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 capitalize">
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 capitalize">
               {format(currentDate, "MMMM yyyy", { locale })}
-            </h1>
+            </h2>
             <div className="flex items-center gap-2">
               <select
                 value={currentDate.getMonth().toString()}

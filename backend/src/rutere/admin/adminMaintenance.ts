@@ -32,6 +32,9 @@ import {
   AdminMaintenanceEncryptionStatusResponseSchema,
   AdminMaintenanceReencryptResponseSchema,
   AdminMaintenanceDatabaseHealthResponseSchema,
+  AdminMaintenanceRetryCrawlsResponseSchema,
+  AdminMaintenanceReindexMissingResponseSchema,
+  AdminMaintenanceReextractTruncatedResponseSchema,
 } from "common/admin";
 import { User } from "../../database/models/User.js";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
@@ -69,6 +72,9 @@ const MAINTENANCE_OPS = [
   "clean-expired-shares",
   "clean-old-chats",
   "reencrypt-tokens",
+  "retry-failed-crawls",
+  "reindex-missing-files",
+  "reextract-truncated-files",
 ] as const;
 type MaintenanceOp = (typeof MAINTENANCE_OPS)[number];
 
@@ -122,21 +128,30 @@ async function acquireLock(
   return true;
 }
 
-/** Fjern running-markør og sett cooldown etter suksess. Lagre resultat i Redis. */
+/**
+ * Fjern running-markør og sett cooldown etter suksess. Lagre resultat i Redis.
+ *
+ * Rekkefølge er kritisk: resultKey MÅ være skrevet før runningKey slettes.
+ * Frontend poller status og henter resultat i det `running` går til false —
+ * hvis vi sletter running parallelt med resultatskrivingen kan admin få en
+ * falsk "Kunne ikke hente resultat" selv om jobben var vellykket.
+ */
 async function completeOperation(op: MaintenanceOp, cooldownSeconds: number, result: unknown): Promise<void> {
+  await setCache(resultKey(op), JSON.stringify(result), RESULT_TTL_SECONDS);
   await Promise.all([
-    deleteCacheKeys([runningKey(op)]),
     setCache(cooldownKey(op), Date.now().toString(), cooldownSeconds),
-    setCache(resultKey(op), JSON.stringify(result), RESULT_TTL_SECONDS),
+    deleteCacheKeys([runningKey(op)]),
   ]);
 }
 
-/** Fjern running-markør etter feil (uten å sette cooldown). Lagre feilmelding. */
+/**
+ * Fjern running-markør etter feil (uten å sette cooldown). Lagre feilmelding.
+ * Samme rekkefølge-krav som completeOperation — skriv resultat før running
+ * slettes, ellers ser frontend en tom "ferdig"-tilstand.
+ */
 async function failOperation(op: MaintenanceOp, errorMessage: string): Promise<void> {
-  await Promise.all([
-    deleteCacheKeys([runningKey(op)]),
-    setCache(resultKey(op), JSON.stringify({ suksess: false, error: errorMessage }), RESULT_TTL_SECONDS),
-  ]);
+  await setCache(resultKey(op), JSON.stringify({ suksess: false, error: errorMessage }), RESULT_TTL_SECONDS);
+  await deleteCacheKeys([runningKey(op)]);
 }
 
 // ── GET /maintenance/status ────────────────────────────────────────────────
@@ -796,6 +811,364 @@ router.get("/maintenance/database-health", async (req, res) => {
     logger.error({ err }, "Admin database-health feilet");
     return apiError.serverError(res);
   }
+});
+
+// ── POST /maintenance/retry-failed-crawls ──────────────────────────────────
+// Nullstiller crawl-state for ExternalUrl-items som faller inn under
+// canvas-sync sine retry-kriterier (never_crawled, empty_crawl >24t, stale >7d).
+// Neste gang hver berørte bruker trigger sync, vil eksisterende retry-logikk
+// plukke opp disse automatisk — admin slipper altså å vente på at brukerne
+// selv logger inn.
+
+const CRAWL_STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const CRAWL_EMPTY_RETRY_MS = 24 * 60 * 60 * 1000;
+
+router.post("/maintenance/retry-failed-crawls", requireRecentAuth, async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  if (!(await acquireLock("retry-failed-crawls", 600, 300, res))) return;
+
+  res.status(202).json({ accepted: true });
+
+  void (async () => {
+    try {
+      const structures = await CanvasStructureModel.find(
+        {},
+        { userId: 1, courseId: 1, moduler: 1 },
+      ).lean();
+
+      let scannedItems = 0;
+      let flaggedItems = 0;
+      const now = Date.now();
+      const affectedUsers = new Set<string>();
+      const bulkOps: Array<{
+        updateOne: {
+          filter: Record<string, unknown>;
+          update: Record<string, unknown>;
+        };
+      }> = [];
+
+      for (const struct of structures) {
+        const itemsToReset: Array<{ modIdx: number; itemIdx: number }> = [];
+        for (let mi = 0; mi < (struct.moduler?.length ?? 0); mi++) {
+          const modul = struct.moduler[mi];
+          for (let ii = 0; ii < (modul.items?.length ?? 0); ii++) {
+            const item = modul.items[ii];
+            if (!item.external_url) continue;
+            scannedItems++;
+
+            const hasCrawl = Boolean(item.crawledHash);
+            const crawledAtMs = item.crawledAt
+              ? new Date(item.crawledAt).getTime()
+              : null;
+            const pdfCount = item.crawledPdfs?.length ?? 0;
+            const subpageCount = item.crawledSubpages?.length ?? 0;
+            const isEmptyCrawl =
+              hasCrawl
+              && pdfCount === 0
+              && subpageCount === 0
+              && (crawledAtMs === null || now - crawledAtMs > CRAWL_EMPTY_RETRY_MS);
+            const isStale =
+              hasCrawl
+              && !isEmptyCrawl
+              && crawledAtMs !== null
+              && now - crawledAtMs > CRAWL_STALE_THRESHOLD_MS;
+            const needsReset = !hasCrawl || isEmptyCrawl || isStale;
+            if (needsReset) {
+              itemsToReset.push({ modIdx: mi, itemIdx: ii });
+            }
+          }
+        }
+
+        if (itemsToReset.length > 0) {
+          flaggedItems += itemsToReset.length;
+          affectedUsers.add(String(struct.userId));
+          // Bygger positional-update per item. $unset fjerner feltene helt
+          // slik at canvas-sync klassifiserer dem som crawlNeverSucceeded og
+          // kjører full re-crawl — samme effekt som om de aldri var crawlet.
+          for (const { modIdx, itemIdx } of itemsToReset) {
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: struct._id },
+                update: {
+                  $unset: {
+                    [`moduler.${modIdx}.items.${itemIdx}.crawledHash`]: "",
+                    [`moduler.${modIdx}.items.${itemIdx}.crawledAt`]: "",
+                    [`moduler.${modIdx}.items.${itemIdx}.crawledPdfs`]: "",
+                    [`moduler.${modIdx}.items.${itemIdx}.crawledSubpages`]: "",
+                  },
+                },
+              },
+            });
+          }
+        }
+      }
+
+      let resetItems = 0;
+      if (bulkOps.length > 0) {
+        const bulkResult = await CanvasStructureModel.bulkWrite(bulkOps, { ordered: false });
+        resetItems = bulkResult.modifiedCount ?? 0;
+      }
+
+      // Invalider sync-cache for berørte brukere så neste dashboard-visning
+      // trigger en ny sync-runde og crawl-retry-logikken faktisk kjører.
+      // `affectedUsers` = brukere med flaggede items (disse får re-crawl på
+      // neste naturlige sync); `cachesInvalidated` = delsett hvor Redis
+      // faktisk hadde en sync-skip-gate som måtte ryddes. Brukere uten cache
+      // (ikke nylig aktive) kjører sync uansett ved neste login.
+      let cachesInvalidated = 0;
+      for (const userId of affectedUsers) {
+        const deleted = await invalidateCacheByPattern(`canvas:user:${userId}:*`);
+        if (deleted > 0) cachesInvalidated++;
+      }
+      const affectedUserCount = affectedUsers.size;
+
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: {
+          subAction: "maintenance.retryFailedCrawls",
+          scannedItems,
+          flaggedItems,
+          resetItems,
+          affectedUsers: affectedUserCount,
+          cachesInvalidated,
+        },
+        req,
+      });
+
+      const payload = AdminMaintenanceRetryCrawlsResponseSchema.parse({
+        suksess: true,
+        scannedItems,
+        flaggedItems,
+        resetItems,
+        affectedUsers: affectedUserCount,
+        cachesInvalidated,
+      });
+      await completeOperation("retry-failed-crawls", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin retry-failed-crawls feilet");
+      await failOperation("retry-failed-crawls", "Re-crawl feilet.");
+    }
+  })();
+});
+
+// ── POST /maintenance/reindex-missing-files ────────────────────────────────
+// Finner Canvas-filer uten ContentEmbedding-rader (ekstraksjonen hoppet over
+// filen eller produserte 0 chunks). Canvas-sync sjekker fileHash per fil —
+// uten lagret fileHash vil sync kjøre full ekstraksjon neste gang brukeren
+// logger inn. Vi invaliderer sync-cachen slik at det faktisk skjer.
+
+router.post("/maintenance/reindex-missing-files", requireRecentAuth, async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  if (!(await acquireLock("reindex-missing-files", 600, 300, res))) return;
+
+  res.status(202).json({ accepted: true });
+
+  void (async () => {
+    try {
+      const structures = await CanvasStructureModel.find(
+        {},
+        { userId: 1, courseId: 1, moduler: 1 },
+      ).lean();
+
+      const userFileSet = new Set<string>();
+      const userFiles: Array<{ userId: string; courseId: string; fileId: number }> = [];
+      for (const struct of structures) {
+        for (const modul of struct.moduler ?? []) {
+          for (const item of modul.items ?? []) {
+            if (item.type !== "File") continue;
+            const fileId = item.content_id ?? item.id;
+            if (typeof fileId !== "number") continue;
+            const userId = String(struct.userId);
+            const courseId = String(struct.courseId);
+            const key = `${userId}:${courseId}:${fileId}`;
+            if (userFileSet.has(key)) continue;
+            userFileSet.add(key);
+            userFiles.push({ userId, courseId, fileId });
+          }
+        }
+      }
+
+      const indexed = await ContentEmbedding.aggregate<{
+        _id: { userId: string; courseId: string; fileId: number };
+      }>([
+        { $group: { _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" } } },
+      ]);
+      const indexedSet = new Set(
+        indexed.map((row) => `${row._id.userId}:${row._id.courseId}:${row._id.fileId}`),
+      );
+
+      let indexedFiles = 0;
+      const affectedUsers = new Set<string>();
+      for (const f of userFiles) {
+        const key = `${f.userId}:${f.courseId}:${f.fileId}`;
+        if (indexedSet.has(key)) {
+          indexedFiles++;
+        } else {
+          affectedUsers.add(f.userId);
+        }
+      }
+
+      let cachesInvalidated = 0;
+      for (const userId of affectedUsers) {
+        const deleted = await invalidateCacheByPattern(`canvas:user:${userId}:*`);
+        if (deleted > 0) cachesInvalidated++;
+      }
+      const affectedUserCount = affectedUsers.size;
+
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: {
+          subAction: "maintenance.reindexMissingFiles",
+          canvasFiles: userFiles.length,
+          indexedFiles,
+          missingFiles: userFiles.length - indexedFiles,
+          affectedUsers: affectedUserCount,
+          cachesInvalidated,
+        },
+        req,
+      });
+
+      const payload = AdminMaintenanceReindexMissingResponseSchema.parse({
+        suksess: true,
+        canvasFiles: userFiles.length,
+        indexedFiles,
+        missingFiles: userFiles.length - indexedFiles,
+        affectedUsers: affectedUserCount,
+        cachesInvalidated,
+      });
+      await completeOperation("reindex-missing-files", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin reindex-missing-files feilet");
+      await failOperation("reindex-missing-files", "Reindeksering feilet.");
+    }
+  })();
+});
+
+// ── POST /maintenance/reextract-truncated-files ────────────────────────────
+// Finner alle filer der lagringen stille kuttet teksten (charCount >
+// fullText.length), nuller fileHash på deres chunk-rader slik at neste
+// Canvas-sync trigger full re-ekstraksjon — denne gangen med den aktive
+// storage-cap-en (200 000 tegn). Målrettet alternativ til forceCanvasResync
+// som er langt billigere siden kun berørte filer re-prosesseres.
+
+router.post("/maintenance/reextract-truncated-files", requireRecentAuth, async (req, res) => {
+  const actorUserId = requireUserId(req, res);
+  if (!actorUserId) return;
+
+  if (!(await acquireLock("reextract-truncated-files", 600, 300, res))) return;
+
+  res.status(202).json({ accepted: true });
+
+  void (async () => {
+    try {
+      // Finn alle fil-IDer der lagringen er kortere enn originalen. Med
+      // chunked-lagring summerer vi på tvers av parter (chunkIndex < 0)
+      // per (userId, courseId, fileId). I praksis skal denne queryen
+      // returnere 0 rader etter B — men vi beholder den som sikkerhets-
+      // nett for gammel single-row-data eller fremtidige edge cases.
+      const truncated = await ContentEmbedding.aggregate<{
+        userId: string;
+        courseId: string;
+        fileId: number;
+      }>([
+        {
+          $match: {
+            chunkIndex: { $lt: 0 },
+            fullText: { $exists: true, $type: "string" },
+          },
+        },
+        {
+          $group: {
+            _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" },
+            originalChars: { $max: { $ifNull: ["$charCount", 0] } },
+            storedChars: { $sum: { $strLenCP: "$fullText" } },
+          },
+        },
+        { $match: { $expr: { $lt: ["$storedChars", "$originalChars"] } } },
+        {
+          $project: {
+            _id: 0,
+            userId: "$_id.userId",
+            courseId: "$_id.courseId",
+            fileId: "$_id.fileId",
+          },
+        },
+      ]);
+
+      const affectedUsers = new Set<string>();
+      const bulkOps = truncated.map((t) => {
+        affectedUsers.add(t.userId);
+        return {
+          // Canvas-sync sjekker `existingStatus.fileHash === metaHash` på
+          // regulære chunks (chunkIndex >= 0) for å avgjøre om re-ekstraksjon
+          // trengs. Ved å nullstille fileHash på disse radene, mismatcher
+          // sjekken og full re-ekstraksjon kjører — som oppretter nye parter
+          // (chunkIndex < 0) via upsertStoredFullText.
+          updateMany: {
+            filter: {
+              userId: t.userId,
+              courseId: t.courseId,
+              fileId: t.fileId,
+              chunkIndex: { $gte: 0 },
+            },
+            update: { $unset: { fileHash: 1 as const } },
+          },
+        };
+      });
+
+      let invalidatedRows = 0;
+      if (bulkOps.length > 0) {
+        const result = await ContentEmbedding.bulkWrite(bulkOps, { ordered: false });
+        invalidatedRows = result.modifiedCount ?? 0;
+      }
+
+      let cachesInvalidated = 0;
+      for (const userId of affectedUsers) {
+        const deleted = await invalidateCacheByPattern(`canvas:user:${userId}:*`);
+        if (deleted > 0) cachesInvalidated++;
+      }
+
+      await audit({
+        actorUserId,
+        action: AUDIT_ACTIONS.ADMIN_ACTION,
+        category: "admin",
+        outcome: "success",
+        role: req.actorRole,
+        metadata: {
+          subAction: "maintenance.reextractTruncatedFiles",
+          truncatedFiles: truncated.length,
+          invalidatedRows,
+          affectedUsers: affectedUsers.size,
+          cachesInvalidated,
+        },
+        req,
+      });
+
+      const payload = AdminMaintenanceReextractTruncatedResponseSchema.parse({
+        suksess: true,
+        truncatedFiles: truncated.length,
+        invalidatedRows,
+        affectedUsers: affectedUsers.size,
+        cachesInvalidated,
+      });
+      await completeOperation("reextract-truncated-files", 600, payload);
+    } catch (err) {
+      logger.error({ err }, "Admin reextract-truncated-files feilet");
+      await failOperation("reextract-truncated-files", "Re-ekstraksjon feilet.");
+    }
+  })();
 });
 
 export default router;

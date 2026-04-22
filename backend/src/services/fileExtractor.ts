@@ -22,11 +22,18 @@ import { logger } from "../utils/logger.js";
 /** Maks filstørrelse for ekstraksjon (10 MB) */
 export const MAX_EXTRACT_FILE_SIZE = 10 * 1024 * 1024;
 
-/** Maks antall ark/slides å prosessere */
-const MAX_SHEETS_OR_SLIDES = 50;
+/** Maks antall ark/slides å prosessere. 200 dekker alle forelesninger vi
+ *  ser i praksis — inkludert hele pensum-PDF-er på 100+ slides og multi-
+ *  kapittel-dekk. Lagringen chunker nå fullText over flere rader, så ingen
+ *  grunn til å begrense hardt her. */
+const MAX_SHEETS_OR_SLIDES = 200;
 
-/** Maks tegn for ekstrahert innhold */
-const MAX_CONTENT_LENGTH = 50_000;
+/** Maks tegn for ekstrahert innhold. Beskyttelse mot uforholdsmessig store
+ *  filer (minnebruk under ekstraksjon), ikke mot lagringsgrense — lagringen
+ *  chunker fullText så det finnes ingen cap der. 2 000 000 tegn (~2 MB
+ *  tekst) dekker hele pensumbøker uten å være risikabelt for ekstraktorens
+ *  minnebruk. */
+const MAX_CONTENT_LENGTH = 2_000_000;
 
 /** Maks dekomprimert størrelse per intern XML-fil for å forhindre Zip-bomber (50 MB) */
 const MAX_DECOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;

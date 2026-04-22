@@ -35,6 +35,13 @@ export interface IContentEmbedding extends Document {
   isFullDocument?: boolean;
   /** Hvorvidt chunken er synkronisert til Pinecone */
   pineconesynced?: boolean;
+  /**
+   * Original ekstern URL når innholdet er crawlet fra en ExternalUrl eller
+   * lenket PDF (typisk windowsnett.no for 6105N). Propageres til kilde-lista
+   * i KI-svaret så brukeren kan åpne originalsiden — Canvas har ingen
+   * nedlastbar fil for dette innholdet.
+   */
+  externalUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,6 +64,7 @@ const ContentEmbeddingSchema = new Schema<IContentEmbedding>(
     charCount: { type: Number, required: false },
     isFullDocument: { type: Boolean, required: false, default: false },
     pineconesynced: { type: Boolean, required: false, default: false },
+    externalUrl: { type: String, required: false },
   },
   { timestamps: true },
 );

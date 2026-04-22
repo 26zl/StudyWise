@@ -69,6 +69,8 @@ export const enMessages = {
       settings: "Loading settings...",
       userData: "Loading user data...",
     },
+    yes: "Yes",
+    no: "No",
   },
   dashboard: {
     sections: {
@@ -95,7 +97,7 @@ export const enMessages = {
       notifications: "Notifications",
       overview: "Overview",
       navigationTitle: "Dashboard navigation",
-      quiz: "Quiz / Flashcards",
+      quiz: "Quiz & Flashcards",
       settings: "Settings",
       profile: "Account",
       taskBreakdown: "AI Task Breakdown",
@@ -108,6 +110,8 @@ export const enMessages = {
     clearSuccess: "Conversation history deleted",
     deleteError: "Could not delete the conversation",
     deleteSuccess: "Conversation deleted",
+    pageDescription:
+      "Browse your previous AI conversations and shared links. Open a conversation to pick up where you left off, or share it with a classmate.",
     saveError: "Could not save the conversation",
     topicUpdateError: "Could not update topic",
     pinUpdateError: "Could not update bookmark",
@@ -394,34 +398,34 @@ export const enMessages = {
     features: {
       aiPartner: {
         description:
-          "Stuck on something? Get help, explanations, quizzes, flashcards, and task breakdowns. Upload documents for analysis, get an AI-generated study plan, and export to PDF, Word, Excel, or Notion.",
-        title: "AI Study Partner",
-      },
-      announcements: {
-        description:
-          "Get every announcement from every course in one feed. Filter by importance and search through history.",
-        title: "Never miss an announcement",
+          "Get help, explanations, quizzes, flashcards, and task breakdowns grounded in your actual course material. Upload your own documents — PDFs, Word, Excel, or even photos of whiteboard notes — and let AI read them as if they were required reading.",
+        title: "AI study partner that knows your syllabus",
       },
       canvasIntegration: {
         description:
-          "Connect Canvas once and get access to all your courses, modules, files, announcements, and calendar directly in the dashboard.",
-        title: "Seamless Canvas Integration",
+          "Connect Canvas once and get automatic access to all your courses, modules, files, and announcements. We sync in the background — you always see the latest without lifting a finger.",
+        title: "Seamless Canvas integration",
       },
       heading: "Everything you need to succeed",
-      overview: {
+      knowledgeBase: {
         description:
-          "See everything happening today and in the coming days. Deadlines, AI-generated weekly plans, and study statistics in one place.",
-        title: "Complete Overview",
+          "Beyond your Canvas syllabus, build your own knowledge base with books, notes, and links. The AI pulls from everything — and answers based on your material, not just the official curriculum.",
+        title: "Your own knowledge base",
       },
       personalStudyPlan: {
         description:
-          "AI builds a weekly plan tailored to your deadlines, habits, and energy level. It updates automatically when plans change.",
-        title: "Personal study plan",
+          "AI builds a weekly plan tailored to your deadlines, routines, and energy level. Structure your day with time slots, track progress per task, and see how many study hours you've actually put in this week.",
+        title: "Personal study and work schedule",
+      },
+      sharingAndExport: {
+        description:
+          "Generate shareable links to AI conversations with one click — perfect for group work or helping classmates. Export notes, plans, and answers to PDF, Word, Excel, or Notion.",
+        title: "Share with others and export",
       },
       smartCalendar: {
         description:
-          "All assignments, exams, and classes in one place. Get alerts before key deadlines, color-coded by course.",
-        title: "Smart Calendar",
+          "All assignments, exams, and lectures gathered and color-coded per course. Get push notifications in your browser before key deadlines — no app needed, works on any device.",
+        title: "Smart calendar and notifications",
       },
       subheading:
         "From planning and overview to late-night AI support - StudyWise is built for student life.",
@@ -456,16 +460,40 @@ export const enMessages = {
         description: "Break assignments into smaller steps",
         title: "AI Task Breakdown",
       },
-      exportChat: {
-        description: "Export conversations to PDF, Word, Excel or Notion",
-        title: "Export",
+      chatHistory: {
+        description: "Revisit previous AI chats and shared links",
+        title: "Conversations",
+      },
+      notifications: {
+        description: "Announcements, deadlines and events from Canvas",
+        title: "Notifications",
+      },
+      calendar: {
+        description: "Plan your week with deadlines and study sessions",
+        title: "Calendar",
+      },
+      library: {
+        description: "Bookmarks and your own knowledge bases",
+        title: "Library",
+      },
+      quizFlashcards: {
+        description: "Generate quizzes and flashcards with AI",
+        title: "Quiz & Flashcards",
+      },
+      announcements: {
+        description: "See announcements from your Canvas courses",
+        title: "Announcements",
+      },
+      assignments: {
+        description: "All assignments and submissions from Canvas",
+        title: "Assignments",
       },
     },
     stats: {
-      activeCourses: "Active courses",
-      totalAssignments: "Total assignments",
       totalCourses: "Total courses",
-      upcomingAssignments: "Upcoming assignments",
+      upcomingDeadlines: "Deadlines next 14 days",
+      notSubmitted: "Not submitted",
+      completedThisYear: "Completed this year",
     },
     studyActivity: {
       title: "Today's study activity",
@@ -483,13 +511,15 @@ export const enMessages = {
       myWorkPlan: "My study plan",
     },
     title: "Overview",
+    pageDescription:
+      "Everything happening today and in the coming days — deadlines, AI weekly plan, and study stats in one place.",
     upcomingDeadlines: "Upcoming deadlines (next {days} days)",
   },
   settings: {
     accountSecurity: {
       action: "Open account",
       connectionHint:
-        "Here you can update your profile information, change your password, enable two-factor authentication (2FA), manage connected sign-in methods like Google and Microsoft, and delete your account if needed.",
+        "Here you can update your profile information, change your password, enable two-factor authentication (2FA), manage connected sign-in methods like Google and Microsoft, see active devices and sessions (under \"Security\"), and delete your account if needed.",
       description:
         "Open the account page to change username, first name, last name, email, password, two-factor authentication (2FA), and connected sign-in methods (Google, Microsoft). You can also delete your StudyWise account there.",
       title: "Account and security",
@@ -759,6 +789,149 @@ export const enMessages = {
       feedback: "Feedback",
       maintenance: "Maintenance",
     },
+    crawler: {
+      title: "Crawler maintenance",
+      description: "Status for ExternalUrl crawling across all indexed Canvas courses.",
+      totalUrls: "Total links",
+      crawled: "Crawled",
+      neverCrawled: "Never crawled",
+      stale: "Stale (older than 7 days)",
+      pdfsIndexed: "PDFs indexed",
+      subpagesCrawled: "Subpages crawled",
+      staleTableTitle: "Links needing re-crawl",
+      staleTableDescription:
+        "Shows up to 50 links that have never been crawled or whose last crawl is older than 7 days. Re-crawling happens automatically on the next Canvas sync.",
+      columnCourse: "Course",
+      columnModule: "Module",
+      columnItem: "Title",
+      columnUrl: "URL",
+      columnLastCrawl: "Last crawl",
+      never: "Never",
+      loading: "Loading crawler stats...",
+      error: "Could not load crawler stats.",
+      empty: "No stale or un-crawled links. Everything is up to date.",
+      emptyCrawl: "Empty (crawl without PDFs/subpages)",
+      columnReason: "Reason",
+      reasonNeverCrawled: "Never crawled",
+      reasonStale: "Stale",
+      reasonEmptyCrawl: "Empty crawl",
+      retryTitle: "Trigger re-crawl manually",
+      retryDescription:
+        "Resets crawl state for flagged items. They'll show immediately as 'Never crawled' in the table — this is expected. Actual re-crawling (new crawledAt timestamp, PDFs fetched) happens the next time each affected user opens the app and triggers a Canvas sync.",
+      retryAction: "Run re-crawl",
+      retryRunning: "Running...",
+      retryConfirm: "Reset crawl state for all flagged items?",
+      retrySuccess: "Re-crawl scheduled",
+      retrySummary:
+        "{reset} items reset for {affected} users ({caches} active caches invalidated). Crawling runs when users open the app.",
+      retryFailed: "Re-crawl failed",
+    },
+    retrieval: {
+      title: "Retrieval debug (query replay)",
+      description:
+        "Runs the same hybrid search as the chat endpoint. Shows what BM25, Pinecone, RRF and Cohere returned for a specific query.",
+      queryLabel: "Query",
+      queryPlaceholder: "e.g. \"summarize lesson 3\"",
+      courseLabel: "Course ID (optional)",
+      coursePlaceholder: "Canvas courseId",
+      userLabel: "User ID (optional — admin replay as another user)",
+      userPlaceholder: "Mongo _id for user",
+      submit: "Run search",
+      running: "Running...",
+      error: "Retrieval debug failed.",
+      statsElapsed: "Elapsed",
+      statsConcepts: "Multi-concept",
+      statsDegraded: "Degraded",
+      statsReranked: "Reranked",
+      sectionVector: "Vector (Pinecone)",
+      sectionBm25: "BM25",
+      sectionFused: "RRF-fused",
+      sectionFinal: "Final (after rerank)",
+      columnRank: "#",
+      columnScore: "Score",
+      columnFile: "File",
+      columnModule: "Module",
+      columnChunk: "Chunk",
+      columnPreview: "Preview",
+      noResults: "No results",
+    },
+    extraction: {
+      title: "Extraction audit",
+      description:
+        "Canvas files that exist in modules but have not been indexed into chunks. This is reason #1 for \"AI can't find file X\".",
+      totalFiles: "User-file pairs total",
+      indexedFiles: "Indexed",
+      unindexedFiles: "Missing indexing",
+      tableTitle: "User-file pairs without chunks",
+      empty: "All Canvas files are indexed per user.",
+      columnOwner: "Owner",
+      columnCourse: "Course",
+      columnModule: "Module",
+      columnFile: "File",
+      columnReason: "Reason",
+      reasonNoChunks: "No chunks",
+      reasonNeverCrawled: "Never crawled",
+      error: "Could not load extraction audit.",
+      truncatedFiles: "Silently truncated files",
+      truncatedTableTitle: "Files where storage silently cut the text",
+      truncatedDescription:
+        "These files contain more than the storage cap ({cap} chars) allows, so the tail of the text was never stored. The AI cannot summarize those parts until admin re-indexes or raises the cap.",
+      columnOriginal: "Original",
+      columnStored: "Stored",
+      columnLost: "Lost",
+      reextractAction: "Re-extract truncated files",
+      reextractRunning: "Running...",
+      reextractConfirm:
+        "Reset fileHash on chunks for all silently truncated files? The next Canvas sync will re-extract them with the current storage cap.",
+      reextractSuccess: "Re-extraction scheduled",
+      reextractSummary:
+        "{truncated} files reset for {affected} users ({caches} caches invalidated). Re-extraction runs when users open the app.",
+      reextractFailed: "Re-extraction failed",
+      reindexTitle: "Trigger re-indexing manually",
+      reindexDescription:
+        "Invalidates the Canvas sync cache for users with un-indexed files. The table will still show 'No chunks' until each user opens the app — then Canvas sync runs extraction automatically and new ContentEmbedding rows are created.",
+      reindexAction: "Run re-indexing",
+      reindexRunning: "Running...",
+      reindexConfirm: "Invalidate sync cache for all users with un-indexed files?",
+      reindexSuccess: "Re-indexing scheduled",
+      reindexSummary:
+        "{missing} files missing across {affected} users ({caches} active caches invalidated). Extraction runs when users open the app.",
+      reindexFailed: "Re-indexing failed",
+    },
+    kbHealth: {
+      title: "Knowledge base health",
+      description:
+        "Status per knowledge base. Empty or thin bases can explain poor /base responses.",
+      totalBases: "Total bases",
+      emptyBases: "Empty",
+      thinBases: "Thin (< 5 chunks)",
+      totalChunks: "Total chunks",
+      tableTitle: "Per base",
+      empty: "No knowledge bases found.",
+      columnName: "Name",
+      columnOwner: "Owner",
+      columnChunks: "Chunks",
+      columnLinks: "Links",
+      columnFiles: "Files",
+      columnUpdated: "Updated",
+      error: "Could not load KB health.",
+    },
+    feedbackTriage: {
+      title: "Feedback triage",
+      description:
+        "Negative ratings grouped by inferred intent (based on the user's question). A high down-rate in one category = where answer quality is regressing.",
+      totalDown: "Thumbs down",
+      totalUp: "Thumbs up",
+      windowNote: "Shows feedback from the last {days} days (TTL only retains this window).",
+      tableTitle: "Per intent",
+      empty: "No feedback recorded yet.",
+      columnIntent: "Intent",
+      columnDown: "Thumbs down",
+      columnUp: "Thumbs up",
+      columnRate: "Down rate",
+      columnLastAt: "Last",
+      error: "Could not load feedback triage.",
+    },
     serviceStatus: {
       title: "System status",
       description: "Live status for critical services. Refreshes every 30 seconds.",
@@ -834,6 +1007,13 @@ export const enMessages = {
       title: "Maintenance",
       description: "Safe admin tools for data maintenance and repair of previously stored content.",
       lastResult: "Last run",
+      subtabs: {
+        ops: "Operations",
+        crawler: "Crawler",
+        retrieval: "Retrieval",
+        extraction: "Indexing",
+        kbHealth: "KB health",
+      },
       backfill: {
         action: "Run full-text backfill",
         confirm: "Run backfill for files missing full text in the content store?",
@@ -1376,11 +1556,11 @@ export const enMessages = {
     },
   },
   quiz: {
-    title: "Quiz / Flashcards",
+    title: "Quiz & Flashcards",
     subtitle: "Practice your Canvas content with AI-generated questions and cards.",
     noCoursesFound: "No Canvas courses found. Connect to Canvas first.",
     allCoursesHidden:
-      "All courses are hidden. Show courses on the Courses page to use Quiz/Flashcards.",
+      "All courses are hidden. Show courses on the Courses page to use Quiz & Flashcards.",
     noModulesFound: "No modules found for this course.",
     noFilesFound: "No files found for this course.",
     noContentFound: "No modules or files found for this course.",
@@ -1432,6 +1612,7 @@ export const enMessages = {
     resultKeepPracticingShort: "Practice more!",
     flashcardResult: "You knew {known} of {total} cards ({pct}%)",
     quizResult: "You got {score} of {total} correct ({pct}%)",
+    feedbackPrompt: "How was the result?",
     questionProgress: "Question {current} of {total}",
     correctCount: "{score} correct",
     explanation: "Explanation",
@@ -1604,6 +1785,7 @@ export const enMessages = {
     showErrorDetails: "Show error details (debug)",
     sendingFailed: "Sending failed",
     sources: "Sources",
+    sourcesHeading: "Sources",
     sourcesPillLabel: "sources",
     sourceDownloadFailed: "Could not download source",
     sourceKbFileInfo: "This is indexed content from your knowledge base. The original file is not stored.",
@@ -1779,6 +1961,7 @@ export const enMessages = {
     couldNotStartConversation: "Could not start the conversation",
     conversationCopied: "The conversation was copied to StudyWise",
     copyingConversation: "Copying conversation...",
+    sourcesLabel: "Sources",
   },
   omOss: {
     title: "About StudyWise",
@@ -2207,6 +2390,9 @@ export const enMessages = {
     pushQ: "How do I get browser notifications?",
     pushA:
       "Go to Settings → Notifications and turn on browser notifications. The browser will ask for permission the first time. You'll then be notified about new Canvas deadlines and assignments even when StudyWise isn't open. Notifications are per device — enable on each device you want to use.",
+    responseTimeQ: "Why do AI answers take so long?",
+    responseTimeA:
+      "When you ask an in-depth question about your syllabus — typically \"summarize lesson X\" or \"explain chapter Y\" — the AI reads the entire relevant PDF, searches through all your course material, and composes a thorough answer with sources. This usually takes 1-3 minutes the first time. The quality is worth the wait: you get answers grounded in your actual syllabus, not just general knowledge. If the same question is asked again (by you or a classmate on the same course), the answer is served from cache in about 2 seconds. Short lookups like \"what's my next deadline?\" only take a few seconds.",
     termsUpdateQ: "What happens if the terms are updated?",
     termsUpdateA:
       "When we update the terms of service or privacy policy, you'll see a dialog the next time you use StudyWise asking you to read and accept the new versions. You can't continue using the service without confirming — but you can always log out or delete your account if you don't want to accept. Your acceptance is logged with version, timestamp, and technical context as evidence.",
@@ -2366,6 +2552,8 @@ export const enMessages = {
   },
   bokmerker: {
     title: "Bookmarks",
+    pageDescription:
+      "Gather bookmarked conversations and knowledge bases in one place so you can quickly return to the material you're working on.",
     loading: "Loading bookmarks...",
     searchLabel: "Search bookmarked conversations",
     searchPlaceholder: "Search conversations...",

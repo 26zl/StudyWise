@@ -47,8 +47,13 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   // i blokkmodus, men hooken må kalles likt hver render.
   const highlightedHtml = useMemo(() => {
     try {
-      const result = sprak
-        ? hljs.highlight(kodeTekst, { language: sprak, ignoreIllegals: true })
+      // Sjekk om språket er registrert i highlight.js før vi kaller highlight().
+      // Uten dette logger hljs en console.warn for ukjente språk (f.eks. "bat",
+      // "ps1", "nginx") selv om vi fanger feilen. Fall tilbake til auto-detect
+      // for ukjente språk — bedre enn å spamme konsollen.
+      const erKjentSprak = sprak ? Boolean(hljs.getLanguage(sprak)) : false;
+      const result = erKjentSprak
+        ? hljs.highlight(kodeTekst, { language: sprak!, ignoreIllegals: true })
         : hljs.highlightAuto(kodeTekst);
       return DOMPurify.sanitize(result.value, { ALLOWED_TAGS: ["span"], ALLOWED_ATTR: ["class"] });
     } catch {

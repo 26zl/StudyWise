@@ -47,7 +47,7 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
 
     const [docs, total] = await Promise.all([
       ChatHistory.find({ user: userId })
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -66,7 +66,7 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
             topic: doc.topic,
             pinned: doc.pinned ?? false,
             messages,
-            timestamp: doc.createdAt,
+            timestamp: doc.updatedAt ?? doc.createdAt,
           },
         ];
       } catch (err) {
@@ -122,7 +122,7 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
           topic: doc.topic,
           pinned: doc.pinned ?? false,
           messages: parsed.messages,
-          timestamp: doc.createdAt,
+          timestamp: doc.updatedAt ?? doc.createdAt,
         },
       }),
     );
@@ -178,7 +178,7 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
           topic: doc.topic,
           pinned: doc.pinned ?? false,
           messages: parsed.messages,
-          timestamp: doc.createdAt,
+          timestamp: doc.updatedAt ?? doc.createdAt,
         },
       }),
     );
@@ -202,7 +202,7 @@ kiHistoryRouter.patch("/chat/history/:id/pin", async (req, res) => {
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
       { pinned: parsed.pinned },
-      { returnDocument: "after" },
+      { returnDocument: "after", timestamps: false },
     ).select("_id pinned");
     if (!doc) return apiError.notFound(res, "Samtalen");
     return res.json(
@@ -235,7 +235,7 @@ kiHistoryRouter.patch("/chat/history/:id/topic", async (req, res) => {
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
       topicUpdate,
-      { returnDocument: "after" },
+      { returnDocument: "after", timestamps: false },
     ).select("_id topic");
     if (!doc) return apiError.notFound(res, "Samtalen");
     return res.json(
@@ -265,7 +265,7 @@ kiHistoryRouter.patch("/chat/history/:id/title", async (req, res) => {
     const doc = await ChatHistory.findOneAndUpdate(
       { _id: id, user: userId },
       { title: nextTitle },
-      { returnDocument: "after" },
+      { returnDocument: "after", timestamps: false },
     ).select("_id title");
     if (!doc) return apiError.notFound(res, "Samtalen");
     return res.json(

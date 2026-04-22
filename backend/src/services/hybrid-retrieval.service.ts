@@ -109,8 +109,40 @@ export interface HybridSearchResult {
     moduleTitle: string;
     fileName: string;
     fileId: number;
+    /** Ekstern URL når kilden er crawlet fra ExternalUrl/PDF — brukes av kilder-panelet. */
+    externalUrl?: string;
   };
   chunkIndex: number;
+}
+
+export interface HybridSearchDebug {
+  /** Rå resultater fra vektorsøk (Pinecone), før fusjon */
+  vector: Array<{
+    rank: number;
+    score: number;
+    source: HybridSearchResult["source"];
+    chunkIndex: number;
+    textPreview: string;
+  }>;
+  /** Rå resultater fra BM25-søk, før fusjon */
+  bm25: Array<{
+    rank: number;
+    score: number;
+    source: HybridSearchResult["source"];
+    chunkIndex: number;
+    textPreview: string;
+  }>;
+  /** RRF-fusjonerte resultater før rerank */
+  fused: Array<{
+    rank: number;
+    rrfScore: number;
+    source: HybridSearchResult["source"];
+    chunkIndex: number;
+    textPreview: string;
+  }>;
+  /** Query-konsepter hvis splittet i multi-concept søk */
+  concepts: string[] | null;
+  elapsedMs: number;
 }
 
 export interface HybridSearchResponse {
@@ -123,6 +155,8 @@ export interface HybridSearchResponse {
     bm25: boolean;
     reranked: boolean;
   };
+  /** Kun populert når options.includeDebug=true — brukes av admin retrieval-debug-verktøyet */
+  debug?: HybridSearchDebug;
 }
 
 // ─── Intern: RRF-fusjon ────────────────────────────────────
@@ -246,6 +280,7 @@ export async function hybridSearch(
   options?: {
     courseIds?: string[];
     topN?: number;
+    includeDebug?: boolean;
   },
 ): Promise<HybridSearchResponse> {
   const trimmedQuery = query?.trim();
@@ -347,10 +382,23 @@ export async function hybridSearch(
       { userId, degraded: anyDegraded, isMultiConcept, reason, queryLen: trimmedQuery.length },
       "Hybrid søk: ingen resultater fra verken vektor- eller BM25-søk",
     );
+    // Bevar debug-payload også ved null-treff — admin-verktøyet skal vise
+    // elapsedMs og concept-splitting for nettopp dette caset (spørringen
+    // som trenger feilsøking er ofte den som ikke traff noe).
+    const emptyDebug: HybridSearchDebug | undefined = options?.includeDebug
+      ? {
+          vector: [],
+          bm25: [],
+          fused: [],
+          concepts: isMultiConcept ? concepts : null,
+          elapsedMs: Date.now() - startTime,
+        }
+      : undefined;
     return {
       results: [],
       degraded: anyDegraded,
       sources: { vector: false, bm25: false, reranked: false },
+      ...(emptyDebug && { debug: emptyDebug }),
     };
   }
 
@@ -409,6 +457,7 @@ export async function hybridSearch(
     }));
   }
 
+  const elapsedMs = Date.now() - startTime;
   logger.info(
     {
       userId,
@@ -418,10 +467,38 @@ export async function hybridSearch(
       finalCount: finalResults.length,
       reranked: wasReranked,
       isMultiConcept,
-      elapsedMs: Date.now() - startTime,
+      elapsedMs,
     },
     "Hybrid søk fullført",
   );
+
+  const debug: HybridSearchDebug | undefined = options?.includeDebug
+    ? {
+        vector: allVectorResults.map((r, i) => ({
+          rank: i + 1,
+          score: r.score,
+          source: r.source,
+          chunkIndex: r.chunkIndex,
+          textPreview: r.text.slice(0, 300),
+        })),
+        bm25: allBm25Results.map((r, i) => ({
+          rank: i + 1,
+          score: r.score,
+          source: r.source,
+          chunkIndex: r.chunkIndex,
+          textPreview: r.text.slice(0, 300),
+        })),
+        fused: fused.map((d, i) => ({
+          rank: i + 1,
+          rrfScore: d.rrfScore,
+          source: d.source,
+          chunkIndex: d.chunkIndex,
+          textPreview: d.text.slice(0, 300),
+        })),
+        concepts: isMultiConcept ? concepts : null,
+        elapsedMs,
+      }
+    : undefined;
 
   return {
     results: finalResults,
@@ -431,5 +508,6 @@ export async function hybridSearch(
       bm25: hasBm25,
       reranked: wasReranked,
     },
+    ...(debug && { debug }),
   };
 }

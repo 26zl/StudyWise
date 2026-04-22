@@ -64,6 +64,7 @@ interface DocCandidate {
   fileId: number;
   chunkIndex: number;
   tokenCount: number;
+  externalUrl?: string;
 }
 
 /**
@@ -178,6 +179,7 @@ export async function bm25Search(
       fileId: number;
       chunkIndex: number;
       tokenCount: number;
+      externalUrl?: string;
     }>;
 
     const textQuery = termer.join(" ");
@@ -195,6 +197,7 @@ export async function bm25Search(
           fileId: 1,
           chunkIndex: 1,
           tokenCount: 1,
+          externalUrl: 1,
           score: { $meta: "textScore" },
         },
       )
@@ -213,6 +216,7 @@ export async function bm25Search(
         fileId: 1,
         chunkIndex: 1,
         tokenCount: 1,
+        externalUrl: 1,
       })
         .sort({ _id: 1 })
         .limit(MAX_CANDIDATE_CHUNKS)
@@ -243,6 +247,7 @@ export async function bm25Search(
       fileId: d.fileId,
       chunkIndex: d.chunkIndex,
       tokenCount: d.tokenCount,
+      externalUrl: d.externalUrl,
     }));
 
     // Beregn BM25
@@ -261,6 +266,7 @@ export async function bm25Search(
           moduleTitle: d.moduleTitle,
           fileName: d.fileName,
           fileId: d.fileId,
+          ...(d.externalUrl ? { externalUrl: d.externalUrl } : {}),
         },
         chunkIndex: d.chunkIndex,
       }))

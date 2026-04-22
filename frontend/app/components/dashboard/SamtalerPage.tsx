@@ -206,8 +206,13 @@ export function SamtalerPage() {
   return (
       <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.chatHistory")}</h1>
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.chatHistory")}</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {t("chatHistory.pageDescription")}
+              </p>
+            </div>
             {aktivTab === "history" && chats.length > 0 ? (
               <button
                 type="button"

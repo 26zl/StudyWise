@@ -5,11 +5,11 @@
  */
 import { Footer } from "@/app/components/layout/footer";
 import {
-  BellRing,
   BookOpen,
   Bot,
   CalendarDays,
-  LayoutDashboard,
+  Library,
+  Share2,
   Sparkles,
 } from "lucide-react";
 import { LandingHeroActions } from "@/app/components/layout/LandingHeroActions";
@@ -49,10 +49,10 @@ export default async function HomePage() {
       description: translate(language, "landing.features.canvasIntegration.description"),
     },
     {
-      icon: LayoutDashboard,
-      iconBg: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300",
-      title: translate(language, "landing.features.overview.title"),
-      description: translate(language, "landing.features.overview.description"),
+      icon: CalendarDays,
+      iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
+      title: translate(language, "landing.features.smartCalendar.title"),
+      description: translate(language, "landing.features.smartCalendar.description"),
     },
     {
       icon: Bot,
@@ -61,22 +61,22 @@ export default async function HomePage() {
       description: translate(language, "landing.features.aiPartner.description"),
     },
     {
-      icon: CalendarDays,
-      iconBg: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
-      title: translate(language, "landing.features.smartCalendar.title"),
-      description: translate(language, "landing.features.smartCalendar.description"),
-    },
-    {
-      icon: BellRing,
+      icon: Library,
       iconBg: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300",
-      title: translate(language, "landing.features.announcements.title"),
-      description: translate(language, "landing.features.announcements.description"),
+      title: translate(language, "landing.features.knowledgeBase.title"),
+      description: translate(language, "landing.features.knowledgeBase.description"),
     },
     {
       icon: Sparkles,
       iconBg: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-300",
       title: translate(language, "landing.features.personalStudyPlan.title"),
       description: translate(language, "landing.features.personalStudyPlan.description"),
+    },
+    {
+      icon: Share2,
+      iconBg: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300",
+      title: translate(language, "landing.features.sharingAndExport.title"),
+      description: translate(language, "landing.features.sharingAndExport.description"),
     },
   ];
 

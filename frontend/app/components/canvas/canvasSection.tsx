@@ -1086,9 +1086,14 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
                     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
                         <div className="flex items-center gap-3">
                             {visningIkon}
-                            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
-                                {labels.sectionTitles[visning]}
-                            </h1>
+                            <div>
+                                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white">
+                                    {labels.sectionTitles[visning]}
+                                </h1>
+                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                    {labels.sectionDescriptions[visning]}
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1114,6 +1119,9 @@ export function CanvasSection({ startVisning = "announcements", harCanvasToken =
                 <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
                     {labels.sectionTitles[visning]}
                 </h2>
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                    {labels.sectionDescriptions[visning]}
+                </p>
             </div>
 
             {canvasTokenInvalid && <TokenUgyldigAdvarsel />}

@@ -53,6 +53,10 @@ const PREFIX_REGISTRY: Array<{
   { prefix: "canvas:", label: "Canvas API-cache", canFlush: true },
   { prefix: "ki:", label: "KI-sesjonskontekst", canFlush: true },
   { prefix: "kb:", label: "Kunnskapsbase-cache", canFlush: true },
+  // Chat-response-cache (24t TTL) — viktig å kunne flushe når et trunkert
+  // eller utdatert svar har havnet i cachen (f.eks. etter cap-justering).
+  // Separat fra "ki:" fordi nøkkelen starter med "chat-response:v1:".
+  { prefix: "chat-response:", label: "Chat-respons-cache (24t)", canFlush: true },
   { prefix: "admin:", label: "Admin-stats-cache", canFlush: true },
   { prefix: "auth:turnstile-session:", label: "Turnstile-sesjoner", canFlush: true },
   { prefix: "auth:turnstile-nonce:", label: "Turnstile-nonces", canFlush: true },

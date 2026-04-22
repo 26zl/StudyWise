@@ -118,6 +118,12 @@ export function BokmerkerPage() {
   return (
       <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
         <div className="mx-auto w-full max-w-5xl">
+          <div className="mb-4">
+            <h1 className="text-2xl font-semibold">{t("dashboard.sidebar.bookmarks")}</h1>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {t("bokmerker.pageDescription")}
+            </p>
+          </div>
           {/* Fane-navigasjon */}
           <div className="mb-6 flex items-center gap-1 border-b border-slate-200 dark:border-slate-700">
             <button

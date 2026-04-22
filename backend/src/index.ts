@@ -62,6 +62,8 @@ import adminLangsmithRouter from "./rutere/admin/adminLangsmith.js";
 import adminContactRouter from "./rutere/admin/adminContact.js";
 import adminLogsRouter from "./rutere/admin/adminLogs.js";
 import adminMaintenanceRouter from "./rutere/admin/adminMaintenance.js";
+import adminCrawlerRouter from "./rutere/admin/adminCrawler.js";
+import adminAiDebugRouter from "./rutere/admin/adminAiDebug.js";
 import { adminAnnouncementRouter } from "./rutere/admin/adminAnnouncement.js";
 import { announcementRouter } from "./rutere/announcement.js";
 import { publicStatusRouter } from "./rutere/publicStatus.js";
@@ -419,6 +421,8 @@ app.use("/api/kb", noCache, knowledgeBaseRouter);
   adminRouter.use(adminContactRouter);
   adminRouter.use(adminLogsRouter);
   adminRouter.use(adminMaintenanceRouter);
+  adminRouter.use(adminCrawlerRouter);
+  adminRouter.use(adminAiDebugRouter);
   adminRouter.use(adminAnnouncementRouter);
   app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminRouter);
 }

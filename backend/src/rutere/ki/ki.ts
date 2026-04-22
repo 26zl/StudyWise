@@ -26,6 +26,13 @@ import { kiCourseKnowledgeRouter } from "./kiCourseKnowledge.js";
 import { kiFeedbackRouter } from "./kiFeedback.js";
 import { SUPPORTED_MODELS, DEFAULT_MODEL, resolveModel } from "./aiModels.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_COMPARISON_PROMPT } from "./systemPrompt.js";
+import { evaluateCrossCourseGuard } from "./crossCourseGuard.js";
+import {
+  buildChatResponseCacheKey,
+  classifyTriggerWord,
+  getCachedChatResponse,
+  setCachedChatResponse,
+} from "../../services/chat-response-cache.service.js";
 import { chatCompletion } from "./aiClient.js";
 import { handleAIError, checkAIClientUnavailable } from "./handleAIError.js";
 import {
@@ -42,6 +49,7 @@ import { isStructuredCanvasQuery } from "../../services/canvasStructuredQueries.
 import { trimToTokenLimit, countTokens } from "../../utils/tokenCounter.js";
 import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 import { User } from "../../database/models/User.js";
+import { ChatHistory } from "../../database/models/ChatHistory.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { searchKBContent, buildKBContext } from "../../services/kunnskapsbase-indeksering.service.js";
 import { createDefaultCanvasContextPreferences } from "common/auth";
@@ -180,24 +188,16 @@ const CANVAS_FULL_KEYWORDS = [
   "document", "page content",
 ];
 
-/**
- * Fagbegreper som indikerer et innholds-/tematisk spørsmål.
- * Når brukeren bruker et slikt begrep, er det ALLTID canvas_full.
- */
-const TOPIC_KEYWORDS = [
-  // Algoritmer og datastrukturer
-  "avl", "tree", "binary", "heap", "graf", "graph", "stack", "queue",
-  "linked list", "hashtabell", "hash", "sortering", "sorting", "søk", "search",
-  "rekursjon", "recursion", "kompleksitet", "complexity",
-  "big-o", "big o", "traversering", "traversal", "dfs", "bfs",
-  "dijkstra", "dynamic programming", "dynamisk programmering",
-  // Generelle CS-begreper
-  "design pattern", "objektorientert", "object-oriented", "arv", "inheritance",
-  "polymorfisme", "polymorphism", "interface", "abstraksjon", "abstraction",
-  "innkapsling", "encapsulation", "tråd", "thread", "mutex",
-  "sql", "normalisering", "normalization", "relasjon", "relation",
-  "kryptering", "encryption", "protokoll", "protocol",
-];
+// TOPIC_KEYWORDS fjernet bevisst — hardkoding av IT/CS-fagbegreper ("dijkstra",
+// "avl", "polymorfisme" osv.) favoriserte IT-studenter i intent-deteksjon og
+// ekskluderte jus/medisin/pedagogikk/humaniora. StudyWise skal støtte alle
+// norske studier likestilt. Intent-ruting baseres nå utelukkende på universelle
+// handlingssignaler i CANVAS_FULL_KEYWORDS ("forklar", "hva er", "teori",
+// "definisjon", "konsept" osv.) + struktur-signaler i CANVAS_LIGHT_KEYWORDS.
+//
+// Konsekvens: Enkeltord-spørringer uten action-verb ("dijkstra?", "kontraktsbrudd?")
+// ruter nå til general_chat for ALLE fagfelt. Brukere som ønsker kurs-kontekst
+// kan bruke "forklar X" eller "hva er X" — som er naturlig uansett studie.
 
 /** Nøkkelord som indikerer at brukeren ber om en sammenligning */
 const COMPARISON_KEYWORDS = [
@@ -244,27 +244,35 @@ const CANVAS_LIGHT_KEYWORDS = [
   "submission", "schedule", "announcement", "upcoming",
 ];
 
-/** Vanlige skrivefeil/forkortelser og deres normaliserte form */
+/**
+ * Vanlige skrivefeil/forkortelser og deres normaliserte form.
+ *
+ * Designprinsipp: Kun UNIVERSELLE termer som gjelder alle norske studier.
+ * Domene-spesifikke substantiver (algoritmer, database, organisasjon osv.)
+ * hardkodes IKKE her — det ville gjort assistenten skjev mot enkelte fagfelt.
+ * Embedding-basert hybrid-søk håndterer fagspesifikke termer uansett.
+ *
+ * Entries er organisert i tematiske blokker:
+ * 1. Canvas UI-termer (kunngjøringer)
+ * 2. Universelt akademiske termer (bacheloroppgave, matematikk, statistikk,
+ *    sikkerhet — disse er så brede at de dekker de fleste studier)
+ * 3. Universelle action-verb (forklar)
+ * 4. Studiestrukturelle keywords (forelesning, kapittel, leksjon, modul,
+ *    tema, seksjon, sesjon) — cache-kritisk
+ * 5. Universelle triggere for full-doc-mode (oppsummer, sammendrag, utdyp)
+ * 6. Universelle akademiske substantiver (oppgave, prosjekt, analyse,
+ *    pensum, eksamen, teori, definisjon, eksempel, begrep)
+ */
 const SKRIVEFEIL_MAP: Record<string, string> = {
-  "algoritme": "algoritmer",
-  "algortimer": "algoritmer",
-  "algoritmner": "algoritmer",
-  "datastrkuturer": "datastrukturer",
-  "datstrukturer": "datastrukturer",
-  "datastruk": "datastrukturer",
+  // Canvas UI-termer
   "kungjøring": "kunngjøring",
   "kungjøringer": "kunngjøringer",
   "kungjøringene": "kunngjøringene",
   "kunngjøringane": "kunngjøringene",
+  // Universelle akademiske substantiver som brukes i alle studier
   "sikkerhe": "sikkerhet",
-  "nettvek": "nettverk",
   "matmatikk": "matematikk",
   "statistik": "statistikk",
-  "progammering": "programmering",
-  "programering": "programmering",
-  "masinlæring": "maskinlæring",
-  "operativssytem": "operativsystem",
-  "operativsytem": "operativsystem",
   "bachelro": "bacheloroppgave",
   "bacheloropp": "bacheloroppgave",
   // Vanlige skrivefeil for "forklar"
@@ -292,6 +300,102 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
   "kapitell": "kapittel",
   "kaptel": "kapittel",
   "kaptiel": "kapittel",
+  // Modul-keywords (kritisk for cache-key: uten normalisering mister vi
+  // moduleHint → buildChatResponseCacheKey returnerer null → ingen caching.
+  // Observert "eksjon 6" → null moduleHint selv når svaret var korrekt.
+  // Ordgrense-sjekk i normaliserSkrivefeil (lookbehind/lookahead på [a-zæøå])
+  // forhindrer at innslagene korrumperer riktig-stavede ord som "seksjon".
+  //
+  // Leksjon-varianter
+  "eksjon": "leksjon",
+  "eksjonen": "leksjonen",
+  "eksjoner": "leksjoner",
+  "lesjon": "leksjon",
+  "lesjonen": "leksjonen",
+  "leksjn": "leksjon",
+  // Modul-varianter
+  "mdul": "modul",
+  "moudl": "modul",
+  "modl": "modul",
+  "mdulen": "modulen",
+  "moudlen": "modulen",
+  // Tema-varianter
+  "teema": "tema",
+  "teemaet": "temaet",
+  "temet": "temaet",
+  // Seksjon-varianter (reelt modul-nivå, skiller seg fra "section" engelsk)
+  "seksion": "seksjon",
+  "seksjn": "seksjon",
+  "seksjonn": "seksjon",
+  "seksionen": "seksjonen",
+  // Sesjon-varianter
+  "sesjn": "sesjon",
+  "sesion": "sesjon",
+  "sesjonn": "sesjon",
+
+  // Trigger-ord for full-dokument-mode (uten match → chunk-mode → lengre
+  // svartid ved første gang og ingen cache-skriving for leksjon-gjennomgang).
+  //
+  // Oppsummer / oppsummere
+  "oppsumer": "oppsummer",
+  "oppsumere": "oppsummere",
+  "ppsummer": "oppsummer",
+  "opsummer": "oppsummer",
+  "ossummer": "oppsummer",
+  "oppsummerr": "oppsummer",
+  // Sammendrag
+  "samendrag": "sammendrag",
+  "sammendrg": "sammendrag",
+  "samendrg": "sammendrag",
+  // Utdyp / utdype
+  "udyp": "utdyp",
+  "utdp": "utdyp",
+  "utdpe": "utdype",
+  "udype": "utdype",
+  "utydp": "utdyp",
+
+  // Universelle akademiske substantiver (ikke domene-spesifikke) — gjelder
+  // på tvers av alle norske studier. Domene-substantiver (organisasjon,
+  // database, strategi, metode osv.) hardkodes bevisst IKKE her — embedding-
+  // basert hybrid-søk håndterer fagspesifikke termer, og å favorisere
+  // enkelte fagfelt ville gjøre assistenten skjev mot visse studieretninger.
+  //
+  // Oppgave / oppgaven / oppgaver (universell studieterm)
+  "oppave": "oppgave",
+  "oppgve": "oppgave",
+  "opgave": "oppgave",
+  "oppaven": "oppgaven",
+  "oppaver": "oppgaver",
+  // Prosjekt / prosjektet (universell — bacheloroppgave, semesteroppgave mm.)
+  "prosekt": "prosjekt",
+  "prosjket": "prosjekt",
+  "prsjekt": "prosjekt",
+  "prosektet": "prosjektet",
+  // Analyse / analyser (universell — brukes i alle fagfelt)
+  "anaylse": "analyse",
+  "analse": "analyse",
+  "anaylser": "analyser",
+  // Pensum (universell studieterm)
+  "pensm": "pensum",
+  "pesum": "pensum",
+  // Eksamen (universell)
+  "eksmen": "eksamen",
+  "eksaman": "eksamen",
+  "exsamen": "eksamen",
+  // Teori / teorier (universell akademisk)
+  "teroi": "teori",
+  "teroier": "teorier",
+  // Definisjon (universell akademisk)
+  "definsjon": "definisjon",
+  "definisjn": "definisjon",
+  "defnisjon": "definisjon",
+  // Eksempel / eksempler (universell)
+  "eksmpel": "eksempel",
+  "ekspel": "eksempel",
+  "eksmpler": "eksempler",
+  // Begrep / begreper (universell akademisk)
+  "begrp": "begrep",
+  "bgrep": "begrep",
 };
 
 // Pre-kompilerte regex-patterns for skrivefeil (unngår re-kompilering per kall)
@@ -468,12 +572,11 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
     const hasCourseOrFileHints =
       /\b(?:canvas|emne|kurs|modul|forelesning|leksjon|kapittel|fil|pdf|docx|pptx|xlsx)\b/i.test(msg) ||
       /\b[a-zæøå]{2,4}-?\d{2,4}\b/i.test(msg);
-    const hasTopicSignals = TOPIC_KEYWORDS.some((kw) => msg.includes(kw));
     const hasLightSignals = CANVAS_LIGHT_KEYWORDS.some((kw) => msg.includes(kw));
     const hasNonGenericFullSignals = CANVAS_FULL_KEYWORDS
       .filter((kw) => !["hva er", "what is", "hva betyr", "what means"].includes(kw))
       .some((kw) => msg.includes(kw));
-    return hasCourseOrFileHints || hasTopicSignals || hasLightSignals || hasNonGenericFullSignals;
+    return hasCourseOrFileHints || hasLightSignals || hasNonGenericFullSignals;
   };
 
   const isLikelyGeneralDefinition = (msg: string): boolean => {
@@ -498,16 +601,13 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
   }
 
   // Prioritet 1: Eksplisitte innholds-nøkkelord → canvas_full
+  // (universelle action-verb og innholdstyper: "forklar", "oppsummer",
+  //  "teori", "konsept", "definisjon", "leksjon", "pdf" osv.)
   for (const msg of recentUserMessages) {
     if (CANVAS_FULL_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_full";
   }
 
-  // Prioritet 2: Fagbegreper/emneord → canvas_full (brukeren spør om innhold)
-  for (const msg of recentUserMessages) {
-    if (TOPIC_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_full";
-  }
-
-  // Prioritet 3: Strukturelle Canvas-spørsmål (frister, oppgaver) → canvas_light
+  // Prioritet 2: Strukturelle Canvas-spørsmål (frister, oppgaver) → canvas_light
   for (const msg of recentUserMessages) {
     if (CANVAS_LIGHT_KEYWORDS.some((kw) => msg.includes(kw))) return "canvas_light";
   }
@@ -543,6 +643,32 @@ function chooseModelForFullDocumentMode(
     return { model: largestAvailableContextModel, reason: "largest_context" };
   }
   return { model: baseModel, reason: "base" };
+}
+
+/**
+ * Kapper innholdet i eldre historikk-meldinger slik at de ikke dominerer
+ * input-token-budsjettet i lange samtaler. De to siste meldingene beholdes
+ * uendret (siste bruker-input + forrige AI-svar er viktig referanse). Eldre
+ * meldinger kuttes til et head+tail-utdrag så modellen fortsatt ser essensen
+ * av samtalen uten å betale for fulle 4000-token-responser.
+ */
+function capHistoryMessageSizes<T extends { role: string; content: string }>(
+  messages: T[],
+): T[] {
+  const MAX_OLDER_CHARS = 1600; // ~400 tokens — nok for referanseformål
+  const HEAD_CHARS = 900;
+  const TAIL_CHARS = 600;
+  const SEPARATOR = "\n\n[…utdrag klippet…]\n\n";
+  const PROTECTED_TAIL = 2;
+
+  return messages.map((msg, idx) => {
+    const isProtected = idx >= messages.length - PROTECTED_TAIL;
+    if (isProtected) return msg;
+    if (msg.content.length <= MAX_OLDER_CHARS) return msg;
+    const head = msg.content.slice(0, HEAD_CHARS);
+    const tail = msg.content.slice(-TAIL_CHARS);
+    return { ...msg, content: `${head}${SEPARATOR}${tail}` };
+  });
 }
 
 const KB_SESSION_TTL = 3600;
@@ -1356,39 +1482,132 @@ function extractQueryTarget(message: string): TargetedQuery {
   const moduleHint = rawModuleHint && !GENERIC_MODULE_WORDS.has(rawModuleHint) ? rawModuleHint : null;
 
   // Vanlige emnefragmenter som kan dukke opp i Canvas-emnenavn
+  // Dekker ALLE fagfelt representert i norsk høyere utdanning — ikke bare IT/
+  // økonomi. Målet er at en jus-, medisin-, pedagogikk- eller humaniora-
+  // student skal få like god emne-matching som en IT-student.
   const courseKeywords = [
-    "algoritmer", "datastrukturer", "database", "strategi", "sikkerhet",
-    "python", "objekt", "web", "nettverk", "metode", "mobil",
+    // IT / teknologi / realfag
+    "algoritmer", "datastrukturer", "database", "sikkerhet",
+    "python", "objekt", "web", "nettverk", "mobil",
     "maskinlæring", "machine learning", "windows", "server",
-    "operativsystem", "matematikk", "statistikk", "økonomi", "ledelse",
-    "prosjekt", "bacheloroppgave", "kommunikasjon", "innovasjon",
-    "ikt", "informasjon", "system", "programmering", "java", "c#",
-    "embedded", "elektronikk", "fysikk", "diskret",
-    // Tillegg: vanlige norske fag og emnekode-prefikser
-    "analyse", "logistikk", "regnskap", "markedsføring", "juss", "etikk",
+    "operativsystem", "matematikk", "statistikk", "programmering",
+    "java", "c#", "embedded", "elektronikk", "fysikk", "diskret",
+    "informatikk", "informasjonsteknologi", "kybernetikk", "robotikk",
+    "ikt", "informasjon", "system",
+    // Økonomi / business / administrasjon
+    "økonomi", "ledelse", "strategi", "finans", "investering",
+    "revisjon", "skatt", "forretning", "innovasjon", "markedsføring",
+    "regnskap", "logistikk", "entreprenørskap", "personalledelse",
+    "prosjektledelse", "bedriftsøkonomi", "samfunnsøkonomi",
+    // Organisasjon / arbeidsliv
     "organisasjon", "organisering", "organisatorisk",
-    "sosiologi", "psykologi", "filosofi", "historie",
-    "biologi", "kjemi", "geografi", "engelsk", "norsk", "spansk", "tysk",
-    "finans", "investering", "revisjon", "skatt", "forretning",
-    // Engelske varianter
+    "arbeidsliv", "hr", "rekruttering",
+    // Jus
+    "juss", "rettsvitenskap", "strafferett", "sivilrett", "forvaltningsrett",
+    "arbeidsrett", "kontraktsrett", "skatterett", "menneskerettigheter",
+    "internasjonal rett", "rettsfilosofi",
+    // Medisin / helsefag
+    "medisin", "sykepleie", "sykepleier", "diagnose", "anatomi", "fysiologi",
+    "farmakologi", "farmasi", "patologi", "klinisk",
+    "folkehelse", "helsefag", "helse", "psykiatri",
+    "fysioterapi", "ergoterapi", "radiografi", "bioingeniør",
+    "tannpleie", "tannhelse", "paramedic", "akuttmedisin",
+    "helsesykepleier", "jordmor", "vernepleier",
+    // Psykologi
+    "psykologi", "kognitiv", "atferd", "nevropsykologi",
+    "utviklingspsykologi", "personlighet", "klinisk psykologi",
+    "sosialpsykologi", "arbeidspsykologi", "psykoterapi",
+    // Pedagogikk / utdanning
+    "pedagogikk", "didaktikk", "læring", "undervisning", "utdanning",
+    "klasseledelse", "spesialpedagogikk", "barnehagepedagogikk",
+    "grunnskolelærer", "lektor", "adjunkt",
+    // Sosialfag / samfunnsvitenskap
+    "sosiologi", "samfunnsfag", "samfunnsvitenskap", "statsvitenskap",
+    "sosialt arbeid", "barnevern", "sosialpolitikk",
+    "kriminologi", "antropologi", "demografi",
+    // Humaniora
+    "filosofi", "historie", "litteratur", "kulturhistorie",
+    "språkvitenskap", "lingvistikk", "arkeologi", "idéhistorie",
+    "engelsk", "norsk", "spansk", "tysk", "fransk", "italiensk",
+    "kunsthistorie", "musikkvitenskap",
+    // Religion / teologi
+    "religion", "teologi", "kristendom", "kirkehistorie",
+    "religionsvitenskap", "islam", "jødedom",
+    // Design / kunst / arkitektur
+    "design", "kunst", "arkitektur", "formgiving", "visuell",
+    "grafisk design", "industridesign", "interiørarkitektur",
+    "mote", "fotografi", "film",
+    // Naturvitenskap / biologi / miljø
+    "biologi", "kjemi", "geografi", "geologi", "økologi",
+    "miljø", "klima", "havforsk", "marinbiologi",
+    "molekylærbiologi", "mikrobiologi", "genetikk",
+    // Ingeniørfag / bygg / maritim
+    "bygg", "anlegg", "maskinteknikk", "elektro",
+    "materialteknologi", "energi", "maritim",
+    "petroleum", "mekatronikk", "produksjonsteknologi",
+    // Idrett / friluftsliv
+    "idrett", "friluftsliv", "kroppsøving", "trenerutdanning",
+    // Metodikk / vitenskapsteori (universelt akademisk)
+    "metode", "vitenskapsteori", "forskningsmetode",
+    // Tverrfaglige / felles
+    "analyse", "etikk", "prosjekt", "bacheloroppgave",
+    "kommunikasjon", "masteroppgave",
+    // Engelske varianter (internasjonale kursnavn)
     "algorithms", "data structures", "security", "object", "network",
-    "method", "mobile", "operating system", "mathematics", "statistics",
+    "mobile", "operating system", "mathematics", "statistics",
     "economics", "management", "project", "communication", "innovation",
     "programming", "electronics", "physics", "analysis", "logistics",
     "accounting", "marketing", "law", "ethics", "organization",
     "sociology", "psychology", "philosophy", "history", "biology",
     "chemistry", "geography", "finance", "investment", "business",
+    "medicine", "nursing", "anatomy", "physiology", "pharmacology",
+    "pathology", "clinical", "public health", "pediatrics",
+    "education", "pedagogy", "didactics", "learning",
+    "design", "architecture", "theology", "religion",
+    "linguistics", "literature", "archaeology", "anthropology",
+    "political science", "social work", "criminology",
+    "civil engineering", "mechanical engineering", "electrical engineering",
   ];
 
   // Vanlige emnekode-prefikser (2-4 bokstaver som ofte starter emnekoder)
+  // Dekker alle fagfelt på norske universiteter/høgskoler (USN, NTNU, UiO,
+  // UiB, UiT, OsloMet, HVL, NMH, NIH, BI, NHH, UiA, Nord, Høgskulen, etc.)
   const courseCodePrefixes = [
+    // IT / data / teknologi / realfag
     "is", "dat", "itk", "inf", "bsy", "ing", "te", "fo", "ikt", "alg",
-    "mat", "sta", "øko", "adm", "led", "pro", "kom", "inn", "sik", "net",
-    "mob", "web", "sys", "ele", "fys", "bio", "kje", "geo", "his", "fil",
+    "mat", "sta", "fys", "bio", "kje", "geo",
+    "net", "web", "sys", "ele", "mob", "rob", "cyb",
+    // Økonomi / administrasjon / business
+    "øko", "adm", "led", "pro", "kom", "inn", "sik",
+    "mrk", "fin", "reg", "log", "ent", "bed",
+    // Jus
+    "jur", "jus", "rett",
+    // Medisin / helse / farmasi
+    "med", "sy", "syk", "farm", "odont", "radio", "fysi", "ergo",
+    "hels", "vern", "jord", "par",
+    // Psykologi / pedagogikk / sosialfag
+    "psy", "psyk", "ped", "did", "spe", "bhg", "lær",
+    "sos", "bar", "krim",
+    // Humaniora / språk / religion
+    "his", "fil", "lit", "spr", "ark", "rel", "teo", "krist",
+    "nor", "eng", "spa", "tys", "fra", "ita", "lat",
+    "kult", "mus", "kun",
+    // Design / kunst / arkitektur / media
+    "des", "arc", "ark", "mot", "fot", "med",
+    // Sport / friluftsliv
+    "idr", "fri", "krø",
+    // Ingeniør / bygg / maritim / energi
+    "byg", "anl", "mas", "mat", "mar", "pet", "ene",
+    // Tverrfaglige
+    "bop",
   ];
 
   // Sammensatte ord: "algoritmer og datastrukturer" → matcher "algoritmer"
+  // Sammensatte kursnavn-fraser på tvers av alle fagfelt i norsk høyere
+  // utdanning. Venstre side er den fulle frasen brukeren kan skrive; høyre
+  // side er nøkkelord som matcher mot faktisk kursnavn.
   const compoundKeywords: Record<string, string> = {
+    // IT / teknologi
     "algoritmer og datastrukturer": "algoritmer",
     "algoritmer og data strukturer": "algoritmer",
     "algorithms and data structures": "algoritmer",
@@ -1405,6 +1624,78 @@ function extractQueryTarget(message: string): TargetedQuery {
     "discrete mathematics": "diskret",
     "operating system": "operativsystem",
     "operating systems": "operativsystem",
+    // Jus
+    "strafferett": "juss",
+    "sivilrett": "juss",
+    "forvaltningsrett": "juss",
+    "arbeidsrett": "juss",
+    "kontraktsrett": "juss",
+    "skatterett": "juss",
+    "menneskerettigheter": "juss",
+    "internasjonal rett": "juss",
+    "offentlig rett": "juss",
+    "privat rett": "juss",
+    "rettsvitenskap": "juss",
+    // Psykologi
+    "klinisk psykologi": "psykologi",
+    "kognitiv psykologi": "psykologi",
+    "sosialpsykologi": "psykologi",
+    "arbeidspsykologi": "psykologi",
+    "utviklingspsykologi": "psykologi",
+    "nevropsykologi": "psykologi",
+    // Medisin / helse
+    "klinisk medisin": "medisin",
+    "folkehelsevitenskap": "folkehelse",
+    "folkehelse og samfunnsmedisin": "folkehelse",
+    "klinisk sykepleie": "sykepleie",
+    "akuttmedisin": "medisin",
+    "allmennmedisin": "medisin",
+    // Pedagogikk / utdanning
+    "didaktikk og læring": "pedagogikk",
+    "spesialpedagogikk": "pedagogikk",
+    "barnehagepedagogikk": "pedagogikk",
+    "utdanningsvitenskap": "pedagogikk",
+    // Økonomi / business
+    "bedriftsøkonomi": "økonomi",
+    "samfunnsøkonomi": "økonomi",
+    "finansiell analyse": "finans",
+    "internasjonal økonomi": "økonomi",
+    "strategisk ledelse": "ledelse",
+    "organisasjon og ledelse": "ledelse",
+    "prosjektledelse": "ledelse",
+    "personalledelse": "ledelse",
+    // Sosialfag
+    "sosialt arbeid": "sosialfag",
+    "barnevern og familiearbeid": "barnevern",
+    // Humaniora
+    "nordisk litteratur": "litteratur",
+    "kulturhistorie": "historie",
+    "idéhistorie": "historie",
+    "kunsthistorie": "kunst",
+    "musikkvitenskap": "musikk",
+    // Religion / teologi
+    "religionsvitenskap": "religion",
+    "kirkehistorie": "teologi",
+    // Design / kunst
+    "grafisk design": "design",
+    "industridesign": "design",
+    "interiørarkitektur": "arkitektur",
+    // Naturvitenskap
+    "molekylærbiologi": "biologi",
+    "marinbiologi": "biologi",
+    "mikrobiologi": "biologi",
+    // Ingeniørfag
+    "mekanisk ingeniør": "maskinteknikk",
+    "elektroingeniør": "elektro",
+    "bygg og anlegg": "bygg",
+    // Idrett
+    "idrett og friluftsliv": "idrett",
+    // Metodikk (tverrfaglig)
+    "samfunnsvitenskapelig metode": "metode",
+    "kvalitativ metode": "metode",
+    "kvantitativ metode": "metode",
+    "forskningsmetode": "metode",
+    "vitenskapsteori": "metode",
   };
 
   // Fjern filnavn-mønstre fra søketeksten for å unngå falske positive
@@ -1445,12 +1736,22 @@ function extractQueryTarget(message: string): TargetedQuery {
     }
   }
 
-  // Sjekk emnekode-prefikser (f.eks. "dat", "inf") som selvstendige ord
+  // Sjekk emnekode-prefikser (f.eks. "dat102", "inf2010", "DAT-2000") som
+  // følges av tall eller bindestrek+tall. Krav om sifferkombinasjon er
+  // bevisst: mange prefikser (inn, med, pro, led, sos, his, nor, eng osv.)
+  // er også vanlige norske ord eller preposisjoner, og å fange dem alene
+  // ga false-positive courseHints som "inn" fra "hente inn" eller "med"
+  // fra "lær med eksempler". Kravet om `\d{2,4}` etter prefiks sikrer at
+  // vi kun matcher faktiske emnekoder.
   if (!courseHint) {
     for (const prefix of courseCodePrefixes) {
-      // Match som helt ord, ikke del av et annet ord
+      // Match prefiks umiddelbart etterfulgt av 2-4 siffer, med valgfri
+      // bindestrek eller mellomrom mellom. Eksempler som matcher:
+      //   "DAT2000", "dat-102", "INF 2010", "BSY-2000"
+      // Eksempler som IKKE matcher lenger:
+      //   "inn", "med DP", "ped", "pro", "led"
       // eslint-disable-next-line security/detect-non-literal-regexp -- prefix er fra konstant liste, ikke brukerinput
-      const prefixRegex = new RegExp(`\\b${prefix}\\b`, "i");
+      const prefixRegex = new RegExp(`\\b${prefix}[\\s-]?\\d{2,4}\\b`, "i");
       if (prefixRegex.test(cleanedForCourse)) {
         courseHint = prefix;
         logger.info({ courseHint, pattern: "codePrefix" }, "Ekstraherte emnekode-prefiks fra melding");
@@ -1931,7 +2232,10 @@ Never guess or invent a name from email, username, or other profile fields.
 
     // SSE-headere og keepalive tidlig slik at proxy/klient ikke lukker under lang kontekstlasting (f.eks. PDF-oppsummering)
     if (!res.headersSent) {
-      const sse = setupSSE(req, res, 160_000); // maks timeout (full_document=150s) + margin
+      // Må ligge over høyeste baseTimeoutMs lenger nede (deep full_document=240s)
+      // pluss margin for kontekstlasting/embedding/rerank. Ellers kuttes dype
+      // oppsummeringer midt i streamen før Claude er ferdig.
+      const sse = setupSSE(req, res, 260_000);
       sseCleanup = sse.clearKeepalive;
       sseStarted = true;
     }
@@ -1943,6 +2247,20 @@ Never guess or invent a name from email, username, or other profile fields.
     let fullDocumentStrictPrefix = "";
     let traceCourseIdHint: number | null = null;
     let traceCourseHint: string | null = null;
+    let traceModuleHint: string | null = null;
+    let traceFileHint: string | null = null;
+    let fullDocumentTriggerWord: string | null = null;
+    // Eksponeres fra context-loader og brukes av response-cache for
+    // deterministisk nøkkel. Lagres her for tilgang etter Claude-generering.
+    let fullDocumentPrimaryFileId: number | null = null;
+    // Speilet verdi av persistentPrimaryCourseId for bruk i response-cache
+    // (original variabel er scoped til try-blokken der den settes).
+    let tracePersistentPrimaryCourseId: string | null = null;
+    // Flagg som forhindrer response-cache når cross-course-guard trigget —
+    // svaret da er uansett "beklager, spør om rett kurs"-stil og kurs-
+    // konteksten er i konflikt med brukerens primær. Cache ville fått
+    // korrupte treff.
+    let crossCourseGuardTriggered = false;
     let contextKilder: import("common/ki").KIChatSource[] | undefined;
     let kbKilder: import("common/ki").KIChatSource[] | undefined;
     let liveUrlKilder: import("common/ki").KIChatSource[] | undefined;
@@ -2024,10 +2342,44 @@ Never guess or invent a name from email, username, or other profile fields.
       //     noe allerede sagt.
       const REFERENTIAL_PATTERN =
         /\b(begge|disse|dem|de to|den første|den andre|den ene|those|these|both|svaret ditt|forrige svar|det du sa|det du skrev|utdype svaret|utdyp svaret|fortsett|forklar mer|gi mer detaljer|mer om dette|mer om det|kan du utdype)\b/i;
+      // Ny-artefakt-mønster: når brukeren ber om et NYTT output (quiz,
+      // oppgaver, flashcards, eksamensoppgaver, test), er det IKKE en
+      // oppfølging av tidligere analyse — selv om meldingen inneholder
+      // referensielle pronomener som "disse"/"dem".
+      //
+      // Bug-scenario dette forhindrer: etter "Leksjon 8 ta denne next"
+      // spør brukeren "tidligere eksamensoppgavene kan du hjelpe med disse
+      // og lage oppgaver om dem?". "disse" og "dem" refererer til eksamens-
+      // oppgavene AI nevnte i sitt forrige svar — IKKE til Leksjon 8. Uten
+      // denne sjekken arver systemet Leksjon 8-hint og serverer cached
+      // Leksjon 8-oppsummering i stedet for å generere faktiske oppgaver.
+      const NEW_ARTIFACT_PATTERN =
+        /\b(lag(?:e|et|en)?\s+(?:oppgav|quiz|test|spørsmål|flashcard|eksempel)|generer|eksamensoppgav|test meg|spør meg|hjelp.{0,20}(?:lag|generer|lage))\b/i;
       const currentIsReferential = REFERENTIAL_PATTERN.test(lastUserMsg);
+      const currentRequestsNewArtifact = NEW_ARTIFACT_PATTERN.test(lastUserMsg);
+      // Ekstraher current-target én gang opp front — brukes både til å sjekke
+      // om current HAR sine egne konkrete hint (i så fall skal vi IKKE arve
+      // fra tidligere melding), og som utgangspunkt for `target` nedstrøms.
+      //
+      // Bug-scenario dette forhindrer: bruker spør "kapittel 16–18 kan du
+      // oppsummere disse?" etter en tidligere melding om "kapittel 5 og 7".
+      // Uten denne sjekken matcher "disse" REFERENTIAL_PATTERN, systemet
+      // arver "kapittel 5 og 7", og moduleHint låses til feil kapittel —
+      // selv om current-meldingen selv inneholder "kapittel 16–18". Vi skal
+      // kun arve når current-meldingen er PURT referensiell (bare "disse",
+      // "begge", "fortsett" osv. uten eget konkret hint).
+      const currentTarget = extractQueryTarget(lastUserMsg);
+      const currentHasOwnConcreteHint = !!(
+        currentTarget.moduleHint || currentTarget.fileHint
+      );
       let effectiveMsgForTargeting = lastUserMsg;
+      let target = currentTarget;
       let inheritedFromPrior: string | null = null;
-      if (currentIsReferential) {
+      if (
+        currentIsReferential &&
+        !currentHasOwnConcreteHint &&
+        !currentRequestsNewArtifact
+      ) {
         const priorUserMessages = messages
           .filter((m: { role: string }) => m.role === "user")
           .slice(0, -1) // alt unntatt nåværende
@@ -2049,6 +2401,7 @@ Never guess or invent a name from email, username, or other profile fields.
         }
         if (inheritedFromPrior) {
           effectiveMsgForTargeting = `${inheritedFromPrior} ${lastUserMsg}`;
+          target = extractQueryTarget(effectiveMsgForTargeting);
           logger.info(
             {
               currentPreview: lastUserMsg.slice(0, 80),
@@ -2060,8 +2413,6 @@ Never guess or invent a name from email, username, or other profile fields.
       }
       // Variabel eksponert for evt. fremtidig bruk; ikke referert her.
       void inheritedFromPrior;
-
-      let target = extractQueryTarget(effectiveMsgForTargeting);
       const isLikelyFollowUp = isLikelyFollowUpQuestion(lastUserMsg);
 
       // ─── Session-locked courseHint ───
@@ -2076,8 +2427,31 @@ Never guess or invent a name from email, username, or other profile fields.
       const courseHintLockKey = chatScopedKey(req.user.id, chatLockId, "locked-course-hint");
       const SESSION_COURSEHINT_TTL = 3600; // 1 time — matcher typisk chat-sesjon
 
+      // Persistent kurs-lås på selve chat-dokumentet. Redis-låsen er ephemeral (1t TTL)
+      // og overlever ikke serveromstart eller lange pauser, så vi lagrer også primær-
+      // kurset på ChatHistory. Dette er siste forsvarslinje mot cross-course-lekkasje
+      // når brukeren spør tvetydige oppfølginger som "modul 7" i en etablert samtale.
+      const chatObjectIdRegex = /^[0-9a-fA-F]{24}$/;
+      const chatIdIsObjectId = chatObjectIdRegex.test(chatLockId);
+      let persistentPrimaryCourseId: string | null = null;
+      let persistentPrimaryCourseHint: string | null = null;
+      if (chatIdIsObjectId) {
+        const chatDoc = await ChatHistory.findOne({ _id: chatLockId, user: req.user.id })
+          .select("primaryCourseId primaryCourseHint")
+          .lean();
+        if (chatDoc) {
+          persistentPrimaryCourseId = chatDoc.primaryCourseId ?? null;
+          persistentPrimaryCourseHint = chatDoc.primaryCourseHint
+            ? sanitizeCourseHintValue(chatDoc.primaryCourseHint)
+            : null;
+        }
+      }
+
       const lockedCourseHintRaw = await getCache(courseHintLockKey);
-      const lockedCourseHint = lockedCourseHintRaw ? sanitizeCourseHintValue(lockedCourseHintRaw) : null;
+      const redisLockedCourseHint = lockedCourseHintRaw ? sanitizeCourseHintValue(lockedCourseHintRaw) : null;
+      // Redis-låsen går foran persistert primær når begge finnes — Redis gjenspeiler
+      // siste aktive valg i sesjonen, mens persistert primær er satt første gang.
+      const lockedCourseHint = redisLockedCourseHint ?? persistentPrimaryCourseHint;
       const sanitizedTargetHint = target.courseHint ? sanitizeCourseHintValue(target.courseHint) : null;
       const hasOverride = hasExplicitCourseOverride(lastUserMsg);
       const shouldReuseLockedCourseHint = isLikelyFollowUp
@@ -2094,6 +2468,15 @@ Never guess or invent a name from email, username, or other profile fields.
           "courseHint låst (eksplisitt override)",
         );
       } else if (lockedCourseHint) {
+        // Refresh Redis-låsen når den kun kom fra persistert primær — reduserer DB-hits
+        // for oppfølgende spørsmål i samme sesjon.
+        if (redisLockedCourseHint === null && persistentPrimaryCourseHint) {
+          await setCache(courseHintLockKey, persistentPrimaryCourseHint, SESSION_COURSEHINT_TTL);
+          logger.info(
+            { courseHint: persistentPrimaryCourseHint, source: "persistentPrimary" },
+            "Redis-lås refreshet fra persistert primær-kurs",
+          );
+        }
         // Bruk eksisterende låst courseHint kun når meldingen ikke gir ny eksplisitt courseHint.
         // Dette hindrer at sesjonslås overstyrer ny emnekode som 6105N.
         if (!sanitizedTargetHint && !hasBaseSlashCommand && !mentionsKnowledgeBase) {
@@ -2101,10 +2484,23 @@ Never guess or invent a name from email, username, or other profile fields.
           // Tidligere dropp ved "bredt spørsmål" førte til at oppfølginger som
           // "forklar hva forelesningene har gått ut på?" mistet kurskonteksten.
           target.courseHint = lockedCourseHint;
+          // Prefill courseIdHint fra persistert primær når tilgjengelig — låste
+          // courseHint-verdier er aggressivt saniterte (ingen mellomrom, ingen
+          // æøå), og `resolveTargetAgainstKnownCourses` klarer ikke alltid å
+          // matche dem tilbake mot emnekatalogen. Uten prefill havner vi i
+          // fallback-modus med tom kurskontekst når brukeren stiller en
+          // oppfølging uten eksplisitt kursnavn (observert: "utdyp dilemmaer"
+          // i en ORL1000-samtale gav contextLength: 0).
+          if (persistentPrimaryCourseId && target.courseIdHint == null) {
+            const parsedId = Number(persistentPrimaryCourseId);
+            if (Number.isFinite(parsedId)) target.courseIdHint = parsedId;
+          }
           logger.info(
             {
               courseHint: target.courseHint,
+              courseIdHint: target.courseIdHint,
               fromLock: true,
+              fromPersistent: redisLockedCourseHint === null,
               reason: shouldReuseLockedCourseHint ? "followUpMarker" : "noNewCourseRef",
             },
             "courseHint arvet fra sesjonslås",
@@ -2118,9 +2514,25 @@ Never guess or invent a name from email, username, or other profile fields.
           );
         } else if (sanitizedTargetHint !== lockedCourseHint && !hasBaseSlashCommand && !mentionsKnowledgeBase) {
           target.courseHint = lockedCourseHint;
-          target.courseIdHint = null; // Nullstill — lar resolveTargetAgainstKnownCourses løse riktig kurs
+          // Prefill courseIdHint fra persistert primær — ellers trigger
+          // resolveModuleHintToCourse og kan hoppe til feil kurs (f.eks.
+          // ORL1000 "leksjon 8 (ledelse)" → fant "Leksjon 8: Graph Basics"
+          // i 6124-1 Algoritmer). Lås-hinten er aggressivt sanitert og
+          // matcher ikke alltid katalogen, så en tom courseIdHint fører
+          // til katalogtraversering som ignorerer låsens faktiske kurs.
+          if (persistentPrimaryCourseId) {
+            const parsedId = Number(persistentPrimaryCourseId);
+            target.courseIdHint = Number.isFinite(parsedId) ? parsedId : null;
+          } else {
+            target.courseIdHint = null;
+          }
           logger.info(
-            { courseHint: target.courseHint, fromLock: true, ignoredHint: sanitizedTargetHint },
+            {
+              courseHint: target.courseHint,
+              courseIdHint: target.courseIdHint,
+              fromLock: true,
+              ignoredHint: sanitizedTargetHint,
+            },
             "courseHint beholdt fra sesjonslås (ingen eksplisitt override)",
           );
         } else {
@@ -2188,6 +2600,52 @@ Never guess or invent a name from email, username, or other profile fields.
 
       traceCourseIdHint = target.courseIdHint;
       traceCourseHint = target.courseHint;
+      traceModuleHint = target.moduleHint;
+      traceFileHint = target.fileHint;
+      tracePersistentPrimaryCourseId = persistentPrimaryCourseId;
+
+      // Persistér primær-kurs på ChatHistory første gang vi har løst det. Dette er
+      // siste forsvarslinje mot at en tvetydig oppfølging ("modul 7") henter innhold
+      // fra feil kurs etter at Redis-låsen har utløpt. Eksplisitt override oppdaterer
+      // også den persistente primæren slik at senere oppfølginger følger det nye kurset.
+      if (chatIdIsObjectId && target.courseIdHint != null) {
+        const currentCourseIdStr = String(target.courseIdHint);
+        const currentHintStr = target.courseHint ? sanitizeCourseHintValue(target.courseHint) : null;
+        const hasExplicitOverrideNow = hasExplicitCourseOverride(lastUserMsg);
+        const shouldPersist =
+          persistentPrimaryCourseId === null
+          || (hasExplicitOverrideNow && persistentPrimaryCourseId !== currentCourseIdStr);
+        if (shouldPersist) {
+          try {
+            await ChatHistory.updateOne(
+              { _id: chatLockId, user: req.user.id },
+              {
+                $set: {
+                  primaryCourseId: currentCourseIdStr,
+                  ...(currentHintStr ? { primaryCourseHint: currentHintStr } : {}),
+                },
+              },
+            );
+            persistentPrimaryCourseId = currentCourseIdStr;
+            tracePersistentPrimaryCourseId = currentCourseIdStr;
+            if (currentHintStr) persistentPrimaryCourseHint = currentHintStr;
+            logger.info(
+              {
+                chatId: chatLockId,
+                primaryCourseId: currentCourseIdStr,
+                primaryCourseHint: currentHintStr,
+                reason: hasExplicitOverrideNow ? "explicitOverride" : "firstResolve",
+              },
+              "Persistert primaryCourseId på chat-dokument",
+            );
+          } catch (err) {
+            logger.warn(
+              { err, chatId: chatLockId },
+              "Kunne ikke persistere primaryCourseId — fortsetter uten",
+            );
+          }
+        }
+      }
 
       logger.info(
         { intent, target, messagePreview: lastUserMsg.substring(0, 100) },
@@ -2320,8 +2778,38 @@ Never guess or invent a name from email, username, or other profile fields.
       canvasKontekst = contextResult.kontekst;
       hasCanvasData = contextResult.hasCanvasData;
       fullDocumentModeActive = !!contextResult.fullDocumentMode;
+      fullDocumentTriggerWord = contextResult.fullDocumentTriggerWord ?? null;
+      fullDocumentPrimaryFileId = contextResult.primaryFileId ?? null;
       contextKilder = contextResult.kilder && contextResult.kilder.length > 0 ? contextResult.kilder : undefined;
       syncJustWaited = !!contextResult.syncWaited;
+
+      // Cross-course-guard: hvis samtalens primær-kurs er satt og retrieval
+      // returnerte innhold fra et ANNET kurs, må modellen varsle brukeren
+      // eksplisitt — aldri skjule at kilden er fra feil kurs. Dette er sist-
+      // linje-forsvar mot lekkasjen brukeren observerte da "modul 7" i en
+      // MET1020-samtale ble besvart med 6105N-innhold.
+      if (persistentPrimaryCourseId && contextKilder && contextKilder.length > 0) {
+        const guard = evaluateCrossCourseGuard({
+          primaryCourseId: persistentPrimaryCourseId,
+          primaryCourseHint: persistentPrimaryCourseHint,
+          kilder: contextKilder,
+          userExplicitlyReferencedOtherCourse: hasExplicitCourseOverride(lastUserMsg),
+        });
+        if (guard.triggered && guard.promptBlock) {
+          enhancedSystemPrompt += guard.promptBlock;
+          crossCourseGuardTriggered = true;
+          logger.warn(
+            {
+              chatId: chatLockId,
+              primaryCourseId: persistentPrimaryCourseId,
+              foreignCourseIds: guard.foreignCourseIds,
+              inScopeCount: guard.inScopeCount,
+              outOfScopeCount: guard.outOfScopeCount,
+            },
+            "Cross-course retrieval oppdaget — injiserte guard i system-prompt",
+          );
+        }
+      }
 
       // Hvis Canvas-sync akkurat måtte trigges for dette emnet, kan filinnhold
       // være ufullstendig. Vi instruerer modellen om å være tydelig på årsaken
@@ -2398,10 +2886,42 @@ even if similar content was covered before — the student may have forgotten,
 want a different angle, or simply want it repeated. Silently provide the
 summary; do not comment on having done it before.
 
-### Source-match check — HIGHEST PRIORITY
-Before writing your answer, verify that the loaded document actually contains what the student asked for:
-- If the student asked about a specific chapter/module/topic (e.g. "kap 1", "kapittel 3", "forelesning 4"), check the actual filename and content of the document. If the file clearly covers a different chapter or topic than what was requested, DO NOT summarize it as if it were the requested chapter.
-- Instead, tell the student explicitly: "Jeg fant ikke kapittel X i materialet, men jeg har funnet [filnavn] som dekker [faktisk innhold]. Vil du ha en oppsummering av det i stedet?"
+### Multi-chapter files — LOCATE THE REQUESTED CHAPTER INSIDE THE FILE
+Many lecture files cover MULTIPLE chapters in one PowerPoint/PDF. The
+filename may state this explicitly: "Kapittel 5 og 7 - intervju.pptx",
+"Kapittel 1 og 2", "Lesson 3-5", etc. When the filename contains multiple
+chapter numbers OR separators like "og", "and", "-", "to" between numbers,
+the file covers ALL the chapters listed in its name. The content for each
+chapter is somewhere in the extracted text — often in order, but not always.
+
+Procedure when the student asks about one specific chapter from a multi-
+chapter file:
+1. Scan the ENTIRE injected text before concluding anything
+2. Look for headings, slide titles, chapter markers ("Kapittel N", slide-
+   dividere, tematiske skift)
+3. Identify the portion covering the chapter the student asked about
+4. Write the summary from THAT portion
+
+If you genuinely cannot find the requested chapter in the injected text
+(e.g., the extracted content is truncated and stops before that chapter),
+structure your response like this:
+- Start with "Basert på [filnavn] fra [kurs]:" as normal
+- Write a substantive partial summary of whatever content IS in the file
+  that relates to the requested chapter (even slide titles and fragments
+  are useful if that's all you have)
+- End with ONE sentence noting that some content may be missing from the
+  extract, and suggesting the student can upload the file directly for a
+  fuller analysis
+- Do NOT make "content unavailable" the main content of the response —
+  that frustrates the student when you clearly have some information
+
+### Source-match check — SINGLE-chapter files only
+This check applies ONLY when the filename unambiguously points to a single
+chapter/topic (e.g. "Forelesning4.pdf", "Kapittel 3 - Problemstilling"):
+- If the filename clearly shows a different chapter than what the student
+  asked for, tell the student explicitly (in Norwegian Bokmål): "Jeg fant
+  ikke kapittel X i materialet, men jeg har funnet [filnavn] som dekker
+  [faktisk innhold]. Vil du ha en oppsummering av det i stedet?"
 - NEVER write a plausible-sounding summary of a chapter the document does not contain. Fabricating source citations is a critical failure.
 
 Rules:
@@ -2411,6 +2931,48 @@ Rules:
 - Never write sections like 'Praktisk datainnsamling (frå obligoppgåva)' or similar unless that exact heading exists in the document
 - If citing a source, always use the real filename provided in the context — never invent a plausible-sounding chapter title
 - At the end, write one sentence listing other chapters or topics in this file the student can ask about next
+
+### Depth expectations — GO DEEP, DON'T JUST HEADLINE
+When a student asks to summarize a lecture/chapter/leksjon, they want a
+pedagogical walkthrough they can study from — NOT a bullet-point table of
+contents.
+
+**Minimum length**: aim for **1500-2500 words** (≈ 7000-12000 characters)
+whenever the source has enough material to support it. If the source is
+~8000 chars or more, your summary MUST be at least 7000 chars. Only go
+shorter than 5000 chars when the source itself is genuinely brief.
+
+If you previously produced a compact summary of this same chapter in the
+conversation, DO NOT replay the same shape. The student asking again
+signals they want MORE depth this time — expand with concrete examples,
+term definitions, and elaboration on every topic.
+
+For EVERY main topic in the document:
+- A clear heading (## or ###)
+- **At least 2 full paragraphs** of explanatory prose (not bullet lists
+  alone). Explain the concept, its motivation, and how it applies.
+- Every concrete example from the source (tables, cases, quotes, names)
+  must appear in your summary. Do not omit the bryllup-example, the
+  Snorre-example, the teachers-seat-front example etc. if they are in
+  the source.
+- Inline definitions of all key terms that appear in the document
+- When the document contains a comparison (deduktiv vs. induktiv,
+  kvalitativ vs. kvantitativ, naturvitenskap vs. samfunnsvitenskap,
+  primær- vs. sekundærkilder), render it as a Markdown table AND a
+  short prose paragraph after the table — never table alone.
+
+Explicitly DO NOT:
+- Compress a multi-slide distinction (e.g. "begrep" vs. "term") into one
+  line. If the source spends two slides on it, you need at least a full
+  paragraph per side
+- Skip quotes or memorable phrases from the source ("Kulturer spiser
+  strategi til frokost", "Ver grei! — Søk sanninga! — Ta ansvar!", etc.)
+- Use a flat bullet list where prose would teach better
+- Claim to have covered everything by only listing headings — the
+  student needs the substance, not the outline
+
+End with a short "Hva kan du også spørre om?"-linje that lists other
+chapters/topics in this course material.
 `;
         logger.info(
           { userId: req.user.id },
@@ -2439,11 +3001,59 @@ Rules:
     // Dynamisk timeout og max_tokens basert på intent.
     // For tunge general-chat forespørsler (f.eks. live URL med stor PDF-kontekst)
     // øker vi timeout for å unngå falsk CHAT_TIMEOUT.
-    const baseMaxTokens = fullDocumentModeActive ? 6000 : intent === "canvas_full" ? 4000 : intent === "canvas_light" ? 2000 : 1400;
-    // Full dokument-mode laster opp til ~70k tegn kontekst og kan generere flere tusen output-tokens —
-    // 60 s er for stramt (Anthropic bruker typisk 60-90 s). Gi den 150 s.
+    //
+    // - Full dokument-mode, fordypning ("utdyp", "mer om", "gå igjennom",
+    //   "ta denne"): 10000 tokens (≈ 25-30k tegn). Økt fra 8000 etter
+    //   telemetri-fanget truncation (TRUNCATION-WARN) på Algoritmer Leksjon
+    //   10 "Efficient Algorithm Design" — dense leksjon med 6 tema (BFS,
+    //   DP, Knapsack, Backtracking, Bucket/Radix Sort, kompleksitet) traff
+    //   eksakt 8000-cap. Tidligere deep-tester brukte 5770-7077 tokens og
+    //   var trygge; 10000 gir ~25% ekstra buffer for dense walkthroughs.
+    //   Kostnadseffekt begrenset: kun deep-triggere, som cachees i 24 t
+    //   etter første kald-generering.
+    // - Full dokument-mode, standard ("oppsummer", "sammendrag"): 7000
+    //   tokens (≈ 17-21k tegn). Økt fra 6000 etter telemetri-fanget
+    //   truncation på "oppsummere kapittel 16-18" — flerkapittel-
+    //   oppsummeringer (21k+ tegn PDF som dekker 3 kapitler) traff eksakt
+    //   6000-cap. Enkelkapittel-oppsummeringer (Leksjon 4 2949, Leksjon 8
+    //   5518, Kapittel 4 5301) var trygge innenfor 6000; 7000 gir buffer
+    //   for multi-kapittel-scope uten å eskalere til deep-kost.
+    // - Canvas_full chunk-mode: 6000 tokens. "Leksjon X"-spørsmål som ikke
+    //   treffer full-dokument-trigger må likevel kunne gi fyldig pensum-
+    //   dekning (observert ORL1000 Leksjon 6 kuttet mid-setning på 4000-cap).
+    // - Canvas_light / general_chat: lavere cap siden dette er metadata/
+    //   korte oppfølginger.
+    //
+    // classifyTriggerWord er delt med cache-nøkkel-bygging for å unngå at
+    // token-cap og cache-klasse driver fra hverandre.
+    const isDeepTriggerWord = fullDocumentTriggerWord
+      ? classifyTriggerWord(fullDocumentTriggerWord) === "deep"
+      : false;
+    // Multi-fil-summering: når full_document-mode har lastet 2+ filer
+    // (f.eks. "oppsummere leksjon 4 og 5"), trenger svaret tilsvarende mer
+    // plass selv om trigger-ordet er "standard". Observert truncation
+    // (finishReason=length, outputTokens=7000) på ORL1000 "leksjon 4 og 5"
+    // der både Forelesning426.pdf og Forelesning526.pdf ble injisert
+    // (totalContextChars 19048) — modellen hadde bare 7000 tokens å levere
+    // to komplette leksjons-sammendrag i, og kuttet midt i leksjon 5.
+    // Bruker samme cap som deep-triggere siden arbeidsmengden er den samme.
+    const multiFileFullDoc =
+      fullDocumentModeActive
+      && Array.isArray(contextKilder)
+      && contextKilder.length >= 2;
+    const useDeepBudget = isDeepTriggerWord || multiFileFullDoc;
+    const baseMaxTokens = fullDocumentModeActive
+      ? (useDeepBudget ? 10000 : 7000)
+      : intent === "canvas_full"
+        ? 6000
+        : intent === "canvas_light"
+          ? 2000
+          : 1400;
+    // Full dokument-mode timeout: deep-cap 10000 tokens kan ta ~180-210 s
+    // på Sonnet 4.6 (lineær med output). 240 s gir buffer uten å risikere
+    // falske CHAT_TIMEOUT. Standard-cap 7000 tar ~135-150 s — 200 s holder.
     const baseTimeoutMs = fullDocumentModeActive
-      ? 150000
+      ? (useDeepBudget ? 240000 : 200000)
       : intent === "canvas_full"
         ? 120000
         : intent === "canvas_light"
@@ -2465,7 +3075,7 @@ Rules:
       MIN_HISTORY_TOKENS,
     );
     const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
-    const trimmedMessages = tokenTrimmedMessages.slice(-8);
+    const trimmedMessages = capHistoryMessageSizes(tokenTrimmedMessages.slice(-8));
 
     // ——— Studiekontekst fra tidligere samtaler ———
     const studyContextCourseId = hasCanvasData && canvasKontekst.length > 0
@@ -2671,17 +3281,22 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     const fullMessages: Array<{
       role: "system" | "user" | "assistant";
       content: string;
-      cache_control?: { type: "ephemeral" };
+      cache_control?: { type: "ephemeral"; ttl?: "5m" | "1h" };
     }> = [
-      { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral" } },
+      // 1-time TTL på systemprompt + Canvas-kontekst: studenter stiller ofte
+      // flere oppfølgingsspørsmål om samme leksjon over en halvtime eller mer.
+      // Standard 5-min TTL utløper ofte midt i en samtale og tvinger full re-
+      // prosessering av ~25k tokens. 1h-cache koster marginalt mer per skriv
+      // men sparer 5-15 sek per oppfølgning og er dermed netto-gevinst.
+      { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral", ttl: "1h" } },
       ...(hasCanvasData
-        ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const } }]
+        ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }]
         : []),
       ...(kbKontekst
-        ? [{ role: "system" as const, content: kbKontekst, cache_control: { type: "ephemeral" as const } }]
+        ? [{ role: "system" as const, content: kbKontekst, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }]
         : []),
       ...(liveUrlKontekst
-        ? [{ role: "system" as const, content: liveUrlKontekst, cache_control: { type: "ephemeral" as const } }]
+        ? [{ role: "system" as const, content: liveUrlKontekst, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }]
         : []),
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
@@ -2703,6 +3318,27 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         kbKontekst.length >= 6000 ||
         (hasDirectUrlInLastMessage && asksForDeepSummary)
       );
+    // Korte oppfølgingsspørsmål på låst kurskontekst ("kan du utdype",
+    // "forklar mer", "gi et eksempel") trenger sjelden Sonnet-dyp analyse —
+    // Haiku 4.5 svarer ~3x raskere med tilsvarende kvalitet når konteksten
+    // allerede er lastet. Full-dokument-modus beskyttes fortsatt av Sonnet
+    // siden det er der kvalitetsregresjon er mest merkbar.
+    //
+    // MEN: når meldingen inneholder en konkret moduleHint eller fileHint
+    // (f.eks. "leksjon 6 (makt og beslutninger)"), er dette en ny leksjon-
+    // forespørsel — ikke en oppfølgning. Slike spørsmål skal Sonnet svare på
+    // for å unngå "vagt svar" (observert ORL1000 Leksjon 6 → Haiku gav kun
+    // 1695 tokens med overflatisk dekning).
+    const hasModuleOrFileReference = Boolean(
+      traceModuleHint || traceFileHint,
+    );
+    const shouldDowngradeShortFollowUpToHaiku =
+      intent === "canvas_full" &&
+      !fullDocumentModeActive &&
+      !asksForDeepSummary &&
+      !hasModuleOrFileReference &&
+      lastUserMessageForKB.trim().length <= 80 &&
+      trimmedMessages.some((m) => m.role === "assistant");
     // Hvis Canvas-sync nettopp ble trigget (cold data) bytter vi til Haiku
     // for å unngå lang ventetid på første spørsmål om et uindeksert emne.
     // Neste spørsmål vil treffe warm cache og få full Sonnet-kvalitet.
@@ -2712,13 +3348,17 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         ? "claude-sonnet-4-6"
         : syncJustWaited && !fullDocumentModeActive
           ? "claude-haiku-4-5"
-          : fullDocumentModelSelection.model;
+          : shouldDowngradeShortFollowUpToHaiku
+            ? "claude-haiku-4-5"
+            : fullDocumentModelSelection.model;
     const selectedModelReason = requestedModel
       ? "user_selected"
       : shouldEscalateGeneralChatToSonnet
         ? "sonnet_general_heavy"
       : syncJustWaited && !fullDocumentModeActive
         ? "haiku_sync_waited"
+      : shouldDowngradeShortFollowUpToHaiku
+        ? "haiku_short_followup"
       : selectedModel === "claude-haiku-4-5"
         ? "haiku"
         : "sonnet";
@@ -2773,6 +3413,59 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       "Sender til AI-tjenesten",
     );
 
+    // Response-cache lookup: deterministiske leksjon-spørringer kan serveres
+    // fra Redis på ~2 sek i stedet for 60-140 sek. Cachen bygges først når
+    // vi har sett et vellykket Claude-svar, så første spørring om en leksjon
+    // tar normal tid — påfølgende er instant.
+    const cacheInput = fullDocumentModeActive && !crossCourseGuardTriggered
+      ? {
+          primaryCourseId:
+            tracePersistentPrimaryCourseId ??
+            (traceCourseIdHint != null ? String(traceCourseIdHint) : ""),
+          primaryFileId: fullDocumentPrimaryFileId ?? 0,
+          triggerWord: fullDocumentTriggerWord,
+          moduleHint: traceModuleHint,
+          fileHint: traceFileHint,
+        }
+      : null;
+    const responseCacheKey = cacheInput ? buildChatResponseCacheKey(cacheInput) : null;
+    if (responseCacheKey) {
+      const cached = await getCachedChatResponse(responseCacheKey);
+      if (cached) {
+        logger.info(
+          {
+            responseCacheKey,
+            responseLength: cached.response.length,
+            cachedAt: cached.generatedAt,
+            model: cached.model,
+          },
+          "Chat-respons servert fra cache",
+        );
+        const cachedKilder = cached.kilder as import("common/ki").KIChatSource[] | undefined;
+        const cachedPayload = KIChatResponseSchema.parse({
+          suksess: true,
+          response: cached.response,
+          model: cached.model,
+          kilder: cachedKilder,
+        });
+        sseCleanup?.();
+        if (writeSSE(res, cachedPayload)) {
+          res.end();
+        }
+        void audit({
+          actorUserId: req.user!.id,
+          action: AUDIT_ACTIONS.KI_CHAT,
+          category: "ki",
+          outcome: "success",
+          metadata: { model: cached.model, cached: true, messageCount: messages.length },
+          req,
+        }).catch((err) => {
+          logger.warn({ err, userId: req.user!.id }, "Audit-feil for KI chat (cache-hit)");
+        });
+        return;
+      }
+    }
+
     const timeoutPromise = new Promise<never>((_, reject) => {
       timeoutHandle = setTimeout(() => reject(new Error("CHAT_TIMEOUT")), TIMEOUT_MS);
     });
@@ -2813,6 +3506,29 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       "Vellykket chat-svar",
     );
 
+    // Output-truncation-telemetri: modellen ble kuttet av max_tokens-cap
+    // før den fikk avsluttet naturlig. Brukt til å oppdage om cap for en
+    // intent-klasse er for stram i praksis — før vi reagerer med å bumpe
+    // cap reaktivt. Ved jevnlige hits her for samme intent/triggerWord bør
+    // klassifikasjonen i chat-response-cache.service.ts vurderes, eller
+    // max_tokens-allokering økes for den intent-klassen.
+    if (result.finishReason === "length") {
+      logger.warn(
+        {
+          intent,
+          triggerWord: fullDocumentTriggerWord,
+          model: selectedModel,
+          maxTokens,
+          outputTokens: usage?.completion_tokens,
+          fullDocumentModeActive,
+          primaryFileId: fullDocumentPrimaryFileId,
+          moduleHint: traceModuleHint,
+          courseId: traceCourseIdHint,
+        },
+        "TRUNCATION: svaret kuttet av max_tokens-cap — vurder bump eller re-klassifisering av trigger",
+      );
+    }
+
     // Når KB eller direkte URL er i spill, prioriter disse kildene over Canvas.
     // Dette unngår at courseHint-lås i Canvas forurenser kildelisten for "basen"-spørsmål.
     const preferNonCanvasSources =
@@ -2837,6 +3553,42 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
     if (writeSSE(res, payload)) {
       res.end();
+    }
+
+    // Lagre til response-cache for fremtidige identiske spørringer.
+    // Betingelser: full-document-mode aktivert, moduleHint/fileHint satt,
+    // ingen cross-course guard, respons > 500 tegn (ikke apology-stil),
+    // OG svaret avsluttet naturlig (ikke trunkert av max_tokens-cap).
+    // Hvorfor siste krav: cache-TTL er 24 t — å lagre et trunkert svar
+    // betyr at alle identiske forespørsler de neste 24 timene får den
+    // kuttede versjonen i stedet for et fullstendig re-generert svar.
+    // Observert på ORL1000 "leksjon 4 og 5" der et 7000-token-kuttet
+    // svar ble cachet og servert tilbake selv etter cap-fiksen.
+    const responseWasTruncated = result.finishReason === "length";
+    if (
+      responseCacheKey &&
+      cacheInput &&
+      !crossCourseGuardTriggered &&
+      !responseWasTruncated &&
+      responseText.length > 500
+    ) {
+      void setCachedChatResponse(responseCacheKey, {
+        response: responseText,
+        kilder: mergedSources,
+        model: selectedModel,
+        primaryCourseId: cacheInput.primaryCourseId,
+        primaryFileId: cacheInput.primaryFileId,
+        ...(fullDocumentTriggerWord ? { triggerWord: fullDocumentTriggerWord } : {}),
+      }).catch((err) => {
+        logger.warn({ err, responseCacheKey }, "setCachedChatResponse feilet");
+      });
+    } else if (responseCacheKey && responseWasTruncated) {
+      // Eksplisitt skip-log: enklere å spore i telemetri at cap-problemer
+      // ikke samtidig forgifter cachen.
+      logger.info(
+        { responseCacheKey, finishReason: result.finishReason },
+        "Hopper over cache-lagring: svar ble trunkert",
+      );
     }
 
     const responseDurationMs = Date.now() - chatStartedAt;

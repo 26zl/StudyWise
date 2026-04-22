@@ -42,7 +42,12 @@ export const anthropicClient = ANTHROPIC_API_KEY
 export interface ChatMessage {
     role: "user" | "assistant" | "system";
     content: string;
-    cache_control?: { type: "ephemeral" };
+    /**
+     * Anthropic prompt-cache kontroll. Default (uten ttl) er 5-minutt-cache.
+     * ttl: "1h" forlenger til 1 time — nyttig for lange samtaler der
+     * systemprompt + Canvas-kontekst gjenbrukes i oppfølgingsspørsmål.
+     */
+    cache_control?: { type: "ephemeral"; ttl?: "5m" | "1h" };
 }
 
 /** Bildevedlegg for Claude Vision */
@@ -60,6 +65,13 @@ export interface ChatCompletionResult {
         completion_tokens: number;
         total_tokens: number;
     };
+    /**
+     * Hvorfor modellen sluttet å generere. "length" betyr at max_tokens-cap
+     * kuttet svaret — telemetri brukes til å avgjøre om cap for en intent-
+     * klasse er for stram i praksis. Andre verdier (stop, tool-calls, etc.)
+     * betyr naturlig slutt og er ikke-problematiske.
+     */
+    finishReason?: string;
 }
 
 // --- Felles chat completion-funksjon ---
@@ -366,7 +378,7 @@ async function callAnthropic(options: {
     // @ai-sdk/anthropic konverterer role:"system" + providerOptions.anthropic.cacheControl
     // til Anthropic-APIets system-parameter med cache_control-blokk.
     type SdkMessage =
-        | { role: "system"; content: string; providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } }
+        | { role: "system"; content: string; providerOptions: { anthropic: { cacheControl: { type: "ephemeral"; ttl?: "5m" | "1h" } } } }
         | { role: "user" | "assistant"; content: string };
 
     const sdkMessages: SdkMessage[] = [];
@@ -415,6 +427,7 @@ async function callAnthropic(options: {
                 cachedInputTokens?: number;
             };
             let capturedUsage: CapturedUsage | null = null;
+            let capturedFinishReason: string | undefined;
 
             const streamResult = streamText({
                 model: anthropicSdkProvider(model),
@@ -422,13 +435,15 @@ async function callAnthropic(options: {
                 maxOutputTokens: max_tokens,
                 temperature: Math.min(Math.max(temperature, 0), 1),
                 abortSignal: effectiveSignal,
-                onFinish: ({ usage, totalUsage }: {
+                onFinish: ({ usage, totalUsage, finishReason }: {
                     usage: CapturedUsage;
                     totalUsage?: CapturedUsage;
+                    finishReason?: string;
                 }) => {
                     // Foretrekk totalUsage (sum av alle steps) hvis tilgjengelig,
                     // fall tilbake til usage (siste step).
                     capturedUsage = totalUsage ?? usage;
+                    capturedFinishReason = finishReason;
                     if (usage.cachedInputTokens) {
                         logger.info(
                             {
@@ -461,7 +476,7 @@ async function callAnthropic(options: {
 
             const durationMs = Date.now() - startMs;
             logger.info(
-                { model, durationMs, inputTokens, outputTokens },
+                { model, durationMs, inputTokens, outputTokens, finishReason: capturedFinishReason },
                 "Anthropic Claude-svar mottatt",
             );
 
@@ -489,6 +504,7 @@ async function callAnthropic(options: {
                     completion_tokens: outputTokens,
                     total_tokens: finalUsage.totalTokens ?? inputTokens + outputTokens,
                 },
+                finishReason: capturedFinishReason,
             };
         } catch (error) {
             lastError = error;

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
-import { Bot, User } from "lucide-react";
+import { Bot, ExternalLink, FileText, User } from "lucide-react";
 import { ConversationMessageContent } from "@/app/components/chat/ConversationMessageContent";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
@@ -20,6 +20,7 @@ import { parseApiError } from "@/app/lib/errorUtils";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { useUIStore } from "@/app/store/uiStore";
+import { isSafeExternalUrl, visbareKilder, visFilnavn } from "@/app/lib/kildeFormat";
 import {
   SharedChatPublicResponseSchema,
   type SharedChatPublicResponse,
@@ -133,7 +134,14 @@ export function SharePage() {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({
-                    messages: data.messages.map((m) => ({ rolle: m.rolle, innhold: m.innhold })),
+                    // Merk: `kilder` kopieres bevisst IKKE videre. Kildene fra en delt
+                    // samtale peker på den opprinnelige brukerens Canvas-filer/KB-baser
+                    // og ville gitt døde nedlastingsknapper eller kryss-bruker-oppslag.
+                    // Selve samtaleinnholdet (rolle + innhold) beholdes uendret.
+                    messages: data.messages.map((m) => ({
+                      rolle: m.rolle,
+                      innhold: m.innhold,
+                    })),
                     title: data.chatTitle,
                   }),
                 });
@@ -174,7 +182,10 @@ export function SharePage() {
 
       <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-8">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{data.chatTitle}</h1>
-        {data.messages.map((melding, index) => (
+        {data.messages.map((melding, index) => {
+          const kilder =
+            melding.rolle === "assistant" ? visbareKilder(melding.kilder) : [];
+          return (
           <div
             key={`${index}-${melding.rolle}`}
             className={`flex items-start gap-3 ${melding.rolle === "user" ? "justify-end" : "justify-start"}`}
@@ -195,6 +206,58 @@ export function SharePage() {
               >
                 <ConversationMessageContent message={melding} />
               </div>
+
+              {kilder.length > 0 && (
+                <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {t("sharePage.sourcesLabel")}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {kilder.map((kilde, i) => {
+                      const navn = visFilnavn(kilde.fileName) || kilde.sourceUrl || "";
+                      const key = `${kilde.sourceKind ?? "canvas_file"}:${kilde.fileId ?? "na"}:${i}`;
+                      // Kun http(s)-URLer rendres som klikkbare lenker på share-siden.
+                      // Uten denne gaten ville kompromitterte kilder kunne injisere
+                      // f.eks. javascript: eller data: via en lenke-klikk på en
+                      // uautentisert besøkendes skjerm.
+                      const safeUrl = isSafeExternalUrl(kilde.sourceUrl) ? kilde.sourceUrl : null;
+                      const innerEl = (
+                        <span className="inline-flex items-start gap-1.5 text-sm text-slate-700 dark:text-slate-300">
+                          {safeUrl ? (
+                            <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
+                          ) : (
+                            <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" />
+                          )}
+                          <span className="min-w-0">
+                            <span className="font-medium wrap-break-word">{navn}</span>
+                            {kilde.courseName && (
+                              <span className="ml-1.5 text-xs text-slate-500 dark:text-slate-400">
+                                — {kilde.courseName}
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                      );
+                      return (
+                        <li key={key}>
+                          {safeUrl ? (
+                            <a
+                              href={safeUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="hover:underline"
+                            >
+                              {innerEl}
+                            </a>
+                          ) : (
+                            innerEl
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {melding.rolle === "user" && (
@@ -203,7 +266,8 @@ export function SharePage() {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

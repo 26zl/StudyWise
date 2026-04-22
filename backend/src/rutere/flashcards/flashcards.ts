@@ -134,13 +134,20 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
       "Starter flashcard-generering via Claude",
     );
 
+    // Skalér max_tokens med cardCount — se quiz.ts for samme mønster.
+    // Hvert flashcard ≈ 150-250 tokens (JSON + front + back). 4096 hardkodet
+    // kuttet JSON for 50 kort.
+    const flashcardsMaxTokens = Math.min(
+      16000,
+      Math.max(4096, 600 + cardCount * 250),
+    );
     const result = await chatCompletion({
       model: DEFAULT_MODEL,
       messages: [
         { role: "system", content: FLASHCARDS_SYSTEM_PROMPT },
         { role: "user", content: userPrompt },
       ],
-      max_tokens: 4096,
+      max_tokens: flashcardsMaxTokens,
       temperature: 0.7,
       traceName: "flashcards-generate",
       traceMeta: {

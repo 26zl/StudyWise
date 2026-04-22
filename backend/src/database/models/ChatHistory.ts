@@ -16,6 +16,12 @@ export interface ChatHistoryDocument {
   topic?: string;
   pinned?: boolean;
   encryptedMessages: string;
+  // Kurs-lås per samtale. Settes første gang et kurs identifiseres i samtalen,
+  // og brukes som fallback-scope for tvetydige etterfølgende spørsmål (f.eks.
+  // "modul 7") slik at retrieval ikke lekker innhold fra andre kurs. Overstyres
+  // av eksplisitt emne-referanse i meldingen (f.eks. "i 6105N, modul 7").
+  primaryCourseId?: string;
+  primaryCourseHint?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,6 +33,8 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
     topic: { type: String, default: undefined, index: true },
     pinned: { type: Boolean, default: false, index: true },
     encryptedMessages: { type: String, required: true },
+    primaryCourseId: { type: String, default: undefined },
+    primaryCourseHint: { type: String, default: undefined },
   },
   { timestamps: true }
 );

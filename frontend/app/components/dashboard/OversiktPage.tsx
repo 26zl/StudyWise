@@ -12,11 +12,16 @@ import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   BarChart3,
+  Bell,
   BookOpen,
+  Brain,
   Calendar,
   CheckCircle2,
+  ClipboardList,
   Clock,
-  Download,
+  History,
+  Library,
+  Megaphone,
   MessageSquare,
   Sparkles,
   Target,
@@ -89,7 +94,18 @@ interface QuickActionCardProps {
   description: string;
   icon: React.ComponentType<{ size?: number; className?: string }>;
   href: string;
-  color: "blue" | "green" | "purple" | "amber";
+  color:
+    | "blue"
+    | "green"
+    | "purple"
+    | "amber"
+    | "rose"
+    | "teal"
+    | "indigo"
+    | "pink"
+    | "cyan"
+    | "orange"
+    | "emerald";
 }
 
 type OversiktTab = "mine-oppgaver" | "ki-forslag";
@@ -146,17 +162,30 @@ export function OversiktPage() {
   );
 
   const totalCourses = (coursesQuery.data?.courses ?? []).filter((c) => !hiddenSet.has(c.id)).length;
-  const totalAssignments = allAssignments.length;
 
   const upcomingAssignments = ikkeInnleverteAssignments.filter((assignment) =>
     erInnenforFristVindu(assignment.due_at),
   );
 
-  const activeCoursesCount = useMemo(() => new Set(
-    allAssignments
-      .filter((assignment) => assignment.course_id != null)
-      .map((assignment) => assignment.course_id),
-  ).size, [allAssignments]);
+  // Oppgaver du skylder inn — enten aldri levert eller ikke markert ferdig.
+  // Den mest handlbare KPI-en for en student: viser etterslep uavhengig av frist.
+  const ikkeInnleverteCount = ikkeInnleverteAssignments.length;
+
+  // Fullførte oppgaver i inneværende år — positiv progresjons-signal.
+  // Canvas-innlevert: bruker submission.submitted_at når datoen finnes og er i år.
+  // Manuell innlevering (ferdigeIdSet): ingen datostempel, så inkluderes som "nylig"
+  // (heuristikk — useManuellInnlevering lagrer bare IDer, ikke timestamps).
+  const fullforteIAr = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return allAssignments.filter((assignment) => {
+      if (ferdigeIdSet.has(assignment.id)) return true;
+      if (!erInnlevert(assignment)) return false;
+      const submittedAt = assignment.submission?.submitted_at;
+      if (!submittedAt) return false;
+      const year = new Date(submittedAt).getFullYear();
+      return year === currentYear;
+    }).length;
+  }, [allAssignments, ferdigeIdSet]);
 
   const handlePlanCreated = () => {
     byttTab("mine-oppgaver");
@@ -217,6 +246,9 @@ export function OversiktPage() {
                   {t("overview.title")}
                 </h1>
                 <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  {t("overview.pageDescription")}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
                   {formaterDatoFull(new Date(), language)}
                 </p>
               </div>
@@ -242,27 +274,27 @@ export function OversiktPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <StatCard
               icon={BookOpen}
-              label={t("overview.stats.activeCourses")}
-              value={assignmentsQuery.isError ? "—" : activeCoursesCount}
+              label={t("overview.stats.totalCourses")}
+              value={totalCourses}
               color="blue"
             />
             <StatCard
               icon={Clock}
-              label={t("overview.stats.upcomingAssignments")}
+              label={t("overview.stats.upcomingDeadlines")}
               value={assignmentsQuery.isError ? "—" : upcomingAssignments.length}
               color="yellow"
             />
             <StatCard
-              icon={TrendingUp}
-              label={t("overview.stats.totalAssignments")}
-              value={assignmentsQuery.isError ? "—" : totalAssignments}
-              color="green"
+              icon={AlertCircle}
+              label={t("overview.stats.notSubmitted")}
+              value={assignmentsQuery.isError ? "—" : ikkeInnleverteCount}
+              color="slate"
             />
             <StatCard
-              icon={Calendar}
-              label={t("overview.stats.totalCourses")}
-              value={totalCourses}
-              color="slate"
+              icon={TrendingUp}
+              label={t("overview.stats.completedThisYear")}
+              value={assignmentsQuery.isError ? "—" : fullforteIAr}
+              color="green"
             />
           </div>
 
@@ -385,10 +417,10 @@ export function OversiktPage() {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
               {t("overview.quickAccess.title")}
             </h2>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
               <QuickActionCard
                 title={t("overview.quickActions.aiAssistant.title")}
                 description={t("overview.quickActions.aiAssistant.description")}
@@ -411,11 +443,53 @@ export function OversiktPage() {
                 color="green"
               />
               <QuickActionCard
-                title={t("overview.quickActions.exportChat.title")}
-                description={t("overview.quickActions.exportChat.description")}
-                icon={Download}
-                href="/dashboard"
-                color="amber"
+                title={t("overview.quickActions.chatHistory.title")}
+                description={t("overview.quickActions.chatHistory.description")}
+                icon={History}
+                href="/dashboard/samtalehistorikk"
+                color="indigo"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.notifications.title")}
+                description={t("overview.quickActions.notifications.description")}
+                icon={Bell}
+                href="/dashboard?view=varslinger"
+                color="rose"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.calendar.title")}
+                description={t("overview.quickActions.calendar.description")}
+                icon={Calendar}
+                href="/dashboard?view=calendar"
+                color="teal"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.library.title")}
+                description={t("overview.quickActions.library.description")}
+                icon={Library}
+                href="/dashboard/bokmerker"
+                color="pink"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.quizFlashcards.title")}
+                description={t("overview.quickActions.quizFlashcards.description")}
+                icon={Brain}
+                href="/dashboard?view=quiz"
+                color="cyan"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.announcements.title")}
+                description={t("overview.quickActions.announcements.description")}
+                icon={Megaphone}
+                href="/dashboard?view=canvas-announcements"
+                color="orange"
+              />
+              <QuickActionCard
+                title={t("overview.quickActions.assignments.title")}
+                description={t("overview.quickActions.assignments.description")}
+                icon={ClipboardList}
+                href="/dashboard?view=canvas-assignments"
+                color="emerald"
               />
             </div>
           </div>
@@ -496,6 +570,16 @@ function QuickActionCard({
       "border-purple-200 bg-purple-50 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-900/10 dark:hover:bg-purple-900/20",
     amber:
       "border-amber-200 bg-amber-50 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/10 dark:hover:bg-amber-900/20",
+    rose: "border-rose-200 bg-rose-50 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/10 dark:hover:bg-rose-900/20",
+    teal: "border-teal-200 bg-teal-50 hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-900/10 dark:hover:bg-teal-900/20",
+    indigo:
+      "border-indigo-200 bg-indigo-50 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-900/10 dark:hover:bg-indigo-900/20",
+    pink: "border-pink-200 bg-pink-50 hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-900/10 dark:hover:bg-pink-900/20",
+    cyan: "border-cyan-200 bg-cyan-50 hover:bg-cyan-100 dark:border-cyan-800 dark:bg-cyan-900/10 dark:hover:bg-cyan-900/20",
+    orange:
+      "border-orange-200 bg-orange-50 hover:bg-orange-100 dark:border-orange-800 dark:bg-orange-900/10 dark:hover:bg-orange-900/20",
+    emerald:
+      "border-emerald-200 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/10 dark:hover:bg-emerald-900/20",
   };
 
   const iconColorClasses = {
@@ -503,17 +587,34 @@ function QuickActionCard({
     green: "text-green-600 dark:text-green-400",
     purple: "text-purple-600 dark:text-purple-400",
     amber: "text-amber-600 dark:text-amber-400",
+    rose: "text-rose-600 dark:text-rose-400",
+    teal: "text-teal-600 dark:text-teal-400",
+    indigo: "text-indigo-600 dark:text-indigo-400",
+    pink: "text-pink-600 dark:text-pink-400",
+    cyan: "text-cyan-600 dark:text-cyan-400",
+    orange: "text-orange-600 dark:text-orange-400",
+    emerald: "text-emerald-600 dark:text-emerald-400",
   };
 
   return (
     <Link
       href={href}
       prefetch={false}
-      className={`block rounded-xl border p-6 transition-colors ${colorClasses[color]}`}
+      className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${colorClasses[color]}`}
     >
-      <Icon size={24} className={`mb-3 ${iconColorClasses[color]}`} />
-      <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">{title}</h3>
-      <p className="text-sm text-slate-600 dark:text-slate-400">{description}</p>
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white/70 dark:bg-slate-900/40 ${iconColorClasses[color]}`}
+      >
+        <Icon size={18} />
+      </div>
+      <div className="min-w-0">
+        <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+          {title}
+        </h3>
+        <p className="truncate text-xs text-slate-600 dark:text-slate-400">
+          {description}
+        </p>
+      </div>
     </Link>
   );
 }

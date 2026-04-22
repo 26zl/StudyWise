@@ -313,7 +313,12 @@ export function buildChunkContextFromEntries(
     const source = fileChunks[0].source;
     const ext = source.fileName.split(".").pop()?.toLowerCase() ?? "";
     const label = ext === "pdf" ? "PDF-INNHOLD" : "FIL-INNHOLD";
-    const header = `\n--- ${label}: ${source.fileName} (${source.courseName}, ${source.moduleTitle}) ---\n`;
+    // Kurs-ID-prefikset er maskinlesbart: LLM-en kan sammenligne mot samtalens
+    // primærkurs i system-prompten og oppdage cross-course-lekkasje. Tidligere
+    // stod kurset kun i parentes etter filnavnet, og modellen overså det ofte
+    // når alle chunks fra ett og samme retrieval-resultat ble presentert som
+    // om de svarte på spørsmålet uansett kurskontekst.
+    const header = `\n--- ${label}: [Kurs: ${source.courseId} - ${source.courseName}] ${source.fileName} (${source.moduleTitle}) ---\n`;
 
     if (used + header.length >= budget) break;
     kontekst += header;

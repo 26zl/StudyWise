@@ -57,6 +57,7 @@ import {
   Megaphone,
   Loader2,
   ShieldOff,
+  Globe,
 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import type { Translator } from "@/app/i18n/types";
@@ -69,6 +70,14 @@ import { downloadAuthedFile, fetchApi } from "@/app/lib/apiClient";
 import {
   useBackfillFullText,
   useAdminStats,
+  useAdminCrawlerStats,
+  useAdminRetrievalDebug,
+  useAdminExtractionAudit,
+  useAdminKbHealth,
+  useAdminFeedbackTriage,
+  useRetryFailedCrawls,
+  useReindexMissingFiles,
+  useReextractTruncatedFiles,
   useAdminBrukere,
   type AdminBrukereStatusFilter,
   useAdminAudit,
@@ -124,6 +133,7 @@ import type {
   AdminQueueOverviewItem,
   AdminRedisPrefix,
   AdminRedisRelinkStateItem,
+  AdminRetrievalDebugResponse,
   ContactMessageStatus,
   QueueJobStatus,
 } from "@/app/admin/admin-api";
@@ -648,6 +658,16 @@ function MaintenanceFane() {
       },
     );
 
+  const SUB_FANER = [
+    { id: "ops" as const, labelKey: "admin.maintenance.subtabs.ops" as const },
+    { id: "crawler" as const, labelKey: "admin.maintenance.subtabs.crawler" as const },
+    { id: "retrieval" as const, labelKey: "admin.maintenance.subtabs.retrieval" as const },
+    { id: "extraction" as const, labelKey: "admin.maintenance.subtabs.extraction" as const },
+    { id: "kbHealth" as const, labelKey: "admin.maintenance.subtabs.kbHealth" as const },
+  ];
+  type MaintenanceSubFane = (typeof SUB_FANER)[number]["id"];
+  const [aktivSub, setAktivSub] = useState<MaintenanceSubFane>("ops");
+
   return (
     <section className="space-y-6">
       {/* Overskrift */}
@@ -660,6 +680,36 @@ function MaintenanceFane() {
         </p>
       </div>
 
+      {/* Sub-fane-navigasjon */}
+      <div
+        role="tablist"
+        className="flex gap-1 overflow-x-auto rounded-lg bg-slate-100 dark:bg-slate-800 p-1"
+      >
+        {SUB_FANER.map(({ id, labelKey }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={aktivSub === id}
+            onClick={() => setAktivSub(id)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+              aktivSub === id
+                ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm"
+                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+            }`}
+          >
+            {t(labelKey)}
+          </button>
+        ))}
+      </div>
+
+      {aktivSub === "crawler" && <CrawlerFane />}
+      {aktivSub === "retrieval" && <RetrievalDebugFane />}
+      {aktivSub === "extraction" && <ExtractionAuditFane />}
+      {aktivSub === "kbHealth" && <KbHealthFane />}
+
+      {aktivSub === "ops" && (
+        <>
       {/* Operasjons-kort */}
       <div className="grid gap-4 md:grid-cols-2">
         <VedlikeholdKort
@@ -935,6 +985,8 @@ function MaintenanceFane() {
           language={language}
           stats={sisteResultat.stats}
         />
+      )}
+        </>
       )}
     </section>
   );
@@ -3372,12 +3424,84 @@ function FeedbackFane() {
     rating,
     limit: 100,
   });
+  const triage = useAdminFeedbackTriage();
 
   if (isLoading) return <LoadingSpinner />;
   if (error) return <FeilMelding melding={t("admin.feedback.loadFailed")} />;
 
   return (
     <div className="space-y-4">
+      {triage.data && triage.data.groups.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              {t("admin.feedbackTriage.title")}
+            </h3>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {t("admin.feedbackTriage.windowNote", {
+                days: String(triage.data.windowDays),
+              })}
+            </span>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs uppercase text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="py-2 pr-4 text-left font-medium">
+                    {t("admin.feedbackTriage.columnIntent")}
+                  </th>
+                  <th className="py-2 pr-4 text-left font-medium">
+                    {t("admin.feedbackTriage.columnDown")}
+                  </th>
+                  <th className="py-2 pr-4 text-left font-medium">
+                    {t("admin.feedbackTriage.columnUp")}
+                  </th>
+                  <th className="py-2 pr-4 text-left font-medium">
+                    {t("admin.feedbackTriage.columnRate")}
+                  </th>
+                  <th className="py-2 text-left font-medium">
+                    {t("admin.feedbackTriage.columnLastAt")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                {triage.data.groups.map((g) => {
+                  const total = g.downCount + g.upCount;
+                  const rate = total > 0 ? Math.round((g.downCount / total) * 100) : 0;
+                  const rateClass =
+                    rate >= 50
+                      ? "text-red-600 dark:text-red-400"
+                      : rate >= 25
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-slate-500 dark:text-slate-400";
+                  return (
+                    <tr key={g.intent}>
+                      <td className="py-2 pr-4">
+                        <span className="inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-0.5 font-mono text-xs text-slate-700 dark:text-slate-300">
+                          {g.intent}
+                        </span>
+                      </td>
+                      <td className="py-2 pr-4 font-mono text-slate-700 dark:text-slate-300">
+                        {g.downCount}
+                      </td>
+                      <td className="py-2 pr-4 font-mono text-slate-500 dark:text-slate-400">
+                        {g.upCount}
+                      </td>
+                      <td className={`py-2 pr-4 font-mono font-semibold ${rateClass}`}>
+                        {rate}%
+                      </td>
+                      <td className="py-2 text-slate-500 dark:text-slate-400">
+                        {g.lastAt ? formaterDatoOgTid(g.lastAt, language) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           {(["down", "up"] as const).map((value) => (
@@ -4866,6 +4990,792 @@ function InnboksFane() {
             </div>
           )}
         </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Crawler-vedlikehold ─────────────────────────────────────────────────────
+
+function CrawlerFane() {
+  const { language, t } = useLanguage();
+  const { data, isLoading, error } = useAdminCrawlerStats();
+  const retryMutation = useRetryFailedCrawls();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error || !data) return <FeilMelding melding={t("admin.crawler.error")} />;
+
+  const handleRetry = () => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.crawler.retryConfirm"),
+      handlingstekst: t("admin.crawler.retryAction"),
+      onBekreft: () => {
+        retryMutation.mutate(undefined, {
+          onSuccess: (r) =>
+            showToast.success(
+              t("admin.crawler.retrySuccess"),
+              t("admin.crawler.retrySummary", {
+                reset: String(r.resetItems),
+                affected: String(r.affectedUsers),
+                caches: String(r.cachesInvalidated),
+              }),
+            ),
+          onError: (e) =>
+            showToast.error(
+              t("admin.crawler.retryFailed"),
+              hentFeilmelding(e, t("admin.crawler.retryFailed")),
+            ),
+        });
+      },
+    });
+  };
+
+  const kort: StatKortData[] = [
+    { label: t("admin.crawler.totalUrls"), verdi: data.totalExternalUrls, ikon: Link2 },
+    { label: t("admin.crawler.crawled"), verdi: data.crawledCount, ikon: CheckCircle2 },
+    { label: t("admin.crawler.neverCrawled"), verdi: data.neverCrawledCount, ikon: UserX },
+    { label: t("admin.crawler.stale"), verdi: data.staleCount, ikon: Clock3 },
+    { label: t("admin.crawler.emptyCrawl"), verdi: data.emptyCrawlCount, ikon: AlertTriangle },
+    { label: t("admin.crawler.pdfsIndexed"), verdi: data.pdfsIndexed, ikon: FileText },
+    { label: t("admin.crawler.subpagesCrawled"), verdi: data.subpagesCrawled, ikon: Globe },
+  ];
+
+  const reasonBadge = (reason: "never_crawled" | "stale" | "empty_crawl") => {
+    const config = {
+      never_crawled: {
+        label: t("admin.crawler.reasonNeverCrawled"),
+        cls: "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400",
+      },
+      stale: {
+        label: t("admin.crawler.reasonStale"),
+        cls: "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400",
+      },
+      empty_crawl: {
+        label: t("admin.crawler.reasonEmptyCrawl"),
+        cls: "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400",
+      },
+    } as const;
+    const c = config[reason];
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${c.cls}`}
+      >
+        {c.label}
+      </span>
+    );
+  };
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {t("admin.crawler.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t("admin.crawler.description")}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {kort.map((k) => (
+          <StatKort
+            key={k.label}
+            label={k.label}
+            verdi={k.verdi}
+            ikon={k.ikon}
+            language={language}
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-slate-900 dark:text-white">
+            {t("admin.crawler.retryTitle")}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.crawler.retryDescription")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleRetry}
+          disabled={retryMutation.isPending}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {retryMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          {retryMutation.isPending
+            ? t("admin.crawler.retryRunning")
+            : t("admin.crawler.retryAction")}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            {t("admin.crawler.staleTableTitle")}
+          </h3>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.crawler.staleTableDescription")}
+          </p>
+        </div>
+        {data.staleItems.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">
+            {t("admin.crawler.empty")}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.crawler.columnReason")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.crawler.columnCourse")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.crawler.columnModule")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.crawler.columnItem")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.crawler.columnUrl")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.crawler.columnLastCrawl")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {data.staleItems.map((item, idx) => (
+                  <tr key={`${item.courseId}-${item.externalUrl}-${idx}`}>
+                    <td className="px-5 py-3">{reasonBadge(item.reason)}</td>
+                    <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
+                      {item.courseName || item.courseId}
+                    </td>
+                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                      {item.moduleTitle}
+                    </td>
+                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                      {item.itemTitle}
+                    </td>
+                    <td className="px-5 py-3">
+                      <a
+                        href={item.externalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-blue-600 hover:underline dark:text-blue-400"
+                      >
+                        <span className="max-w-[280px] truncate">{item.externalUrl}</span>
+                        <ExternalLink size={12} className="shrink-0" />
+                      </a>
+                    </td>
+                    <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                      {item.crawledAt
+                        ? formaterDatoOgTid(item.crawledAt, language)
+                        : t("admin.crawler.never")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── Retrieval-debug (query replay) ──────────────────────────────────────────
+
+function RetrievalDebugFane() {
+  const { t } = useLanguage();
+  const [query, setQuery] = useState("");
+  const [courseId, setCourseId] = useState("");
+  const [userId, setUserId] = useState("");
+  const mutation = useAdminRetrievalDebug();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    mutation.mutate({
+      query: query.trim(),
+      ...(courseId.trim() && { courseId: courseId.trim() }),
+      ...(userId.trim() && { userId: userId.trim() }),
+    });
+  };
+
+  const data = mutation.data;
+
+  const renderTable = (rows: AdminRetrievalDebugResponse["vector"]) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase text-slate-500 dark:text-slate-400">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnRank")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnScore")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnFile")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnModule")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnChunk")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnPreview")}</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+          {rows.length === 0 ? (
+            <tr>
+              <td
+                colSpan={6}
+                className="px-3 py-4 text-center text-slate-500 dark:text-slate-400"
+              >
+                {t("admin.retrieval.noResults")}
+              </td>
+            </tr>
+          ) : (
+            rows.map((r) => (
+              <tr key={`${r.source.fileId}-${r.chunkIndex}-${r.rank}`}>
+                <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{r.rank}</td>
+                <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">
+                  {r.score.toFixed(4)}
+                </td>
+                <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                  {r.source.fileName}
+                </td>
+                <td className="px-3 py-2 text-slate-600 dark:text-slate-400">
+                  {r.source.moduleTitle}
+                </td>
+                <td className="px-3 py-2 font-mono text-slate-500 dark:text-slate-400">
+                  {r.chunkIndex}
+                </td>
+                <td className="px-3 py-2 text-slate-500 dark:text-slate-400">
+                  <span className="line-clamp-2 max-w-lg">{r.textPreview}</span>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {t("admin.retrieval.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t("admin.retrieval.description")}
+        </p>
+      </div>
+
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5"
+      >
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+            {t("admin.retrieval.queryLabel")}
+          </label>
+          <textarea
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("admin.retrieval.queryPlaceholder")}
+            rows={2}
+            className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              {t("admin.retrieval.courseLabel")}
+            </label>
+            <input
+              type="text"
+              value={courseId}
+              onChange={(e) => setCourseId(e.target.value)}
+              placeholder={t("admin.retrieval.coursePlaceholder")}
+              className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              {t("admin.retrieval.userLabel")}
+            </label>
+            <input
+              type="text"
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder={t("admin.retrieval.userPlaceholder")}
+              className="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-white focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+        </div>
+        <div>
+          <button
+            type="submit"
+            disabled={!query.trim() || mutation.isPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {mutation.isPending && <Loader2 size={16} className="animate-spin" />}
+            {mutation.isPending ? t("admin.retrieval.running") : t("admin.retrieval.submit")}
+          </button>
+        </div>
+      </form>
+
+      {mutation.error && (
+        <FeilMelding melding={t("admin.retrieval.error")} />
+      )}
+
+      {data && (
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.retrieval.statsElapsed")}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                {data.elapsedMs} ms
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.retrieval.statsConcepts")}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                {data.concepts ? data.concepts.join(", ") : "—"}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.retrieval.statsDegraded")}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                {data.degraded ? t("common.yes") : t("common.no")}
+              </p>
+            </div>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {t("admin.retrieval.statsReranked")}
+              </p>
+              <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">
+                {data.sources.reranked ? t("common.yes") : t("common.no")}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { title: t("admin.retrieval.sectionFinal"), rows: data.final },
+              { title: t("admin.retrieval.sectionFused"), rows: data.fused },
+              { title: t("admin.retrieval.sectionVector"), rows: data.vector },
+              { title: t("admin.retrieval.sectionBm25"), rows: data.bm25 },
+            ].map((section) => (
+              <div
+                key={section.title}
+                className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
+              >
+                <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-3">
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {section.title}{" "}
+                    <span className="text-slate-400">({section.rows.length})</span>
+                  </h3>
+                </div>
+                {renderTable(section.rows)}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+// ── Ekstraksjons-audit ──────────────────────────────────────────────────────
+
+function ExtractionAuditFane() {
+  const { language, t } = useLanguage();
+  const { data, isLoading, error } = useAdminExtractionAudit();
+  const reindexMutation = useReindexMissingFiles();
+  const reextractMutation = useReextractTruncatedFiles();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error || !data) return <FeilMelding melding={t("admin.extraction.error")} />;
+
+  const handleReindex = () => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.extraction.reindexConfirm"),
+      handlingstekst: t("admin.extraction.reindexAction"),
+      onBekreft: () => {
+        reindexMutation.mutate(undefined, {
+          onSuccess: (r) =>
+            showToast.success(
+              t("admin.extraction.reindexSuccess"),
+              t("admin.extraction.reindexSummary", {
+                missing: String(r.missingFiles),
+                affected: String(r.affectedUsers),
+                caches: String(r.cachesInvalidated),
+              }),
+            ),
+          onError: (e) =>
+            showToast.error(
+              t("admin.extraction.reindexFailed"),
+              hentFeilmelding(e, t("admin.extraction.reindexFailed")),
+            ),
+        });
+      },
+    });
+  };
+
+  const handleReextract = () => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.extraction.reextractConfirm"),
+      handlingstekst: t("admin.extraction.reextractAction"),
+      onBekreft: () => {
+        reextractMutation.mutate(undefined, {
+          onSuccess: (r) =>
+            showToast.success(
+              t("admin.extraction.reextractSuccess"),
+              t("admin.extraction.reextractSummary", {
+                truncated: String(r.truncatedFiles),
+                affected: String(r.affectedUsers),
+                caches: String(r.cachesInvalidated),
+              }),
+            ),
+          onError: (e) =>
+            showToast.error(
+              t("admin.extraction.reextractFailed"),
+              hentFeilmelding(e, t("admin.extraction.reextractFailed")),
+            ),
+        });
+      },
+    });
+  };
+
+  const kort: StatKortData[] = [
+    { label: t("admin.extraction.totalFiles"), verdi: data.totalUserFiles, ikon: FileText },
+    { label: t("admin.extraction.indexedFiles"), verdi: data.indexedUserFiles, ikon: CheckCircle2 },
+    {
+      label: t("admin.extraction.truncatedFiles"),
+      verdi: data.truncatedFiles.length,
+      ikon: AlertTriangle,
+    },
+    {
+      label: t("admin.extraction.unindexedFiles"),
+      verdi: data.unindexedUserFiles,
+      ikon: AlertTriangle,
+    },
+  ];
+
+  const reasonLabel = (reason: "no_chunks" | "never_crawled"): string => {
+    switch (reason) {
+      case "never_crawled":
+        return t("admin.extraction.reasonNeverCrawled");
+      case "no_chunks":
+      default:
+        return t("admin.extraction.reasonNoChunks");
+    }
+  };
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {t("admin.extraction.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t("admin.extraction.description")}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        {kort.map((k) => (
+          <StatKort
+            key={k.label}
+            label={k.label}
+            verdi={k.verdi}
+            ikon={k.ikon}
+            language={language}
+          />
+        ))}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-slate-900 dark:text-white">
+            {t("admin.extraction.reindexTitle")}
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            {t("admin.extraction.reindexDescription")}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleReindex}
+          disabled={reindexMutation.isPending || data.unindexedUserFiles === 0}
+          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+        >
+          {reindexMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          {reindexMutation.isPending
+            ? t("admin.extraction.reindexRunning")
+            : t("admin.extraction.reindexAction")}
+        </button>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            {t("admin.extraction.tableTitle")}
+          </h3>
+        </div>
+        {data.items.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">
+            {t("admin.extraction.empty")}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnOwner")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnCourse")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnModule")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnFile")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnReason")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {data.items.map((item) => (
+                  <tr key={`${item.userId}-${item.courseId}-${item.fileId}`}>
+                    <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                      {item.ownerEmail ?? item.userId}
+                    </td>
+                    <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
+                      {item.courseName || item.courseId}
+                    </td>
+                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                      {item.moduleTitle}
+                    </td>
+                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                      {item.fileName}
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        {reasonLabel(item.reason)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {data.truncatedFiles.length > 0 && (
+        <div className="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/40 dark:bg-amber-900/10">
+          <div className="flex flex-wrap items-center gap-3 border-b border-amber-200 dark:border-amber-800 px-5 py-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-semibold text-amber-900 dark:text-amber-200">
+                {t("admin.extraction.truncatedTableTitle")}
+              </h3>
+              <p className="mt-1 text-xs text-amber-800 dark:text-amber-300">
+                {t("admin.extraction.truncatedDescription", {
+                  cap: formaterTall(data.storageCap, language),
+                })}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleReextract}
+              disabled={reextractMutation.isPending}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              {reextractMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+              {reextractMutation.isPending
+                ? t("admin.extraction.reextractRunning")
+                : t("admin.extraction.reextractAction")}
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-amber-100/50 dark:bg-amber-900/20 text-xs uppercase text-amber-900 dark:text-amber-200">
+                <tr>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnOwner")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnCourse")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.extraction.columnFile")}
+                  </th>
+                  <th className="px-5 py-3 text-right font-medium">
+                    {t("admin.extraction.columnOriginal")}
+                  </th>
+                  <th className="px-5 py-3 text-right font-medium">
+                    {t("admin.extraction.columnStored")}
+                  </th>
+                  <th className="px-5 py-3 text-right font-medium">
+                    {t("admin.extraction.columnLost")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-amber-200 dark:divide-amber-800">
+                {data.truncatedFiles.map((item) => (
+                  <tr key={`${item.userId}-${item.courseId}-${item.fileId}`}>
+                    <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                      {item.ownerEmail ?? item.userId}
+                    </td>
+                    <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
+                      {item.courseName || item.courseId}
+                    </td>
+                    <td className="px-5 py-3 text-slate-600 dark:text-slate-400">
+                      {item.fileName}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                      {formaterTall(item.originalChars, language)}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                      {formaterTall(item.storedChars, language)}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono font-semibold text-amber-700 dark:text-amber-400">
+                      −{formaterTall(item.lostChars, language)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ── KB-helse ────────────────────────────────────────────────────────────────
+
+function KbHealthFane() {
+  const { language, t } = useLanguage();
+  const { data, isLoading, error } = useAdminKbHealth();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error || !data) return <FeilMelding melding={t("admin.kbHealth.error")} />;
+
+  const kort: StatKortData[] = [
+    { label: t("admin.kbHealth.totalBases"), verdi: data.totalBases, ikon: Library },
+    { label: t("admin.kbHealth.emptyBases"), verdi: data.emptyBases, ikon: AlertTriangle },
+    { label: t("admin.kbHealth.thinBases"), verdi: data.thinBases, ikon: AlertTriangle },
+    { label: t("admin.kbHealth.totalChunks"), verdi: data.totalChunks, ikon: Database },
+  ];
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {t("admin.kbHealth.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t("admin.kbHealth.description")}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {kort.map((k) => (
+          <StatKort
+            key={k.label}
+            label={k.label}
+            verdi={k.verdi}
+            ikon={k.ikon}
+            language={language}
+          />
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+            {t("admin.kbHealth.tableTitle")}
+          </h3>
+        </div>
+        {data.items.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">
+            {t("admin.kbHealth.empty")}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.kbHealth.columnName")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.kbHealth.columnOwner")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.kbHealth.columnChunks")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.kbHealth.columnLinks")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.kbHealth.columnFiles")}
+                  </th>
+                  <th className="px-5 py-3 text-left font-medium">
+                    {t("admin.kbHealth.columnUpdated")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {data.items.map((item) => {
+                  const rowClass =
+                    item.chunkCount === 0
+                      ? "bg-red-50/50 dark:bg-red-900/10"
+                      : item.chunkCount < 5
+                        ? "bg-amber-50/50 dark:bg-amber-900/10"
+                        : "";
+                  return (
+                    <tr key={item.id} className={rowClass}>
+                      <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
+                        {item.navn}
+                      </td>
+                      <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                        {item.ownerEmail ?? "—"}
+                      </td>
+                      <td className="px-5 py-3 font-mono text-slate-700 dark:text-slate-300">
+                        {formaterTall(item.chunkCount, language)}
+                      </td>
+                      <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                        {item.linkCount}
+                      </td>
+                      <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                        {item.fileCount}
+                      </td>
+                      <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
+                        {formaterDatoOgTid(item.updatedAt, language)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </section>
   );

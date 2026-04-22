@@ -8,12 +8,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { Send, Square, Bot, Upload, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
+import { RotatingStatusMessage } from "@/app/components/ui/RotatingStatusMessage";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { AttachmentStrip } from "@/app/components/chat/AttachmentStrip";
 import { ChatShareModal } from "@/app/components/chat/ChatShareModal";
 import { ChatExportModal } from "@/app/components/chat/ChatExportModal";
 import { ConversationMessageContent } from "@/app/components/chat/ConversationMessageContent";
+import { appendKilderToMarkdown, isSafeExternalUrl } from "@/app/lib/kildeFormat";
 import { SmartSuggestions } from "@/app/components/chat/SmartSuggestions";
 import { ChatShareResponseSchema } from "common/chat";
 import { streamKIChat, useKIDocumentAnalyse, useKIModels, SUPPORTED_FILE_TYPES, getKIErrorMessage, getKIBannerForError, type KIErrorContext } from "@/app/ki/ki-api";
@@ -42,20 +44,6 @@ interface Melding {
     feilet?: boolean;
     /** Kilder (Canvas-filer) som ble brukt i KI-svaret — vises som klikkbar liste */
     kilder?: import("common/ki").KIChatSource[];
-}
-
-/**
- * Verifiserer at en URL trygt kan åpnes med window.open — bare http(s) tillates.
- * Forhindrer XSS via javascript:/data:/file:-URLer dersom backend skulle returnere
- * en kompromittert sourceUrl (Zod z.url() alene godtar alle URL-protokoller).
- */
-function isSafeExternalUrl(url: string): boolean {
-    try {
-        const parsed = new URL(url);
-        return parsed.protocol === "http:" || parsed.protocol === "https:";
-    } catch {
-        return false;
-    }
 }
 
 /**
@@ -278,7 +266,13 @@ export function ChatSection() {
         selectedChatModel,
         setSelectedChatModel,
     } = useUIStore();
-    const { setRunningChatId } = useKIStore();
+    // Zustand-selektorer: abonner kun på feltene vi faktisk bruker fra useKIStore.
+    // Uten selektor re-rendrer ChatSection på ENHVER endring i storen (quiz-job-
+    // status-poller, ukeplan, oppsummering, osv.) — selv om vi bare leser
+    // runningChatId her. For en stor komponent som ChatSection gir dette merkbar
+    // ekstra render-last når det finnes aktivitet på andre ki-features samtidig.
+    const runningChatId = useKIStore((s) => s.runningChatId);
+    const setRunningChatId = useKIStore((s) => s.setRunningChatId);
 
     /** Brukes for å vurdere om bruker spør om Canvas uten å ha valgt noe i innstillinger. */
     const harValgtCanvasData = canvasContextSelection.announcements ||
@@ -318,6 +312,30 @@ export function ChatSection() {
             isMountedRef.current = false;
         };
     }, []);
+
+    // Stuck-loader-redning ved re-mount under pågående strøm.
+    //
+    // Scenario: bruker sender melding → navigerer til /dashboard?view=admin →
+    // kommer tilbake før svaret er ferdig. ChatSection unmountes og re-mountes,
+    // men .then()/.catch()-closuren henger på den gamle komponentens
+    // isMountedRef. Når strømmen fullfører blir zustand-runningChatId satt til
+    // null (OK — synkroniseres over mount), men den nye komponentens lokale
+    // skriver-state (satt via selectedChatId-effekten fra pendingConversationState)
+    // forblir true fordi ingen .then() kjører på den nye komponenten. Resultat:
+    // stop-knappen henger og meldings-useEffekten blokkeres av skriver-guarden
+    // på linje 1416 → svaret fra chat-historikken vises ikke.
+    //
+    // Fix: når runningChatId går til null uten at vi har en aktiv lokal request
+    // (chatAbortRef er null), og skriver fortsatt står true, rydd opp state
+    // slik at chat-historikk-useEffekten kan kjøre og laste inn det persisterte
+    // svaret. Uten dette måtte brukeren klikke Stop manuelt for å fortsette.
+    useEffect(() => {
+        if (runningChatId !== null) return;
+        if (chatAbortRef.current) return;
+        if (!skriver) return;
+        settSkriver(false);
+        settAnalysererDokument(false);
+    }, [runningChatId, skriver]);
 
     useEffect(() => {
         const onDocumentClick = (event: MouseEvent) => {
@@ -801,6 +819,10 @@ export function ChatSection() {
                 .filter((segment) => segment.length > 0);
             const chunks = paragraphs.length > 0 ? paragraphs : [fullText];
             let index = 0;
+            // 60ms intervall gir browseren ~3 frames per chunk-append, som er
+            // nok til å male uten at animasjonen føles treig. Lavere verdier
+            // (f.eks. 35ms) overwhelmer markdown-reparsingen (ReactMarkdown +
+            // KaTeX + sanitize) og får streamingen til å føles choppy.
             animationIntervalRef.current = setInterval(() => {
                 index = Math.min(index + 1, chunks.length);
                 settMeldinger((prev) =>
@@ -814,7 +836,7 @@ export function ChatSection() {
                     settAnimerendeMeldingId(null);
                     onDone();
                 }
-            }, 35);
+            }, 60);
         },
         [stoppAktivAnimasjon],
     );
@@ -1448,6 +1470,17 @@ export function ChatSection() {
     const visKildePanel = !!panelMelding;
 
     const handleKildeKlikk = useCallback((kilde: import("common/ki").KIChatSource) => {
+        const harSourceUrl =
+            typeof kilde.sourceUrl === "string" && isSafeExternalUrl(kilde.sourceUrl);
+        // Foretrekk sourceUrl når den finnes. Ekte Canvas-filer har aldri
+        // sourceUrl satt — feltet fylles kun for crawlet eksternt innhold
+        // (PDFer og sider hentet fra f.eks. windowsnett.no). Å prøve Canvas-
+        // nedlasting først for crawlede kilder er bortkastet: endepunktet
+        // returnerer alltid 404 siden fileId er syntetisk.
+        if (harSourceUrl) {
+            window.open(kilde.sourceUrl!, "_blank", "noopener,noreferrer");
+            return;
+        }
         if (Number.isFinite(kilde.fileId)) {
             void downloadAuthedFile(
                 `/api/canvas/filer/${kilde.fileId}/download`,
@@ -1455,10 +1488,6 @@ export function ChatSection() {
             ).catch(() => {
                 showToast.error(t("chat.sourceDownloadFailed"));
             });
-            return;
-        }
-        if (kilde.sourceUrl && isSafeExternalUrl(kilde.sourceUrl)) {
-            window.open(kilde.sourceUrl, "_blank", "noopener,noreferrer");
             return;
         }
         // kb_file: originalfilen lagres ikke — vis info om at det er indeksert innhold
@@ -1576,7 +1605,10 @@ export function ChatSection() {
                 messageCount={meldinger.length}
                 content={meldinger.map((m) => {
                     const rolle = m.rolle === "user" ? "**Deg**" : "🤖 **KI-Assistent**";
-                    return `### ${rolle}\n\n${m.innhold}`;
+                    const innhold = m.rolle === "assistant"
+                        ? appendKilderToMarkdown(m.innhold, m.kilder, t("chat.sourcesHeading"))
+                        : m.innhold;
+                    return `### ${rolle}\n\n${innhold}`;
                 }).join("\n\n---\n\n")}
             />
             {/* Main Chat Area */}
@@ -1741,7 +1773,12 @@ export function ChatSection() {
                                                 type="button"
                                                 onClick={async () => {
                                                     try {
-                                                        await navigator.clipboard.writeText(melding.innhold);
+                                                        const tekst = appendKilderToMarkdown(
+                                                            melding.innhold,
+                                                            melding.kilder,
+                                                            t("chat.sourcesHeading"),
+                                                        );
+                                                        await navigator.clipboard.writeText(tekst);
                                                         showToast.success(t("chat.copiedToClipboard"));
                                                     } catch {
                                                         showToast.error(t("chat.couldNotCopy"));
@@ -1822,7 +1859,7 @@ export function ChatSection() {
                             <div className="shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center mt-1">
                                 <Bot className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                             </div>
-                            <div className="py-3">
+                            <div className="py-3 flex flex-col gap-2">
                                 {analyserarDokument ? (
                                     <div className="flex items-center gap-2">
                                         <LoadingSpinner className="w-4 h-4" />
@@ -1836,6 +1873,7 @@ export function ChatSection() {
                                         <span className="sr-only">{t("chat.typingIndicator")}</span>
                                     </div>
                                 )}
+                                <RotatingStatusMessage active={skriver || analyserarDokument} />
                             </div>
                         </div>
                     )}

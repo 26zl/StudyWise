@@ -584,6 +584,192 @@ export type AdminLockUserResponse = z.infer<typeof AdminLockUserResponseSchema>;
 export type AdminUnlockUserResponse = z.infer<typeof AdminUnlockUserResponseSchema>;
 export type AdminSlettBrukerResponse = z.infer<typeof AdminSlettBrukerResponseSchema>;
 export type AdminStatsResponse = z.infer<typeof AdminStatsResponseSchema>;
+
+export const AdminCrawlerStaleItemSchema = z.object({
+  courseId: z.string(),
+  courseName: z.string(),
+  moduleTitle: z.string(),
+  itemTitle: z.string(),
+  externalUrl: z.string(),
+  crawledAt: z.string().nullable(),
+  reason: z.enum(["never_crawled", "stale", "empty_crawl"]),
+});
+export const AdminCrawlerStatsResponseSchema = z.object({
+  totalExternalUrls: z.number().int().min(0),
+  crawledCount: z.number().int().min(0),
+  neverCrawledCount: z.number().int().min(0),
+  staleCount: z.number().int().min(0),
+  /** Items med crawledHash men tomt PDF/subpage-resultat — sync retryer disse. */
+  emptyCrawlCount: z.number().int().min(0),
+  pdfsIndexed: z.number().int().min(0),
+  subpagesCrawled: z.number().int().min(0),
+  staleItems: z.array(AdminCrawlerStaleItemSchema),
+});
+export type AdminCrawlerStaleItem = z.infer<typeof AdminCrawlerStaleItemSchema>;
+export type AdminCrawlerStatsResponse = z.infer<typeof AdminCrawlerStatsResponseSchema>;
+
+// ── Admin-triggerte vedlikeholdsoperasjoner ─────────────────────────────────
+// Disse jobbene resetter *tilstand* — selve crawlingen/ekstraheringen skjer
+// neste gang hver bruker trigger Canvas-sync. Derfor eksponerer vi både
+// `affectedUsers` (hvor mange brukere som vil få re-prosessering) og
+// `cachesInvalidated` (hvor mange brukere som hadde aktiv Redis-cache
+// som måtte ryddes for å trigge ny sync ved neste dashboard-åpning).
+export const AdminMaintenanceRetryCrawlsResponseSchema = z.object({
+  suksess: z.literal(true),
+  scannedItems: z.number().int().min(0),
+  flaggedItems: z.number().int().min(0),
+  resetItems: z.number().int().min(0),
+  affectedUsers: z.number().int().min(0),
+  cachesInvalidated: z.number().int().min(0),
+});
+export const AdminMaintenanceReindexMissingResponseSchema = z.object({
+  suksess: z.literal(true),
+  canvasFiles: z.number().int().min(0),
+  indexedFiles: z.number().int().min(0),
+  missingFiles: z.number().int().min(0),
+  affectedUsers: z.number().int().min(0),
+  cachesInvalidated: z.number().int().min(0),
+});
+export const AdminMaintenanceReextractTruncatedResponseSchema = z.object({
+  suksess: z.literal(true),
+  truncatedFiles: z.number().int().min(0),
+  invalidatedRows: z.number().int().min(0),
+  affectedUsers: z.number().int().min(0),
+  cachesInvalidated: z.number().int().min(0),
+});
+export type AdminMaintenanceReextractTruncatedResponse = z.infer<
+  typeof AdminMaintenanceReextractTruncatedResponseSchema
+>;
+export type AdminMaintenanceRetryCrawlsResponse = z.infer<
+  typeof AdminMaintenanceRetryCrawlsResponseSchema
+>;
+export type AdminMaintenanceReindexMissingResponse = z.infer<
+  typeof AdminMaintenanceReindexMissingResponseSchema
+>;
+
+// ── Retrieval debug (query replay) ──────────────────────────────────────────
+export const AdminRetrievalDebugRequestSchema = z.object({
+  query: z.string().trim().min(1).max(2000),
+  courseId: z.string().trim().min(1).max(64).optional(),
+  userId: z.string().trim().min(1).max(64).optional(),
+});
+const RetrievalDebugSourceSchema = z.object({
+  courseId: z.string(),
+  courseName: z.string(),
+  moduleTitle: z.string(),
+  fileName: z.string(),
+  fileId: z.number(),
+});
+const RetrievalDebugRowSchema = z.object({
+  rank: z.number().int(),
+  score: z.number(),
+  source: RetrievalDebugSourceSchema,
+  chunkIndex: z.number().int(),
+  textPreview: z.string(),
+});
+export const AdminRetrievalDebugResponseSchema = z.object({
+  query: z.string(),
+  courseId: z.string().nullable(),
+  effectiveUserId: z.string(),
+  concepts: z.array(z.string()).nullable(),
+  elapsedMs: z.number(),
+  degraded: z.boolean(),
+  sources: z.object({
+    vector: z.boolean(),
+    bm25: z.boolean(),
+    reranked: z.boolean(),
+  }),
+  vector: z.array(RetrievalDebugRowSchema),
+  bm25: z.array(RetrievalDebugRowSchema),
+  fused: z.array(RetrievalDebugRowSchema),
+  final: z.array(RetrievalDebugRowSchema),
+});
+export type AdminRetrievalDebugRequest = z.infer<typeof AdminRetrievalDebugRequestSchema>;
+export type AdminRetrievalDebugResponse = z.infer<typeof AdminRetrievalDebugResponseSchema>;
+
+// ── Ekstraksjons-audit ───────────────────────────────────────────────────────
+/**
+ * Merk: Enheten er per-bruker-fil. StudyWise lagrer separate
+ * ContentEmbedding-rader per bruker for hver Canvas-fil, så en fil som
+ * er indeksert for bruker A men ikke for bruker B fører til ett treff.
+ * "totalt"/"indeksert"/"mangler"-tallene reflekterer per-bruker-filpar,
+ * ikke globale unike filer.
+ */
+export const AdminExtractionAuditItemSchema = z.object({
+  userId: z.string(),
+  ownerEmail: z.string().nullable(),
+  courseId: z.string(),
+  courseName: z.string(),
+  moduleTitle: z.string(),
+  fileName: z.string(),
+  fileId: z.number(),
+  reason: z.enum(["no_chunks", "never_crawled"]),
+});
+export const AdminExtractionTruncatedItemSchema = z.object({
+  userId: z.string(),
+  ownerEmail: z.string().nullable(),
+  courseId: z.string(),
+  courseName: z.string(),
+  fileName: z.string(),
+  fileId: z.number(),
+  /** Opprinnelig ekstrahert lengde (før storage-cap). */
+  originalChars: z.number().int().min(0),
+  /** Faktisk lagret lengde (etter storage-cap). */
+  storedChars: z.number().int().min(0),
+  /** Hvor mange tegn som gikk tapt ved lagring. */
+  lostChars: z.number().int().min(0),
+});
+export const AdminExtractionAuditResponseSchema = z.object({
+  totalUserFiles: z.number().int().min(0),
+  indexedUserFiles: z.number().int().min(0),
+  unindexedUserFiles: z.number().int().min(0),
+  items: z.array(AdminExtractionAuditItemSchema),
+  /** Filer hvor lagringen kuttet teksten stille (charCount > fullText.length). */
+  truncatedFiles: z.array(AdminExtractionTruncatedItemSchema),
+  /** Gjeldende cap — admin kan sammenligne mot lostChars for å se om filen
+   *  bare så vidt trigget cap, eller om den er mye lenger. */
+  storageCap: z.number().int().min(1),
+});
+export type AdminExtractionAuditItem = z.infer<typeof AdminExtractionAuditItemSchema>;
+export type AdminExtractionTruncatedItem = z.infer<typeof AdminExtractionTruncatedItemSchema>;
+export type AdminExtractionAuditResponse = z.infer<typeof AdminExtractionAuditResponseSchema>;
+
+// ── KB-helse ────────────────────────────────────────────────────────────────
+export const AdminKbHealthItemSchema = z.object({
+  id: z.string(),
+  navn: z.string(),
+  ownerEmail: z.string().nullable(),
+  chunkCount: z.number().int().min(0),
+  linkCount: z.number().int().min(0),
+  fileCount: z.number().int().min(0),
+  updatedAt: z.string(),
+});
+export const AdminKbHealthResponseSchema = z.object({
+  totalBases: z.number().int().min(0),
+  emptyBases: z.number().int().min(0),
+  thinBases: z.number().int().min(0),
+  totalChunks: z.number().int().min(0),
+  items: z.array(AdminKbHealthItemSchema),
+});
+export type AdminKbHealthItem = z.infer<typeof AdminKbHealthItemSchema>;
+export type AdminKbHealthResponse = z.infer<typeof AdminKbHealthResponseSchema>;
+
+// ── Feedback-triage ─────────────────────────────────────────────────────────
+export const AdminFeedbackTriageGroupSchema = z.object({
+  intent: z.string(),
+  downCount: z.number().int().min(0),
+  upCount: z.number().int().min(0),
+  lastAt: z.string().nullable(),
+});
+export const AdminFeedbackTriageResponseSchema = z.object({
+  /** Summering dekker hele bevart feedback-historikk (ChatFeedback har 180-dagers TTL). */
+  totalDown: z.number().int().min(0),
+  totalUp: z.number().int().min(0),
+  windowDays: z.number().int().min(1),
+  groups: z.array(AdminFeedbackTriageGroupSchema),
+});
+export type AdminFeedbackTriageGroup = z.infer<typeof AdminFeedbackTriageGroupSchema>;
+export type AdminFeedbackTriageResponse = z.infer<typeof AdminFeedbackTriageResponseSchema>;
 export type AdminAuditQuery = z.infer<typeof AdminAuditQuerySchema>;
 export type AdminAuditCategory = z.infer<typeof AdminAuditCategorySchema>;
 export type AdminAuditItem = z.infer<typeof AdminAuditItemSchema>;

@@ -18,7 +18,10 @@ import {
   AlertCircle,
   Layers,
   RotateCw,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
+import { fetchApi } from "@/app/lib/apiClient";
 import { cn } from "@/app/lib/utils";
 import { useLanguage } from "@/app/i18n";
 import { useCanvasCourses, useCanvasModules, useCanvasFiles } from "@/app/canvas/canvas-api";
@@ -26,6 +29,7 @@ import { useHiddenCourseIds } from "@/app/auth/auth-api";
 import { CanvasTokenNotice } from "@/app/components/canvas/CanvasTokenNotice";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
+import { RotatingStatusMessage } from "@/app/components/ui/RotatingStatusMessage";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useKIStore } from "@/app/store/kiStore";
 import {
@@ -292,9 +296,18 @@ function FlashcardActive({
   }, []);
 
   const { t } = useLanguage();
+
+  // Samme safety-net som i QuizActive: hvis current har passert siste kort,
+  // fullfør quiz-en i stedet for å krasje på card.front/back-access.
+  useEffect(() => {
+    if (cards.length > 0 && current >= cards.length) {
+      onFinish(known, unknown);
+    }
+  }, [current, cards.length, known, unknown, onFinish]);
+
   const card = cards[current];
   const isLast = current === cards.length - 1;
-  const progress = ((current + 1) / cards.length) * 100;
+  const progress = ((current + 1) / Math.max(cards.length, 1)) * 100;
 
   const handleMark = (didKnow: boolean) => {
     const newKnown = didKnow ? known + 1 : known;
@@ -311,6 +324,10 @@ function FlashcardActive({
       nextTimerRef.current = setTimeout(() => setCurrent((c) => c + 1), 150);
     }
   };
+
+  // Under onFinish-transisjonen (utløst av useEffect over) kan vi rendre null
+  // i stedet for å krasje på card.front/back. Komponenten unmountes neste tick.
+  if (!card) return null;
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -438,14 +455,122 @@ function FlashcardActive({
 
 // --- Flashcard-resultatvisning ---
 
+/**
+ * Bygger en kort kontekst-streng (kurs + antall spørsmål) som sendes sammen
+ * med feedback-requesten. Hjelper admin-dashboardet med å se hvilket
+ * kursmateriale feedbacken gjelder, uten å lekke hele quiz-innholdet.
+ */
+function buildFeedbackContext(
+  kind: "quiz" | "flashcards",
+  courseName: string | undefined,
+  itemCount: number,
+): string {
+  const parts: string[] = [kind === "quiz" ? "Quiz" : "Flashcards"];
+  if (courseName) parts.push(`kurs: ${courseName}`);
+  if (itemCount > 0) {
+    parts.push(`${itemCount} ${kind === "quiz" ? "spørsmål" : "kort"}`);
+  }
+  return parts.join(" — ");
+}
+
+/**
+ * Tommel-opp/ned-feedback for generert quiz eller flashcards.
+ *
+ * Gjenbruker samme backend-endepunkt som KI-chat (`/api/ki/feedback`) slik at
+ * admin-dashboardet ser feedback fra alle KI-funksjoner på ett sted. messageId
+ * prefikses med `quiz-` eller `flashcards-` slik at kilden lar seg skille ved
+ * behov. Feedbacken er engangs-per-generering — komponenten state holder styr
+ * på om bruker allerede har trykket.
+ */
+function ResultFeedback({
+  kind,
+  contextSummary,
+}: {
+  kind: "quiz" | "flashcards";
+  contextSummary: string;
+}) {
+  const { t } = useLanguage();
+  const [rating, setRating] = useState<"up" | "down" | null>(null);
+  const [messageId] = useState(() => {
+    const uuid =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    return `${kind}-${uuid}`;
+  });
+
+  const submit = async (newRating: "up" | "down") => {
+    const previous = rating;
+    setRating(newRating);
+    try {
+      const r = await fetchApi("/api/ki/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId,
+          rating: newRating,
+          question: contextSummary.slice(0, 2000),
+          answer:
+            kind === "quiz"
+              ? "Quiz-generering fra kursmateriale"
+              : "Flashcard-generering fra kursmateriale",
+        }),
+      });
+      if (!r.ok) throw new Error("feedback");
+      showToast.success(
+        newRating === "up"
+          ? t("chat.feedbackThanksGood")
+          : t("chat.feedbackThanksBad"),
+      );
+    } catch {
+      setRating(previous);
+      showToast.error(t("chat.feedbackFailed"));
+    }
+  };
+
+  return (
+    <div className="mt-8 flex flex-wrap items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+      <span>{t("quiz.feedbackPrompt")}</span>
+      {(["up", "down"] as const).map((value) => {
+        const active = rating === value;
+        const Icon = value === "up" ? ThumbsUp : ThumbsDown;
+        const activeClass = active
+          ? value === "up"
+            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 ring-1 ring-green-400 dark:ring-green-600"
+            : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 ring-1 ring-red-400 dark:ring-red-600"
+          : "hover:bg-slate-100 dark:hover:bg-slate-800";
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => submit(value)}
+            className={`rounded-lg p-2 transition-colors ${activeClass}`}
+            title={
+              value === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")
+            }
+            aria-label={
+              value === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")
+            }
+            aria-pressed={active}
+          >
+            <Icon className={`h-4 w-4 ${active ? "fill-current" : ""}`} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function FlashcardResults({
   known,
   total,
   onBack,
+  feedbackContext,
 }: {
   known: number;
   total: number;
   onBack: () => void;
+  feedbackContext: string;
 }) {
   const { t } = useLanguage();
   const pct = Math.round((known / total) * 100);
@@ -497,6 +622,7 @@ function FlashcardResults({
         <ArrowLeft className="w-5 h-5" />
         {t("quiz.back")}
       </button>
+      <ResultFeedback kind="flashcards" contextSummary={feedbackContext} />
     </motion.div>
   );
 }
@@ -524,6 +650,17 @@ function QuizActive({
     scoreRef.current = 0;
   }, [questions]);
 
+  // Safety-net: hvis `current` har passert siste spørsmål, behandle det som
+  // ferdig-signal (quizen skal avsluttes) i stedet for å vise feilmelding.
+  // Dette fanger race conditions der handleNext kjører på siste spørsmål uten
+  // at onFinish-transisjonen har unmountet komponenten ennå, eller der
+  // sessionStorage-hydrering setter current til en verdi ute av rekkevidde.
+  useEffect(() => {
+    if (questions.length > 0 && current >= questions.length) {
+      onFinish(scoreRef.current, questions.length);
+    }
+  }, [current, questions.length, onFinish]);
+
   if (questions.length === 0) {
     return (
       <div className="max-w-3xl mx-auto">
@@ -545,25 +682,9 @@ function QuizActive({
   }
 
   const q = questions[current];
-  if (!q) {
-    return (
-      <div className="max-w-3xl mx-auto">
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-          {t("quiz.loadQuestionError")}
-        </div>
-        <div className="mt-6">
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {t("quiz.backToSetup")}
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Under onFinish-transisjonen (utløst av useEffect over) unmountes vi neste
+  // tick. Render null i stedet for å blinke feilmeldingen.
+  if (!q) return null;
   const isLast = current === questions.length - 1;
 
   const handleSelect = (idx: number) => {
@@ -735,11 +856,13 @@ function QuizResults({
   total,
   onRestart,
   onBack,
+  feedbackContext,
 }: {
   score: number;
   total: number;
   onRestart: () => void;
   onBack: () => void;
+  feedbackContext: string;
 }) {
   const { t } = useLanguage();
   const pct = Math.round((score / total) * 100);
@@ -801,6 +924,7 @@ function QuizResults({
           {t("chat.retryButton")}
         </button>
       </div>
+      <ResultFeedback kind="quiz" contextSummary={feedbackContext} />
     </motion.div>
   );
 }
@@ -1393,14 +1517,20 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                         )}
                       </button>
                       {isGenerating && (
-                        <button
-                          type="button"
-                          onClick={cancelQuizJob}
-                          className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                          {t("common.actions.cancel")}
-                        </button>
+                        <>
+                          <RotatingStatusMessage
+                            active={isGenerating}
+                            className="text-center"
+                          />
+                          <button
+                            type="button"
+                            onClick={cancelQuizJob}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                            {t("common.actions.cancel")}
+                          </button>
+                        </>
                       )}
                     </motion.div>
                   )}
@@ -1438,12 +1568,22 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                     total={finalScore.total}
                     onRestart={handleRestart}
                     onBack={handleBackToSetup}
+                    feedbackContext={buildFeedbackContext(
+                      "quiz",
+                      selectedCourse?.name,
+                      quizQuestions.length,
+                    )}
                   />
                 ) : (
                   <FlashcardResults
                     known={flashcardScore.known}
                     total={flashcardScore.total}
                     onBack={handleBackToSetup}
+                    feedbackContext={buildFeedbackContext(
+                      "flashcards",
+                      selectedCourse?.name,
+                      flashcards.length,
+                    )}
                   />
                 )}
               </motion.div>

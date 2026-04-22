@@ -67,6 +67,8 @@ export const nbMessages = {
       settings: "Laster innstillinger...",
       userData: "Laster brukerdata...",
     },
+    yes: "Ja",
+    no: "Nei",
   },
   dashboard: {
     sections: {
@@ -93,7 +95,7 @@ export const nbMessages = {
       notifications: "Varslinger",
       overview: "Oversikt",
       navigationTitle: "Dashboard-navigasjon",
-      quiz: "Quiz / Flashcards",
+      quiz: "Quiz & Flashcards",
       settings: "Innstillinger",
       profile: "Konto",
       taskBreakdown: "Oppgavedeling med KI",
@@ -110,6 +112,8 @@ export const nbMessages = {
     clearSuccess: "Samtalehistorikk slettet",
     deleteError: "Kunne ikke slette samtalen",
     deleteSuccess: "Samtale slettet",
+    pageDescription:
+      "Se dine tidligere KI-samtaler og delte lenker. Åpne en samtale for å fortsette der du slapp, eller del den med en medstudent.",
     saveError: "Kunne ikke lagre samtalen",
     topicUpdateError: "Kunne ikke oppdatere tema",
     pinUpdateError: "Kunne ikke oppdatere bokmerke",
@@ -393,34 +397,34 @@ export const nbMessages = {
     features: {
       aiPartner: {
         description:
-          "Står du fast? Få hjelp, forklaringer, quiz, flashcards og oppgavenedbrytning. Last opp dokumenter for analyse, få en KI-generert studieplan, og eksporter til PDF, Word, Excel eller Notion.",
-        title: "KI-Studiepartner",
-      },
-      announcements: {
-        description:
-          "Få samlet alle kunngjøringer fra alle emner i én feed. Filtrer etter viktighet og søk gjennom historikken.",
-        title: "Aldri gå glipp av en kunngjøring",
+          "Få hjelp, forklaringer, quizer, flashcards og oppgavenedbrytning basert på faktisk kursmateriale. Last opp egne dokumenter — PDF, Word, Excel eller bilder av tavlenotater — og la KI-en lese dem som om det var pensum.",
+        title: "KI-Studiepartner som kjenner pensum",
       },
       canvasIntegration: {
         description:
-          "Koble til Canvas én gang og få tilgang til alle dine emner, moduler, filer, kunngjøringer og kalender direkte i dashboardet.",
+          "Koble til Canvas én gang og få automatisk tilgang til alle dine emner, moduler, filer og kunngjøringer. Vi synker i bakgrunnen — du ser alltid det ferskeste uten å løfte en finger.",
         title: "Sømløs Canvas-integrasjon",
       },
       heading: "Alt du trenger for å lykkes",
-      overview: {
+      knowledgeBase: {
         description:
-          "Se alt som skjer i dag og de neste dagene. Frister, KI-generert ukeplan og studiestatistikk samlet på ett sted.",
-        title: "Total Oversikt",
+          "Utover Canvas-pensumet kan du bygge din egen kunnskapsbase med bøker, notater og lenker. KI-en henter fra alt — og svarer basert på ditt materiale, ikke bare det offisielle pensumet.",
+        title: "Din egen kunnskapsbase",
       },
       personalStudyPlan: {
         description:
-          "KI-en lager en ukeplan tilpasset dine frister, vaner og energinivå. Justeres automatisk når noe endrer seg.",
-        title: "Personlig studieplan",
+          "KI-en lager en ukeplan tilpasset frister, rutiner og energinivå. Strukturer dagen med tidsslotter, spor fremgang per oppgave, og se hvor mange studietimer du faktisk har lagt inn denne uka.",
+        title: "Personlig studie- og arbeidsplan",
+      },
+      sharingAndExport: {
+        description:
+          "Generer delbare lenker til KI-samtaler med ett klikk — perfekt for gruppearbeid eller for å hjelpe medstudenter. Eksporter notater, planer og svar til PDF, Word, Excel eller Notion.",
+        title: "Del med andre og eksporter",
       },
       smartCalendar: {
         description:
-          "Alle innleveringer, eksamener og forelesninger samlet. Få varsler før viktige frister, fargekodet per emne.",
-        title: "Smart Kalender",
+          "Alle innleveringer, eksamener og forelesninger samlet og fargekodet per emne. Få push-varsler i nettleseren før viktige frister — ingen app nødvendig, fungerer på alle enheter.",
+        title: "Smart kalender og varsler",
       },
       subheading:
         "Fra oversikt og planlegging til KI-hjelp på sene kveldstimer - StudyWise er skreddersydd for studielivet.",
@@ -455,16 +459,40 @@ export const nbMessages = {
         description: "Bryt ned oppgaver i mindre deler",
         title: "Oppgavedeling med KI",
       },
-      exportChat: {
-        description: "Eksporter samtaler til PDF, Word, Excel eller Notion",
-        title: "Eksporter",
+      chatHistory: {
+        description: "Se tidligere KI-samtaler og delte lenker",
+        title: "Samtaler",
+      },
+      notifications: {
+        description: "Kunngjøringer, frister og hendelser fra Canvas",
+        title: "Varslinger",
+      },
+      calendar: {
+        description: "Planlegg uken med frister og studieøkter",
+        title: "Kalender",
+      },
+      library: {
+        description: "Bokmerker og egne kunnskapsbaser",
+        title: "Bibliotek",
+      },
+      quizFlashcards: {
+        description: "Generer quiz og flashcards med KI",
+        title: "Quiz & Flashcards",
+      },
+      announcements: {
+        description: "Se kunngjøringer fra dine Canvas-emner",
+        title: "Kunngjøringer",
+      },
+      assignments: {
+        description: "Alle oppgaver og innleveringer fra Canvas",
+        title: "Oppgaver",
       },
     },
     stats: {
-      activeCourses: "Aktive emner",
-      totalAssignments: "Totalt oppgaver",
       totalCourses: "Emner totalt",
-      upcomingAssignments: "Kommende oppgaver",
+      upcomingDeadlines: "Frister neste 14 dager",
+      notSubmitted: "Ikke-leverte oppgaver",
+      completedThisYear: "Fullførte i år",
     },
     studyActivity: {
       title: "Dagens studieaktivitet",
@@ -472,7 +500,7 @@ export const nbMessages = {
       tasksCompleted: "Oppgaver fullført",
       studyBlocks: "Studieøkter",
       hoursStudied: "Timer studert",
-      topicsExplored: "Emner utforsket",
+      topicsExplored: "Tema utforsket",
       planProgress: "av ukeplanen fullført",
       noActivity: "Ingen studieaktivitet registrert i dag ennå.",
     },
@@ -482,13 +510,15 @@ export const nbMessages = {
       myWorkPlan: "Min arbeidsplan",
     },
     title: "Oversikt",
+    pageDescription:
+      "Alt som skjer i dag og de neste dagene — frister, KI-ukeplan og studiestatistikk samlet på ett sted.",
     upcomingDeadlines: "Kommende frister (neste {days} dager)",
   },
   settings: {
     accountSecurity: {
       action: "Åpne konto",
       connectionHint:
-        "Her kan du oppdatere profilinformasjon, endre passord, slå på to-faktor (2FA), administrere tilkoblede innloggingsmetoder som Google og Microsoft, og slette kontoen din hvis du trenger det.",
+        "Her kan du oppdatere profilinformasjon, endre passord, slå på to-faktor (2FA), administrere tilkoblede innloggingsmetoder som Google og Microsoft, se aktive enheter og økter (under «Sikkerhet»), og slette kontoen din hvis du trenger det.",
       description:
         "Åpne kontosiden for å administrere brukernavn, fornavn, etternavn, e-post, passord, to-faktor (2FA) og tilkoblede innloggingsmetoder (Google, Microsoft). Der kan du også slette StudyWise-kontoen din.",
       title: "Konto og sikkerhet",
@@ -757,6 +787,149 @@ export const nbMessages = {
       feedback: "Feedback",
       maintenance: "Vedlikehold",
     },
+    crawler: {
+      title: "Crawler-vedlikehold",
+      description: "Status for ExternalUrl-crawling på tvers av alle indekserte Canvas-kurs.",
+      totalUrls: "Totalt antall lenker",
+      crawled: "Crawlet",
+      neverCrawled: "Aldri crawlet",
+      stale: "Stale (eldre enn 7 dager)",
+      pdfsIndexed: "PDF-er indeksert",
+      subpagesCrawled: "Undersider crawlet",
+      staleTableTitle: "Lenker som trenger re-crawling",
+      staleTableDescription:
+        "Viser opptil 50 lenker som enten aldri har blitt crawlet eller hvor siste crawl er eldre enn 7 dager. Re-crawl skjer automatisk ved neste Canvas-sync.",
+      columnCourse: "Kurs",
+      columnModule: "Modul",
+      columnItem: "Tittel",
+      columnUrl: "URL",
+      columnLastCrawl: "Siste crawl",
+      never: "Aldri",
+      loading: "Laster crawler-statistikk...",
+      error: "Kunne ikke hente crawler-statistikk.",
+      empty: "Ingen stale eller ukrawlede lenker. Alt oppdatert.",
+      emptyCrawl: "Tomme (crawl uten PDF/undersider)",
+      columnReason: "Grunn",
+      reasonNeverCrawled: "Aldri crawlet",
+      reasonStale: "Stale",
+      reasonEmptyCrawl: "Tom crawl",
+      retryTitle: "Trigger re-crawl manuelt",
+      retryDescription:
+        "Nullstiller crawl-state for flaggede items. Items vises umiddelbart som 'Aldri crawlet' i tabellen — det er forventet. Selve re-crawlingen (ny crawledAt-timestamp, PDF-er hentet) skjer først neste gang hver berørte bruker åpner appen og trigger Canvas-sync.",
+      retryAction: "Kjør re-crawl",
+      retryRunning: "Kjører...",
+      retryConfirm: "Nullstille crawl-state for alle flaggede items?",
+      retrySuccess: "Re-crawl klarert",
+      retrySummary:
+        "{reset} items nullstilt for {affected} brukere ({caches} aktive cacher invalidert). Crawlingen skjer når brukerne åpner appen.",
+      retryFailed: "Re-crawl feilet",
+    },
+    retrieval: {
+      title: "Retrieval-debug (query replay)",
+      description:
+        "Kjør samme hybrid-søk som chat-endepunktet. Ser hva BM25, Pinecone, RRF og Cohere returnerer for en spesifikk spørring.",
+      queryLabel: "Spørring",
+      queryPlaceholder: "F.eks. «oppsummer leksjon 3»",
+      courseLabel: "Kurs-ID (valgfritt)",
+      coursePlaceholder: "Canvas courseId",
+      userLabel: "Bruker-ID (valgfritt — admin-replay som annen bruker)",
+      userPlaceholder: "Mongo _id for bruker",
+      submit: "Kjør søk",
+      running: "Kjører...",
+      error: "Retrieval-debug feilet.",
+      statsElapsed: "Tidsbruk",
+      statsConcepts: "Multi-concept",
+      statsDegraded: "Degradert",
+      statsReranked: "Reranket",
+      sectionVector: "Vektor (Pinecone)",
+      sectionBm25: "BM25",
+      sectionFused: "RRF-fusjonert",
+      sectionFinal: "Endelig (etter rerank)",
+      columnRank: "#",
+      columnScore: "Score",
+      columnFile: "Fil",
+      columnModule: "Modul",
+      columnChunk: "Chunk",
+      columnPreview: "Forhåndsvisning",
+      noResults: "Ingen resultater",
+    },
+    extraction: {
+      title: "Ekstraksjons-audit",
+      description:
+        "Canvas-filer som finnes i modulene, men som ikke har blitt indeksert til chunks. Dette er årsak #1 til «KI finner ikke fil X».",
+      totalFiles: "Bruker-fil-par totalt",
+      indexedFiles: "Indeksert",
+      unindexedFiles: "Mangler indeksering",
+      tableTitle: "Bruker-fil-par uten chunks",
+      empty: "Alle Canvas-filer er indeksert per bruker.",
+      columnOwner: "Eier",
+      columnCourse: "Kurs",
+      columnModule: "Modul",
+      columnFile: "Fil",
+      columnReason: "Grunn",
+      reasonNoChunks: "Ingen chunks",
+      reasonNeverCrawled: "Aldri crawlet",
+      error: "Kunne ikke hente ekstraksjons-audit.",
+      truncatedFiles: "Stille kuttede filer",
+      truncatedTableTitle: "Filer der lagringen kuttet teksten stille",
+      truncatedDescription:
+        "Disse filene har mer innhold enn storage-cap ({cap} tegn) tillater, så siste del av teksten er aldri lagret. KI kan ikke oppsummere de delene før admin re-indekserer eller hever cap-en.",
+      columnOriginal: "Original",
+      columnStored: "Lagret",
+      columnLost: "Kuttet",
+      reextractAction: "Re-ekstraher kuttede filer",
+      reextractRunning: "Kjører...",
+      reextractConfirm:
+        "Nullstille fileHash på chunks for alle stille-kuttede filer? Neste Canvas-sync vil re-ekstrahere dem med gjeldende storage-cap.",
+      reextractSuccess: "Re-ekstraksjon klarert",
+      reextractSummary:
+        "{truncated} filer nullstilt for {affected} brukere ({caches} cacher invalidert). Re-ekstraksjonen skjer når brukerne åpner appen.",
+      reextractFailed: "Re-ekstraksjon feilet",
+      reindexTitle: "Trigger re-indeksering manuelt",
+      reindexDescription:
+        "Invaliderer Canvas-sync-cache for brukere med uindekserte filer. Tabellen vil fortsatt vise 'Ingen chunks' helt til brukeren åpner appen — da kjører Canvas-sync ekstraheringen automatisk og nye ContentEmbedding-rader opprettes.",
+      reindexAction: "Kjør re-indeksering",
+      reindexRunning: "Kjører...",
+      reindexConfirm: "Invalidere sync-cache for alle brukere med uindekserte filer?",
+      reindexSuccess: "Re-indeksering klarert",
+      reindexSummary:
+        "{missing} filer mangler hos {affected} brukere ({caches} aktive cacher invalidert). Ekstraheringen skjer når brukerne åpner appen.",
+      reindexFailed: "Re-indeksering feilet",
+    },
+    kbHealth: {
+      title: "Kunnskapsbase-helse",
+      description:
+        "Status per kunnskapsbase. Tomme eller tynne baser kan forklare dårlige /basen-svar.",
+      totalBases: "Totalt antall baser",
+      emptyBases: "Tomme",
+      thinBases: "Tynne (< 5 chunks)",
+      totalChunks: "Totalt chunks",
+      tableTitle: "Per-base",
+      empty: "Ingen kunnskapsbaser funnet.",
+      columnName: "Navn",
+      columnOwner: "Eier",
+      columnChunks: "Chunks",
+      columnLinks: "Lenker",
+      columnFiles: "Filer",
+      columnUpdated: "Oppdatert",
+      error: "Kunne ikke hente KB-helse.",
+    },
+    feedbackTriage: {
+      title: "Feedback-triage",
+      description:
+        "Negative tommelvurderinger gruppert etter utledet intent (basert på brukerens spørsmål). Høy down-rate innen én kategori = der svarkvaliteten regresserer.",
+      totalDown: "Tommel ned",
+      totalUp: "Tommel opp",
+      windowNote: "Viser feedback fra de siste {days} dagene (TTL bevarer kun dette vinduet).",
+      tableTitle: "Per intent",
+      empty: "Ingen feedback registrert enda.",
+      columnIntent: "Intent",
+      columnDown: "Tommel ned",
+      columnUp: "Tommel opp",
+      columnRate: "Down-rate",
+      columnLastAt: "Siste",
+      error: "Kunne ikke hente feedback-triage.",
+    },
     serviceStatus: {
       title: "Systemstatus",
       description: "Live status for kritiske tjenester. Oppdateres hvert 30. sekund.",
@@ -833,6 +1006,13 @@ export const nbMessages = {
       description:
         "Trygge admin-verktøy for datavedlikehold og reparasjon av tidligere lagret innhold.",
       lastResult: "Siste kjøring",
+      subtabs: {
+        ops: "Operasjoner",
+        crawler: "Crawler",
+        retrieval: "Retrieval",
+        extraction: "Indeksering",
+        kbHealth: "KB-helse",
+      },
       backfill: {
         action: "Kjør fulltekst-backfill",
         confirm: "Kjør backfill for filer som mangler fulltekst i innholdslageret?",
@@ -1376,11 +1556,11 @@ export const nbMessages = {
     },
   },
   quiz: {
-    title: "Quiz / Flashcards",
+    title: "Quiz & Flashcards",
     subtitle: "Tren på Canvas-innholdet ditt med KI-genererte spørsmål og kort.",
     noCoursesFound: "Ingen Canvas-emner funnet. Koble til Canvas først.",
     allCoursesHidden:
-      "Alle emner er skjult. Vis emner under Emner-siden for å bruke Quiz/Flashcards.",
+      "Alle emner er skjult. Vis emner under Emner-siden for å bruke Quiz & Flashcards.",
     noModulesFound: "Ingen moduler funnet for dette emnet.",
     noFilesFound: "Ingen filer funnet for dette emnet.",
     noContentFound: "Ingen moduler eller filer funnet for dette emnet.",
@@ -1431,6 +1611,7 @@ export const nbMessages = {
     resultKeepPracticingShort: "Øv mer!",
     flashcardResult: "Du kunne {known} av {total} kort ({pct}%)",
     quizResult: "Du fikk {score} av {total} riktige ({pct}%)",
+    feedbackPrompt: "Hvordan synes du resultatet ble?",
     questionProgress: "Spørsmål {current} av {total}",
     correctCount: "{score} riktige",
     explanation: "Forklaring",
@@ -1602,6 +1783,7 @@ export const nbMessages = {
     showErrorDetails: "Vis feildetaljer (debug)",
     sendingFailed: "Sending feilet",
     sources: "Kilder",
+    sourcesHeading: "Kilder",
     sourcesPillLabel: "kilder",
     sourceDownloadFailed: "Kunne ikke laste ned kilden",
     sourceKbFileInfo: "Dette er indeksert innhold fra din kunnskapsbase. Originalfilen lagres ikke.",
@@ -1777,6 +1959,7 @@ export const nbMessages = {
     couldNotStartConversation: "Kunne ikke starte samtalen",
     conversationCopied: "Samtalen ble kopiert til StudyWise",
     copyingConversation: "Kopierer samtalen...",
+    sourcesLabel: "Kilder",
   },
   omOss: {
     title: "Om StudyWise",
@@ -2205,6 +2388,9 @@ export const nbMessages = {
     pushQ: "Hvordan får jeg nettleservarsler?",
     pushA:
       "Gå til Innstillinger → Varsler og slå på nettleservarsler. Nettleseren vil spørre om tillatelse første gang. Du kan da få beskjed om nye Canvas-frister og oppgaver selv når StudyWise ikke er åpent. Varslene er per enhet — aktiver på hver enhet du vil bruke.",
+    responseTimeQ: "Hvorfor tar det så lang tid å få svar fra KI-en?",
+    responseTimeA:
+      "Når du stiller et grundig spørsmål om pensum — typisk \"oppsummer leksjon X\" eller \"forklar hele kapittel Y\" — leser KI-en hele relevante PDF-er, søker gjennom alt kursmaterialet ditt, og komponerer et fyldig svar med kilder. Dette tar vanligvis 1-3 minutter første gang. Kvaliteten er verdt ventetiden: du får svar basert på faktisk pensum, ikke bare generell kunnskap. Stilles samme spørsmål igjen (enten av deg eller en medstudent på samme kurs), serveres svaret fra cachen på ~2 sekunder. Korte oppslag som \"hva er neste frist?\" tar bare noen få sekunder.",
     termsUpdateQ: "Hva skjer hvis vilkårene oppdateres?",
     termsUpdateA:
       "Når vi oppdaterer brukervilkårene eller personvernerklæringen, får du opp en dialog neste gang du bruker StudyWise som ber deg lese gjennom og godta de nye versjonene. Du kan ikke fortsette å bruke tjenesten uten å bekrefte — men du kan alltid logge ut eller slette kontoen din hvis du ikke ønsker å godta. Aksepten logges med versjon, tidspunkt og teknisk kontekst som bevis.",
@@ -2363,6 +2549,8 @@ export const nbMessages = {
   },
   bokmerker: {
     title: "Bokmerker",
+    pageDescription:
+      "Samle bokmerkede samtaler og kunnskapsbaser på ett sted, så du raskt finner igjen materialet du jobber med.",
     loading: "Laster bokmerker...",
     searchLabel: "Søk i bokmerkede samtaler",
     searchPlaceholder: "Søk i samtaler...",

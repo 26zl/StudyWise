@@ -170,6 +170,12 @@ export async function upsertStoredFileContent(options: {
   fileHash: string;
   chunks: ContentChunk[];
   fullText?: string;
+  /**
+   * Valgfri ekstern URL der filen opprinnelig ble hentet fra (crawlet innhold).
+   * Lagres på alle chunks for denne filen så kilde-paneler kan åpne originalen
+   * når fileId er syntetisk og ikke kan lastes ned via Canvas-API.
+   */
+  externalUrl?: string;
 }): Promise<number> {
   const {
     userId,
@@ -182,6 +188,7 @@ export async function upsertStoredFileContent(options: {
     fileHash,
     chunks,
     fullText,
+    externalUrl,
   } = options;
 
   if (chunks.length === 0) return 0;
@@ -209,6 +216,7 @@ export async function upsertStoredFileContent(options: {
     text: string;
     tokenCount: number;
     contentHash: string;
+    externalUrl?: string;
   }> = [];
   const toUpdate: Array<{ _id: mongoose.Types.ObjectId; text: string; tokenCount: number; contentHash: string }> = [];
   const pineconeRecords: Array<{ id: string; text: string; metadata: { userId: string; courseId: string; moduleId: number; fileId: number; chunkIndex: number } }> = [];
@@ -251,6 +259,7 @@ export async function upsertStoredFileContent(options: {
         text: chunk.text,
         tokenCount: tokens,
         contentHash: hash,
+        ...(externalUrl ? { externalUrl } : {}),
       });
     }
   }
@@ -331,7 +340,16 @@ export async function upsertStoredFileContent(options: {
   // reflekterer siste Canvas-versjon selv når chunk-tekst er uendret.
   await ContentEmbedding.updateMany(
     { userId, courseId, fileId },
-    { $set: { fileHash, courseName, moduleId, moduleTitle, fileName } },
+    {
+      $set: {
+        fileHash,
+        courseName,
+        moduleId,
+        moduleTitle,
+        fileName,
+        ...(externalUrl ? { externalUrl } : {}),
+      },
+    },
   );
 
   // Lagre full dokumenttekst som én egen post i samme collection (chunkIndex=-1).
@@ -347,6 +365,7 @@ export async function upsertStoredFileContent(options: {
       fileId,
       fileHash,
       fullText,
+      externalUrl,
     });
   }
 
@@ -537,30 +556,59 @@ export async function getStoredChunksForCourses(
 }
 
 /**
- * Henter alle fulle dokumenter (chunkIndex: -1) for et kurs.
+ * Henter alle fulle dokumenter (alle parter per fil) for et kurs.
  * Brukes for kursomfattende oversiktsspørsmål ("forklar forelesningene").
+ *
+ * Med chunked fullText-lagring kan én fil ha flere parter (chunkIndex -1,
+ * -2, -3...). Vi aggregerer per (fileId) og konkatenerer tekst fra alle
+ * parter i riktig rekkefølge.
  */
 export async function getAllFullDocumentsForCourse(
   userId: string,
   courseId: string,
-): Promise<Array<{ fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number }>> {
-  const docs = await ContentEmbedding.find(
-    { userId, courseId, chunkIndex: -1 },
-    { _id: 0, fileId: 1, fileName: 1, moduleTitle: 1, fullText: 1, text: 1, charCount: 1 },
-  )
-    .sort({ moduleTitle: 1, fileName: 1 })
-    .lean();
+): Promise<Array<{ fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number; externalUrl?: string }>> {
+  const aggregated = await ContentEmbedding.aggregate<{
+    _id: number;
+    fileName: string;
+    moduleTitle: string;
+    charCount: number;
+    externalUrl?: string;
+    parts: Array<{ chunkIndex: number; fullText?: string; text?: string }>;
+  }>([
+    { $match: { userId, courseId, chunkIndex: { $lt: 0 } } },
+    { $sort: { chunkIndex: -1 } },
+    {
+      $group: {
+        _id: "$fileId",
+        fileName: { $first: "$fileName" },
+        moduleTitle: { $first: "$moduleTitle" },
+        externalUrl: { $first: "$externalUrl" },
+        // charCount ligger på part 0 (chunkIndex: -1) = maks av negative
+        // indekser. $max over kun positive tall (andre parter er 0) gir
+        // den riktige totalen.
+        charCount: { $max: { $ifNull: ["$charCount", 0] } },
+        parts: { $push: { chunkIndex: "$chunkIndex", fullText: "$fullText", text: "$text" } },
+      },
+    },
+    { $sort: { moduleTitle: 1, fileName: 1 } },
+  ]);
 
-  return docs
-    .map((doc) => {
-      const fullText = typeof doc.fullText === "string" && doc.fullText.length > 0 ? doc.fullText : doc.text;
+  return aggregated
+    .map((row) => {
+      const fullText = row.parts
+        .map((p) => {
+          const text = typeof p.fullText === "string" && p.fullText.length > 0 ? p.fullText : p.text;
+          return text ?? "";
+        })
+        .join("");
       if (!fullText || fullText.trim().length === 0) return null;
       return {
-        fileId: doc.fileId,
-        fileName: doc.fileName,
-        moduleTitle: doc.moduleTitle ?? "",
+        fileId: row._id,
+        fileName: row.fileName,
+        moduleTitle: row.moduleTitle ?? "",
         fullText,
-        charCount: typeof doc.charCount === "number" ? doc.charCount : fullText.length,
+        charCount: row.charCount > 0 ? row.charCount : fullText.length,
+        ...(row.externalUrl ? { externalUrl: row.externalUrl } : {}),
       };
     })
     .filter((d): d is { fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number } => d !== null);
@@ -570,25 +618,67 @@ export async function getStoredFullDocumentForFile(
   userId: string,
   courseId: string,
   fileId: number,
-): Promise<{ fullText: string; charCount: number; fileName: string } | null> {
-  const doc = await ContentEmbedding.findOne(
-    { userId, courseId, fileId, chunkIndex: -1 },
-    { _id: 0, fullText: 1, text: 1, charCount: 1, fileName: 1 },
-  ).lean();
+): Promise<{ fullText: string; charCount: number; fileName: string; externalUrl?: string } | null> {
+  // Hent alle parter (chunkIndex < 0) og sett dem sammen i rekkefølge
+  // -1 → -2 → -3 → ... (part 0 → part 1 → part 2). Eksisterende data som
+  // ble skrevet med den gamle single-row-mekanismen har kun chunkIndex: -1,
+  // noe som gir nøyaktig samme resultat som før (én part = hele teksten).
+  const docs = await ContentEmbedding.find(
+    { userId, courseId, fileId, chunkIndex: { $lt: 0 } },
+    { _id: 0, fullText: 1, text: 1, charCount: 1, fileName: 1, chunkIndex: 1, externalUrl: 1 },
+  )
+    .sort({ chunkIndex: -1 })
+    .lean();
 
-  if (!doc) return null;
-  const fullText = typeof doc.fullText === "string" && doc.fullText.length > 0
-    ? doc.fullText
-    : doc.text;
+  if (docs.length === 0) return null;
+
+  const fullText = docs
+    .map((d) => {
+      const text = typeof d.fullText === "string" && d.fullText.length > 0 ? d.fullText : d.text;
+      return text ?? "";
+    })
+    .join("");
   if (!fullText || fullText.trim().length === 0) return null;
+
+  // charCount er lagret på part 0 (første rad etter sort). Fall tilbake til
+  // faktisk konkatenert lengde hvis feltet mangler (defensiv mot eldre data).
+  const firstDoc = docs[0];
+  const charCount = typeof firstDoc.charCount === "number" && firstDoc.charCount > 0
+    ? firstDoc.charCount
+    : fullText.length;
 
   return {
     fullText,
-    charCount: typeof doc.charCount === "number" ? doc.charCount : fullText.length,
-    fileName: doc.fileName,
+    charCount,
+    fileName: firstDoc.fileName,
+    ...(firstDoc.externalUrl ? { externalUrl: firstDoc.externalUrl } : {}),
   };
 }
 
+/** Størrelse per part når fullText splittes over flere MongoDB-rader.
+ *  Hver part blir en egen ContentEmbedding-rad med negativ chunkIndex
+ *  (-1 = part 0, -2 = part 1, osv.). 500 000 tegn per part gir komfortabel
+ *  margin mot Mongo-dokumentets 16 MB-grense samtidig som antall rader per
+ *  fil holdes lavt (en 2 MB-fil blir 4 parter). Ingen øvre cap på total
+ *  fullText-størrelse — silent truncation er eliminert ved konstruksjon. */
+export const FULL_TEXT_PART_SIZE = 500_000;
+
+/**
+ * Lagrer full-dokument-tekst delt over én eller flere ContentEmbedding-rader.
+ *
+ * Tidligere var alt lagret i én rad (chunkIndex: -1) med en hardkodet
+ * truncation-cap — filer større enn cap-en mistet sluttinnholdet stille.
+ * Nå splittes teksten i parter på FULL_TEXT_PART_SIZE tegn. Hver part
+ * lagres i egen rad med chunkIndex -(partIndex+1), slik at unike-indeksen
+ * `(userId, courseId, fileId, chunkIndex)` forblir unik uten schema-endring.
+ *
+ * Garantier:
+ *   - Hele teksten lagres (ingen silent truncation)
+ *   - charCount på part 0 = total lengde
+ *   - contentHash er felles på tvers av alle parter (hash av hele teksten)
+ *   - Eksisterende parter slettes før nye skrives (håndterer tilfeller der
+ *     ny tekst har færre parter enn forrige versjon)
+ */
 export async function upsertStoredFullText(options: {
   userId: string;
   courseId: string;
@@ -599,27 +689,56 @@ export async function upsertStoredFullText(options: {
   fileId: number;
   fileHash: string;
   fullText: string;
+  externalUrl?: string;
 }): Promise<void> {
-  const normalizedFullText = options.fullText.slice(0, 50000);
-  const fullTextHash = crypto.createHash("sha256").update(normalizedFullText, "utf8").digest("hex");
-  await ContentEmbedding.updateOne(
-    { userId: options.userId, courseId: options.courseId, fileId: options.fileId, chunkIndex: -1 },
-    {
-      $set: {
-        courseName: options.courseName,
-        moduleId: options.moduleId,
-        moduleTitle: options.moduleTitle,
-        fileName: options.fileName,
-        fileHash: options.fileHash,
-        text: normalizedFullText,
-        tokenCount: countTokens(normalizedFullText),
-        contentHash: fullTextHash,
-        fullText: normalizedFullText,
-        charCount: options.fullText.length,
-        isFullDocument: true,
-      },
-    },
-    { upsert: true },
+  const totalChars = options.fullText.length;
+  const fullTextHash = crypto.createHash("sha256").update(options.fullText, "utf8").digest("hex");
+
+  // Splitt i parter. Selv tom tekst lagres som én tom part slik at
+  // `getStoredFullDocumentForFile` kan skille "fil eksisterer med tom tekst"
+  // fra "fil finnes ikke i lageret".
+  const parts: string[] = [];
+  if (totalChars === 0) {
+    parts.push("");
+  } else {
+    for (let i = 0; i < totalChars; i += FULL_TEXT_PART_SIZE) {
+      parts.push(options.fullText.slice(i, i + FULL_TEXT_PART_SIZE));
+    }
+  }
+
+  // Slett eksisterende parter for filen. Gjør dette før insert så vi ikke
+  // etterlater orphan-parter hvis ny tekst er kortere enn forrige versjon.
+  await ContentEmbedding.deleteMany({
+    userId: options.userId,
+    courseId: options.courseId,
+    fileId: options.fileId,
+    chunkIndex: { $lt: 0 },
+  });
+
+  // Insert alle parter i én bulk-operasjon.
+  await ContentEmbedding.insertMany(
+    parts.map((partText, i) => ({
+      userId: options.userId,
+      courseId: options.courseId,
+      courseName: options.courseName,
+      moduleId: options.moduleId,
+      moduleTitle: options.moduleTitle,
+      fileName: options.fileName,
+      fileId: options.fileId,
+      fileHash: options.fileHash,
+      chunkIndex: -(i + 1), // -1, -2, -3, ...
+      text: partText,
+      tokenCount: countTokens(partText),
+      contentHash: fullTextHash,
+      fullText: partText,
+      // Total lengde lagres kun på part 0. Andre parter får 0 så $max-
+      // aggregeringer som brukes i `kiCourseKnowledge` fortsatt gir riktig
+      // total (maks over alle parter = verdien på part 0).
+      charCount: i === 0 ? totalChars : 0,
+      isFullDocument: true,
+      ...(options.externalUrl ? { externalUrl: options.externalUrl } : {}),
+    })),
+    { ordered: false },
   );
 }
 
@@ -768,7 +887,7 @@ export async function vectorSearch(
     if (objectIds.length === 0) return { results: [], degraded: false };
     const docs = await ContentEmbedding.find(
       { _id: { $in: objectIds }, userId },
-      { text: 1, courseId: 1, courseName: 1, moduleTitle: 1, fileName: 1, fileId: 1, chunkIndex: 1 },
+      { text: 1, courseId: 1, courseName: 1, moduleTitle: 1, fileName: 1, fileId: 1, chunkIndex: 1, externalUrl: 1 },
     ).lean();
     const byId = new Map(docs.map((d) => [d._id.toString(), d]));
     const results = matches
@@ -784,6 +903,7 @@ export async function vectorSearch(
             moduleTitle: doc.moduleTitle,
             fileName: doc.fileName,
             fileId: doc.fileId,
+            ...(doc.externalUrl ? { externalUrl: doc.externalUrl } : {}),
           },
           chunkIndex: doc.chunkIndex,
         };

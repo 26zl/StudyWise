@@ -47,6 +47,8 @@ import {
 } from "./embedding.service.js";
 import { hybridSearch, type HybridSearchResult } from "./hybrid-retrieval.service.js";
 import { CanvasStructureModel, type ICanvasStructure } from "../database/models/CanvasStructure.js";
+import { createStableFileId } from "./crawler.js";
+import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
 import {
   isCourseOverviewQuery,
   isStructuredCanvasQuery,
@@ -71,8 +73,167 @@ const ContextSourceSchema = z.object({
   fileName: z.string(),
   score: z.number().optional(),
   chunkCount: z.number().int().nonnegative().optional(),
+  /** Ekstern URL når kilden er crawlet fra ExternalUrl/PDF — gir kilde-panelet
+   *  noe å åpne i ny fane, siden Canvas-nedlasting ikke funker for slike. */
+  sourceUrl: z.url().optional(),
 });
 export type ContextSource = z.infer<typeof ContextSourceSchema>;
+
+/**
+ * Bygger et oppslag fra fileId → sourceUrl for ett kurs.
+ *
+ * Dekker to kategorier:
+ * 1. **Crawlede eksterne ressurser** (ExternalUrl + PDF-lenker + undersider) —
+ *    bruker createStableFileId for å matche den syntetiske IDen som crawleren
+ *    genererer når innholdet indekseres.
+ * 2. **Canvas Pages** — indekseres med `item.id` som fileId av canvas-sync.
+ *    Disse har ikke `/api/v1/files/:id`-endepunkt i Canvas, så download-klikk
+ *    ville gitt 404. Vi bygger derfor `{baseUrl}/courses/{id}/pages/{slug}`
+ *    som sourceUrl, slik at klikk åpner Canvas-siden i ny fane istedenfor.
+ *
+ * `baseUrl` er Canvas-hostens URL (f.eks. `https://usn.instructure.com`).
+ * Uten den kan ikke Page-URL-er bygges, men crawlede URL-er fungerer
+ * uansett siden de allerede er fullstendige.
+ */
+async function buildCrawledFileIdUrlMap(
+  userId: string,
+  courseId: string,
+  baseUrl?: string,
+): Promise<Map<number, string>> {
+  const idToUrl = new Map<number, string>();
+  try {
+    const numericCourseId = Number(courseId);
+    // CanvasStructure-schema-et har courseId som string, men noen gamle rader
+    // kan være lagret som number. Prøv begge — Mongoose caster normalt, men
+    // vi er eksplisitte for å være robust.
+    const filter: Record<string, unknown> = Number.isFinite(numericCourseId)
+      ? { userId, courseId: String(numericCourseId) }
+      : { userId, courseId };
+    const structure = await CanvasStructureModel.findOne(filter)
+      .select("moduler")
+      .lean<ICanvasStructure | null>();
+    if (!structure) return idToUrl;
+
+    const addUrl = (url: string | undefined | null) => {
+      if (!url || typeof url !== "string") return;
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return;
+      } catch {
+        return;
+      }
+      const id = createStableFileId(url);
+      if (!idToUrl.has(id)) idToUrl.set(id, url);
+    };
+
+    // Normaliser baseUrl: strip trailing slash for å unngå `//courses`.
+    const normalizedBaseUrl = baseUrl?.replace(/\/+$/, "");
+
+    for (const modul of structure.moduler ?? []) {
+      for (const item of modul.items ?? []) {
+        addUrl(item.external_url);
+        for (const pdfUrl of item.crawledPdfs ?? []) addUrl(pdfUrl);
+        for (const subUrl of item.crawledSubpages ?? []) addUrl(subUrl);
+
+        if (!normalizedBaseUrl) continue;
+
+        // Canvas-ressurser som ikke kan lastes ned via /api/v1/files/:id
+        // (Pages) eller som kan feile med 403 (Files brukeren ikke har
+        // tilgang til). Alle får en Canvas UI-URL så klikk navigerer til
+        // ressursen i Canvas selv istedenfor å 404/403-e mot file-API-et.
+        if (
+          item.type === "Page"
+          && item.page_url
+          && typeof item.id === "number"
+          && !idToUrl.has(item.id)
+        ) {
+          idToUrl.set(
+            item.id,
+            `${normalizedBaseUrl}/courses/${courseId}/pages/${encodeURIComponent(item.page_url)}`,
+          );
+        } else if (
+          item.type === "File"
+          && typeof item.content_id === "number"
+          && !idToUrl.has(item.content_id)
+        ) {
+          // Canvas file-info-side — viser forhåndsvisning selv uten
+          // file-API-lesetilgang. Bedre enn 403 på download-endepunktet.
+          idToUrl.set(
+            item.content_id,
+            `${normalizedBaseUrl}/courses/${courseId}/files/${item.content_id}`,
+          );
+        } else if (
+          item.type === "Assignment"
+          && typeof item.content_id === "number"
+          && !idToUrl.has(item.content_id)
+        ) {
+          idToUrl.set(
+            item.content_id,
+            `${normalizedBaseUrl}/courses/${courseId}/assignments/${item.content_id}`,
+          );
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn({ err, userId, courseId }, "buildCrawledFileIdUrlMap feilet");
+  }
+  return idToUrl;
+}
+
+/**
+ * Fyller inn `sourceUrl` på kilder som mangler det ved å matche syntetisk
+ * fileId mot CanvasStructure sine eksterne URL-er. Fire-and-forget-backfill
+ * til ContentEmbedding slik at neste kall er instant.
+ *
+ * Mutér input-arrayet direkte for enkelhet — kilder er small-sized.
+ */
+async function backfillMissingSourceUrls(
+  userId: string,
+  kilder: ContextSource[],
+  baseUrl?: string,
+): Promise<void> {
+  const missingByCourse = new Map<string, ContextSource[]>();
+  for (const k of kilder) {
+    if (k.sourceUrl) continue;
+    if (!Number.isFinite(k.fileId)) continue;
+    const bucket = missingByCourse.get(k.courseId) ?? [];
+    bucket.push(k);
+    missingByCourse.set(k.courseId, bucket);
+  }
+  if (missingByCourse.size === 0) return;
+
+  for (const [courseId, bucket] of missingByCourse) {
+    const idToUrl = await buildCrawledFileIdUrlMap(userId, courseId, baseUrl);
+    if (idToUrl.size === 0) continue;
+
+    const backfillOps: Array<{ fileId: number; externalUrl: string }> = [];
+    for (const k of bucket) {
+      const url = idToUrl.get(k.fileId);
+      if (!url) continue;
+      k.sourceUrl = url;
+      backfillOps.push({ fileId: k.fileId, externalUrl: url });
+    }
+
+    if (backfillOps.length > 0) {
+      // Fire-and-forget: oppdater ContentEmbedding så neste treff er instant.
+      void Promise.all(
+        backfillOps.map((op) =>
+          ContentEmbedding.updateMany(
+            { userId, courseId, fileId: op.fileId, externalUrl: { $exists: false } },
+            { $set: { externalUrl: op.externalUrl } },
+          ).catch((err) => {
+            logger.warn({ err, userId, courseId, fileId: op.fileId }, "Backfill av externalUrl feilet");
+          }),
+        ),
+      ).then(() => {
+        logger.info(
+          { userId, courseId, count: backfillOps.length },
+          "Backfilled externalUrl på crawlede ContentEmbedding-rader",
+        );
+      });
+    }
+  }
+}
 
 export const ContextResultSchema = z.object({
   kontekst: z.string(),
@@ -82,6 +243,11 @@ export const ContextResultSchema = z.object({
   hasSparseChunks: z.boolean().optional(),
   /** true når konteksten er hentet som full dokumenttekst (ikke chunk-sammensetning) */
   fullDocumentMode: z.boolean().optional(),
+  /** Matchet trigger-ord fra meldingen (oppsummer, utdyp, …) — brukes av chat-handler
+   *  til å kalibrere max_tokens (fordypning trenger mer budsjett enn kort oppsummering). */
+  fullDocumentTriggerWord: z.string().optional(),
+  /** Primær-fil som ble valgt i full-document-mode — eksponeres for response-cache-nøkkel. */
+  primaryFileId: z.number().optional(),
   /** true når konteksten kun er metadata (modulstruktur/oppgaveliste) uten faktisk faginnhold */
   metadataOnly: z.boolean().optional(),
   /** true når kurset ikke var indeksert og vi måtte trigge prioritert sync før kontekstlasting.
@@ -115,7 +281,7 @@ const COURSE_MATCH_STOPWORDS = new Set([
 ]);
 
 const FULL_DOCUMENT_TRIGGER_WORDS = [
-  // Norsk
+  // Norsk — oppsummering/gjennomgang
   "oppsummere",
   "oppsummer",
   "forklar hele",
@@ -126,6 +292,11 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "hva handler om",
   "sammendrag",
   "gå gjennom",
+  "gå igjennom",
+  "gjennomgå",
+  "gi gjennomgang",
+  "ta denne",
+  // Norsk — fordypning
   "utdype",
   "utdyp",
   "forklar forelesning",
@@ -411,6 +582,12 @@ function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean
   // "prefix + 2-sifret år"-mønsteret (f.eks. "Forelesning226.pdf" = forelesning 2,
   // år 26) som ellers ville blitt rangert vekk av strict standalone-digit-regex.
   const digitRuns = [...lower.matchAll(/(?<!\d)(\d+)(?!\d)/g)].map((m) => m[1]);
+  // Year-suffix-heuristikken er bare trygg å bruke når filnavnet faktisk
+  // signaliserer forelesning/kapittel/leksjon-kontekst. Uten denne guarden
+  // matcher "met1020" (kurs-kode) på hint "10" via run "1020" = "10" + "20"
+  // — observert på MET1020 "kapittel 10" → valgte sensorveiledning.docx.
+  const harForelesningsKontekst = /\b(forele|forelesing|forelesning|lecture|leksjon|lesson|kapit|kap\b|modul|uke|week|tema|del|part)/i
+    .test(lower);
 
   return hints.some((hint) => {
     if (/[.-]/.test(hint)) {
@@ -425,7 +602,9 @@ function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean
     }
     // Year-suffix match: hint er prefikset av en sifferrekke der siste 2 sifre
     // er et 2-sifret år (2X). Fanger "Forelesning<N>26.pdf" → hint "<N>".
-    if (/^\d+$/.test(hint)) {
+    // Kun aktiv når filnavnet har forelesning-/kapittel-kontekst (se over) —
+    // ellers gir kurs-koder som "MET1020" falske treff på hint "10".
+    if (harForelesningsKontekst && /^\d+$/.test(hint)) {
       return digitRuns.some((run) => {
         if (run.length !== hint.length + 2) return false;
         if (!run.startsWith(hint)) return false;
@@ -435,6 +614,51 @@ function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean
     }
     return false;
   });
+}
+
+/**
+ * Minste antall tegn før en primærfil regnes som "rik nok" (ikke bare wrapper).
+ *
+ * Canvas-wrappere (kurs-overview, leksjon-beskrivelser) har typisk 1500-4500
+ * tegn (læringsmål + intro + lenker). Ekte pensum-PDF-er er 10-50k. Terskelen
+ * må være høy nok til å catche wrappere i det øvre sjiktet, men numeric-hint-
+ * filteret beskytter mot over-promotion til ubeslektede filer.
+ */
+export const MIN_RICH_PRIMARY_CHARS = 5000;
+/** Hvor mye større må en alternativ fil være for å overta som primær. */
+export const RICHER_ALTERNATIVE_MULTIPLIER = 3;
+/** Maks antall kandidater vi sjekker charCount på — hver sjekk er én DB-hit. */
+export const MAX_RICHNESS_PROBES = 4;
+
+/**
+ * Finner den rikeste kandidaten blant alternativer i samme kurs når primærfilen
+ * er en tynn "wrapper" (Canvas-side med bare læringsmål/intro). Dette er pure
+ * logikk — DB-hentingen skjer i kalleren, som oversender charCount-verdier.
+ *
+ * Returnerer null når primæren er rik nok, eller ingen kandidat er signifikant
+ * større enn primæren.
+ */
+export function pickRicherPrimaryCandidate<Candidate extends { charCount: number }>(input: {
+  primaryCharCount: number;
+  candidates: readonly Candidate[];
+  minRichChars?: number;
+  richnessMultiplier?: number;
+}): Candidate | null {
+  const { primaryCharCount, candidates } = input;
+  const minRich = input.minRichChars ?? MIN_RICH_PRIMARY_CHARS;
+  const multiplier = input.richnessMultiplier ?? RICHER_ALTERNATIVE_MULTIPLIER;
+
+  if (primaryCharCount >= minRich) return null;
+
+  let richest: Candidate | null = null;
+  for (const candidate of candidates) {
+    if (candidate.charCount <= primaryCharCount * multiplier) continue;
+    if (candidate.charCount < minRich) continue;
+    if (!richest || candidate.charCount > richest.charCount) {
+      richest = candidate;
+    }
+  }
+  return richest;
 }
 
 /**
@@ -695,11 +919,21 @@ export async function resolveModuleHintToCourse(
   for (const structure of structures) {
     for (const mod of structure.moduler ?? []) {
       const normalizedModName = normaliserCanvasSporsmal(mod.name);
-      if (!normalizedModName.includes(normalizedHint)) continue;
-
-      // Modulnavn matcher — beregn score basert på item-titler mot meldingen
-      let score = 10; // Grunnpoeng for modulnavn-match
       const items = (mod as { items?: Array<{ title?: string }> }).items ?? [];
+
+      // Sjekk om hint treffer enten modulnavn ELLER en item-tittel.
+      // For kurs som 6105N organiserer leksjonene som items innenfor
+      // Romertall-modulen ("IV. Nettverksprotokoller...") — da er
+      // "leksjon 11" aldri i modulnavnet men alltid i item-titler.
+      const hintInModName = normalizedModName.includes(normalizedHint);
+      const matchingItem = items.find((item) =>
+        item.title &&
+        normaliserCanvasSporsmal(item.title).includes(normalizedHint),
+      );
+      if (!hintInModName && !matchingItem) continue;
+
+      // Beregn score basert på item-titler mot meldingen
+      let score = hintInModName ? 10 : 20; // Høyere grunnpoeng når item-tittel matcher (mer spesifikt)
       for (const item of items) {
         if (!item.title) continue;
         const normalizedTitle = normaliserCanvasSporsmal(item.title);
@@ -716,7 +950,7 @@ export async function resolveModuleHintToCourse(
         courseId: structure.courseId,
         courseName: structure.courseName,
         courseCode: structure.course_code ?? "",
-        moduleName: mod.name,
+        moduleName: matchingItem?.title ?? mod.name,
         score,
       });
     }
@@ -1993,7 +2227,15 @@ async function byggKontekstFraHybridSearch(
   message: string,
   target?: TargetedQuery,
   hiddenCourseIds?: Set<number>,
-): Promise<{ kontekst: string; hasSparseChunks: boolean; fullDocumentMode: boolean; kilder: ContextSource[] } | null> {
+  baseUrl?: string,
+): Promise<{
+  kontekst: string;
+  hasSparseChunks: boolean;
+  fullDocumentMode: boolean;
+  fullDocumentTriggerWord?: string;
+  primaryFileId?: number;
+  kilder: ContextSource[];
+} | null> {
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
     const courseIds = relevantCourses.map((course) => String(course.id));
@@ -2047,12 +2289,14 @@ async function byggKontekstFraHybridSearch(
           let totalChars = 0;
           const blocks: string[] = [];
           const kilder: ContextSource[] = [];
+          const courseNameForBlock =
+            relevantCourses.find((c) => String(c.id) === courseIdStr)?.name ?? "";
           for (const doc of allDocs) {
             if (totalChars >= TOTAL_BUDGET) break;
             const remaining = TOTAL_BUDGET - totalChars;
             const slice = doc.fullText.slice(0, Math.min(perFileBudget, remaining));
             blocks.push(
-              `--- FIL-INNHOLD: ${doc.fileName}${doc.moduleTitle ? ` (${doc.moduleTitle})` : ""} ---\n${slice}\n--- SLUTT ---`,
+              `--- FIL-INNHOLD: [Kurs: ${courseIdStr} - ${courseNameForBlock}] ${doc.fileName}${doc.moduleTitle ? ` (${doc.moduleTitle})` : ""} ---\n${slice}\n--- SLUTT ---`,
             );
             totalChars += slice.length;
             kilder.push({
@@ -2062,6 +2306,7 @@ async function byggKontekstFraHybridSearch(
               fileName: doc.fileName,
               score: 1,
               chunkCount: 1,
+              ...(doc.externalUrl ? { sourceUrl: doc.externalUrl } : {}),
             });
           }
           const kontekst = "<canvas-kursdata>\n" + blocks.join("\n\n") + "\n</canvas-kursdata>";
@@ -2076,6 +2321,7 @@ async function byggKontekstFraHybridSearch(
             },
             "Kursomfattende oversikt-mode aktivert (alle forelesninger lastet)",
           );
+          await backfillMissingSourceUrls(userId, kilder, baseUrl);
           return {
             kontekst,
             hasSparseChunks: false,
@@ -2235,12 +2481,42 @@ async function byggKontekstFraHybridSearch(
 
         if (candidates.length > 1 && target?.moduleHint) {
           const moduleHintLower = normalizeForMatch(target.moduleHint);
-          const keywordStem = moduleHintLower.match(/\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj)/)?.[1];
-          if (keywordStem) {
-            const typed = candidates.find((f) =>
-              normalizeForMatch(f.fileName).includes(keywordStem),
-            );
+          // Brukerens terminologi (leksjon/kapittel/forelesning/modul) skal
+          // behandles som utskiftbar. Når noen spør om "leksjon 2" mener de
+          // det primære pensumet for seksjon 2 — uansett om fila heter
+          // "Kapittel 2", "Forelesning 2" eller "Notat 2". Uten denne
+          // likhetsbehandlingen valgte scanneren feil fil for MET1020
+          // "leksjon 2" (se logg fra 2026-04-21): "2. Kunstig intelligens
+          // og fusk.page" vant over "Førelesingsnotat Kapittel 1 og 2.pptx"
+          // fordi ingen av dem inneholdt "leksjon" — scanneren falt tilbake
+          // til lexical first-match.
+          const hintIsLectureQuery = /\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj|forelesing)/.test(moduleHintLower);
+          const LECTURE_STEMS = ["forele", "kapit", "modul", "leksjon", "lesson", "notat", "pensum", "forelesing"];
+          // Velg kandidat som har et lecture-keyword i navnet — uansett om
+          // det er samme ord som brukeren brukte.
+          if (hintIsLectureQuery) {
+            const typed = candidates.find((f) => {
+              const name = normalizeForMatch(f.fileName);
+              return LECTURE_STEMS.some((stem) => name.includes(stem));
+            });
             if (typed) catalogMatch = typed;
+          }
+
+          // Tilleggs-prioritering: når brukeren spør om en forelesning,
+          // foretrekk faktiske forelesnings-filtyper (.pptx/.pdf) over
+          // Canvas-wrappere (.page/.assignment). Wrappers har ofte bare
+          // intro/læringsmål — ikke det selve studenten vil ha.
+          if (hintIsLectureQuery && catalogMatch) {
+            const WRAPPER_EXTENSIONS = /\.(page|assignment|quiz)$/i;
+            const RICH_EXTENSIONS = /\.(pptx?|pdf|docx?)$/i;
+            const currentIsWrapper = WRAPPER_EXTENSIONS.test(catalogMatch.fileName);
+            if (currentIsWrapper) {
+              const richAlt = candidates.find(
+                (f) => RICH_EXTENSIONS.test(f.fileName)
+                  && LECTURE_STEMS.some((stem) => normalizeForMatch(f.fileName).includes(stem)),
+              );
+              if (richAlt) catalogMatch = richAlt;
+            }
           }
         }
 
@@ -2285,17 +2561,110 @@ async function byggKontekstFraHybridSearch(
         }
       }
 
-      const fullDocument = await getStoredFullDocumentForFile(
+      let fullDocument = await getStoredFullDocumentForFile(
         userId,
         primary.source.courseId,
         primary.source.fileId,
       );
 
+      // Primærfil-berikning: Canvas-sider fungerer ofte som kun "wrappere"
+      // med læringsmål/intro, mens det faktiske innholdet ligger i filer som
+      // crawleren har indeksert fra eksterne URL-er (f.eks. PDFer på
+      // windowsnett.no for 6105N). Semantisk rerank velger ofte wrapper-siden
+      // fordi tittelen matcher perfekt, men resultatet for studenten blir
+      // svært magert (<2k tegn). Hvis primæren er liten og retrieval har
+      // pekt på en vesentlig rikere fil i samme kurs, promoter vi den.
+      //
+      // Kritisk: når brukeren har spesifisert et kapittel-/leksjonsnummer
+      // ("leksjon 9"), må rikere kandidat matche samme nummer. Uten dette
+      // filteret ble "Leksjon 9 Web HTTP IIS" (2239 tegn wrapper) promotert
+      // til "Laboving 11b DNS tjener.pdf" (16979 tegn, feil leksjon) — rik
+      // og fra samme kurs, men semantisk ubeslektet. Numeric-filter kjører
+      // FØR DB-probe så vi ikke sløser DB-hits på filer som uansett ville
+      // blitt filtrert bort.
+      if (
+        fullDocument
+        && fullDocument.charCount < MIN_RICH_PRIMARY_CHARS
+      ) {
+        const candidateFileIds = new Set<number>();
+        const allCandidates: HybridSearchResult[] = [];
+        for (const pool of [filteredResults, results]) {
+          for (const r of pool) {
+            if (r.source.fileId === primary.source.fileId) continue;
+            if (r.source.courseId !== primary.source.courseId) continue;
+            if (candidateFileIds.has(r.source.fileId)) continue;
+            candidateFileIds.add(r.source.fileId);
+            allCandidates.push(r);
+          }
+        }
+
+        const intentFilteredCandidates =
+          primarySelection.numericHints.length > 0
+            ? allCandidates.filter((c) =>
+                fileNameMatchesNumericHints(
+                  c.source.fileName,
+                  primarySelection.numericHints,
+                ),
+              )
+            : allCandidates;
+
+        const candidates = intentFilteredCandidates.slice(
+          0,
+          MAX_RICHNESS_PROBES,
+        );
+
+        const probed: Array<{ candidate: HybridSearchResult; doc: NonNullable<typeof fullDocument>; charCount: number }> = [];
+        for (const candidate of candidates) {
+          const doc = await getStoredFullDocumentForFile(
+            userId,
+            candidate.source.courseId,
+            candidate.source.fileId,
+          );
+          if (!doc) continue;
+          probed.push({ candidate, doc, charCount: doc.charCount });
+        }
+
+        const richest = pickRicherPrimaryCandidate({
+          primaryCharCount: fullDocument.charCount,
+          candidates: probed,
+        });
+
+        if (richest) {
+          logger.info(
+            {
+              originalPrimaryFile: fullDocument.fileName,
+              originalPrimaryChars: fullDocument.charCount,
+              promotedFile: richest.doc.fileName,
+              promotedChars: richest.doc.charCount,
+              reason: "primary_too_thin_promoted_richer_same_course_file",
+            },
+            "Full dokument-mode: primærfil overstyrt fra tynn wrapper til rikere fil i samme kurs",
+          );
+          primary = {
+            ...primary,
+            source: {
+              ...primary.source,
+              fileId: richest.candidate.source.fileId,
+              fileName: richest.doc.fileName,
+              moduleTitle: richest.candidate.source.moduleTitle ?? primary.source.moduleTitle,
+            },
+          };
+          fullDocument = richest.doc;
+        }
+      }
+
       if (fullDocument) {
         const maxTokens = 20000;
         const estimatedChars = maxTokens * 4;
         const truncatedFullText = fullDocument.fullText.slice(0, estimatedChars);
-        const truncated = truncatedFullText.length < fullDocument.fullText.length;
+        // Med chunked fullText-lagring kan ikke storage-truncation skje i
+        // praksis (`fullText.length` skal alltid være lik `charCount`). Vi
+        // beholder sjekken som safeguard mot eldre data eller edge cases.
+        // `injectionTruncated` derimot er fortsatt relevant — Claude har
+        // begrenset kontekstvindu, så svært store filer må kuttes på vei inn.
+        const storageTruncated = fullDocument.fullText.length < fullDocument.charCount;
+        const injectionTruncated = truncatedFullText.length < fullDocument.fullText.length;
+        const truncated = storageTruncated || injectionTruncated;
 
         // Når hoveddokumentet er lite (typisk PowerPoint med kulepunkter),
         // berik konteksten med andre filer fra samme modul
@@ -2407,9 +2776,82 @@ async function byggKontekstFraHybridSearch(
           }
         }
 
+        // Intent-berikning: når brukeren ber om én leksjon/kapittel, finnes
+        // ofte flere filer for samme leksjon (f.eks. "Leksjon 9 beskrivelse"
+        // + "Laboving 9a" + "Laboving 9b" for Windows-emnet). Kombiner dem
+        // slik at oppsummeringen dekker hele leksjonen, ikke bare én fil.
+        // Filteret holder ubeslektede tykke filer ute (f.eks. lærebok-PDF
+        // som dekker alle leksjoner — ingen spesifikk "9" i navnet).
+        // Scanner både rerank-top (filteredResults) og bredere hybrid-pool
+        // (results) slik at intent-matchende filer under rerank-grensen
+        // fortsatt fanges opp.
+        const MAX_INTENT_SUPPLEMENTS = 3;
+        if (
+          numericHints.length > 0
+          && supplementBlock.length < supplementBudget
+        ) {
+          const intentMatchingOthers: HybridSearchResult[] = [];
+          const addedForSupplement = new Set<number>(seenFileIds);
+          for (const pool of [filteredResults, results]) {
+            for (const r of pool) {
+              if (addedForSupplement.has(r.source.fileId)) continue;
+              if (r.source.fileId === primary.source.fileId) continue;
+              if (r.source.courseId !== primary.source.courseId) continue;
+              if (
+                !fileNameMatchesNumericHints(
+                  r.source.fileName,
+                  numericHints,
+                )
+              ) {
+                continue;
+              }
+              addedForSupplement.add(r.source.fileId);
+              intentMatchingOthers.push(r);
+            }
+          }
+          let addedCount = 0;
+          for (const other of intentMatchingOthers) {
+            if (addedCount >= MAX_INTENT_SUPPLEMENTS) break;
+            if (supplementBlock.length >= supplementBudget) break;
+            const otherFullDoc = await getStoredFullDocumentForFile(
+              userId,
+              other.source.courseId,
+              other.source.fileId,
+            );
+            if (!otherFullDoc) continue;
+            seenFileIds.add(other.source.fileId);
+            const remaining = supplementBudget - supplementBlock.length;
+            const otherText = otherFullDoc.fullText.slice(0, remaining);
+            supplementBlock += `\n--- FIL-INNHOLD (SUPPLERENDE): ${otherFullDoc.fileName} ---\n${otherText}\n--- SLUTT SUPPLERENDE ---\n`;
+            supplementSources.push({
+              courseId: String(other.source.courseId),
+              courseName: other.source.courseName ?? "",
+              fileId: other.source.fileId,
+              fileName: otherFullDoc.fileName,
+              score: other.score,
+              chunkCount: 1,
+              ...(otherFullDoc.externalUrl
+                ? { sourceUrl: otherFullDoc.externalUrl }
+                : {}),
+            });
+            addedCount += 1;
+            logger.info(
+              {
+                addedFile: otherFullDoc.fileName,
+                addedChars: otherText.length,
+                primaryFile: fullDocument.fileName,
+                numericHints,
+              },
+              "Full dokument-mode: la til intent-matchende fil for samme leksjon/kapittel",
+            );
+          }
+        }
+
+        const primaryCourseLabel =
+          `[Kurs: ${primary.source.courseId}${primary.source.courseName ? ` - ${primary.source.courseName}` : ""}]`;
         const kontekst =
           "<canvas-kursdata>\n" +
-          `--- FIL-INNHOLD (FULLT DOKUMENT): ${fullDocument.fileName} ---\n` +
+          `--- FIL-INNHOLD (FULLT DOKUMENT): ${primaryCourseLabel} ${fullDocument.fileName} ---\n` +
           truncatedFullText +
           supplementBlock +
           "\n</canvas-kursdata>";
@@ -2421,29 +2863,75 @@ async function byggKontekstFraHybridSearch(
             fileId: primary.source.fileId,
             fileName: fullDocument.fileName,
             fullTextChars: fullDocument.charCount,
+            storedChars: fullDocument.fullText.length,
             injectedChars: truncatedFullText.length,
             totalContextChars: kontekst.length,
             truncated,
+            storageTruncated,
+            injectionTruncated,
             reason: fullDocumentDecision.reason,
           },
           "Full dokument-mode aktivert",
         );
+        // Ekstra synlig varsel når lagringen allerede har kuttet filen —
+        // dette betyr at noen deler av filen aldri vil nå fram til KI
+        // uansett hvor stort injection-budsjett vi har.
+        if (storageTruncated) {
+          logger.warn(
+            {
+              fileId: primary.source.fileId,
+              fileName: fullDocument.fileName,
+              originalChars: fullDocument.charCount,
+              storedChars: fullDocument.fullText.length,
+              lostChars: fullDocument.charCount - fullDocument.fullText.length,
+            },
+            "Full-dokument-mode: lagret tekst er kortere enn original — filen må re-indekseres for å få hele innholdet",
+          );
+        }
+        // Injection-truncation er en separat, stille risiko: filen ble lagret
+        // komplett, men overskred injection-budsjettet og ble kuttet på vei inn
+        // til modellen. Modellen avslutter naturlig (end_turn), så brukeren
+        // merker ingenting — men spørsmål om innhold i de kuttede tegnene får
+        // ufullstendig svar. Telemetri brukes til å vurdere om injection-
+        // budsjettet er for stramt for enkelte filtyper/kurs.
+        // (Logges kun hvis storage-truncation IKKE allerede dekket scenarioet.)
+        if (injectionTruncated && !storageTruncated) {
+          logger.warn(
+            {
+              fileId: primary.source.fileId,
+              fileName: fullDocument.fileName,
+              storedChars: fullDocument.fullText.length,
+              injectedChars: truncatedFullText.length,
+              lostChars: fullDocument.fullText.length - truncatedFullText.length,
+            },
+            "Full-dokument-mode: injection-budsjett kuttet filen — innhold på slutten nådde aldri modellen",
+          );
+        }
 
+        const primaryExternalUrl =
+          fullDocument.externalUrl ?? primary.source.externalUrl;
+        const fullDocKilder: ContextSource[] = [
+          {
+            courseId: String(primary.source.courseId),
+            courseName: primary.source.courseName ?? "",
+            fileId: primary.source.fileId,
+            fileName: fullDocument.fileName,
+            score: primary.score,
+            chunkCount: 1,
+            ...(primaryExternalUrl ? { sourceUrl: primaryExternalUrl } : {}),
+          },
+          ...supplementSources,
+        ];
+        await backfillMissingSourceUrls(userId, fullDocKilder, baseUrl);
         return {
           kontekst,
           hasSparseChunks: false,
           fullDocumentMode: true,
-          kilder: [
-            {
-              courseId: String(primary.source.courseId),
-              courseName: primary.source.courseName ?? "",
-              fileId: primary.source.fileId,
-              fileName: fullDocument.fileName,
-              score: primary.score,
-              chunkCount: 1,
-            },
-            ...supplementSources,
-          ],
+          ...(fullDocumentDecision.triggerWord
+            ? { fullDocumentTriggerWord: fullDocumentDecision.triggerWord }
+            : {}),
+          primaryFileId: primary.source.fileId,
+          kilder: fullDocKilder,
         };
       }
     }
@@ -2630,10 +3118,13 @@ async function byggKontekstFraHybridSearch(
         fileName: info.source.fileName ?? "",
         score: topScoreByFile.get(key),
         chunkCount: info.indexes.size,
+        ...(info.source.externalUrl ? { sourceUrl: info.source.externalUrl } : {}),
       }))
       .filter((k) => k.fileName.length > 0)
       .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       .slice(0, 8);
+
+    await backfillMissingSourceUrls(userId, kilder, baseUrl);
 
     return {
       kontekst: "<canvas-kursdata>\n" + kontekst + "\n</canvas-kursdata>",
@@ -3051,7 +3542,7 @@ async function loadCanvasContextCore(
   let hybridAlreadyAttempted = false;
   if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint) {
     hybridAlreadyAttempted = true;
-    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
+    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
     if (hybridResult) {
       // Berik med modulstruktur-oversikt slik at KI vet hva som finnes i emnet
       let kontekst = hybridResult.kontekst;
@@ -3071,6 +3562,12 @@ async function loadCanvasContextCore(
         source: "vector",
         hasSparseChunks: hybridResult.hasSparseChunks,
         fullDocumentMode: hybridResult.fullDocumentMode,
+        ...(hybridResult.fullDocumentTriggerWord
+          ? { fullDocumentTriggerWord: hybridResult.fullDocumentTriggerWord }
+          : {}),
+        ...(hybridResult.primaryFileId != null
+          ? { primaryFileId: hybridResult.primaryFileId }
+          : {}),
         kilder: hybridResult.kilder,
       };
     }
@@ -3086,7 +3583,7 @@ async function loadCanvasContextCore(
     // Faglige spørsmål havner av og til feilaktig i canvas_light uten chunkHint.
     // Prøv hybrid-søk også her når vi har lagret AI-innhold.
     if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message && !wantsAnnouncements) {
-      const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
+      const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
       if (hybridResult) {
         let kontekst = hybridResult.kontekst;
         if (hasCourseTarget(target)) {
@@ -3232,7 +3729,7 @@ async function loadCanvasContextCore(
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   // Hopp over om chunkHint-stien allerede kjørte identisk søk.
   if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message) {
-    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds);
+    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
     if (hybridResult) {
       let kontekst = hybridResult.kontekst;
       // Injiser kunngjøringer
@@ -3256,6 +3753,12 @@ async function loadCanvasContextCore(
         source: "vector",
         hasSparseChunks: hybridResult.hasSparseChunks,
         fullDocumentMode: hybridResult.fullDocumentMode,
+        ...(hybridResult.fullDocumentTriggerWord
+          ? { fullDocumentTriggerWord: hybridResult.fullDocumentTriggerWord }
+          : {}),
+        ...(hybridResult.primaryFileId != null
+          ? { primaryFileId: hybridResult.primaryFileId }
+          : {}),
         kilder: hybridResult.kilder,
       };
     }

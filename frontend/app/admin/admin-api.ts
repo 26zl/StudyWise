@@ -35,6 +35,14 @@ import {
   AdminRedisRelinkStatesResponseSchema,
   AdminSlettBrukerResponseSchema,
   AdminStatsResponseSchema,
+  AdminCrawlerStatsResponseSchema,
+  AdminMaintenanceRetryCrawlsResponseSchema,
+  AdminMaintenanceReindexMissingResponseSchema,
+  AdminMaintenanceReextractTruncatedResponseSchema,
+  AdminRetrievalDebugResponseSchema,
+  AdminExtractionAuditResponseSchema,
+  AdminKbHealthResponseSchema,
+  AdminFeedbackTriageResponseSchema,
   AdminResetMfaResponseSchema,
   AdminRevokeSessionsResponseSchema,
   AdminSuccessResponseSchema,
@@ -66,6 +74,9 @@ import type {
   AdminMaintenanceEncryptionStatusResponse,
   AdminMaintenanceReencryptResponse,
   AdminMaintenanceDatabaseHealthResponse,
+  AdminMaintenanceRetryCrawlsResponse,
+  AdminMaintenanceReindexMissingResponse,
+  AdminMaintenanceReextractTruncatedResponse,
   ContactMessageStatus,
   AdminLangsmithDailyMetricsResponse,
   AdminLangsmithOverviewResponse,
@@ -82,6 +93,12 @@ import type {
   AdminRedisRelinkStateItem,
   AdminRedisRelinkStatesResponse,
   AdminStatsResponse,
+  AdminCrawlerStatsResponse,
+  AdminRetrievalDebugRequest,
+  AdminRetrievalDebugResponse,
+  AdminExtractionAuditResponse,
+  AdminKbHealthResponse,
+  AdminFeedbackTriageResponse,
   QueueJobStatus,
 } from "common/admin";
 import { fetchApi } from "../lib/apiClient";
@@ -173,6 +190,70 @@ export function useAdminStats() {
       const res = await fetchApi("/api/admin/statistikk");
       if (!res.ok) throw new Error("Kunne ikke hente statistikk");
       return AdminStatsResponseSchema.parse(await res.json());
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminCrawlerStats() {
+  return useQuery({
+    queryKey: ["admin", "crawler", "stats"],
+    queryFn: async (): Promise<AdminCrawlerStatsResponse> => {
+      const res = await fetchApi("/api/admin/crawler/stats");
+      if (!res.ok) throw new Error("Kunne ikke hente crawler-statistikk");
+      return AdminCrawlerStatsResponseSchema.parse(await res.json());
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminRetrievalDebug() {
+  return useMutation({
+    mutationFn: async (
+      input: AdminRetrievalDebugRequest,
+    ): Promise<AdminRetrievalDebugResponse> => {
+      const res = await fetchApi("/api/admin/debug/retrieval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error("Retrieval-debug feilet");
+      return AdminRetrievalDebugResponseSchema.parse(await res.json());
+    },
+  });
+}
+
+export function useAdminExtractionAudit() {
+  return useQuery({
+    queryKey: ["admin", "extraction", "audit"],
+    queryFn: async (): Promise<AdminExtractionAuditResponse> => {
+      const res = await fetchApi("/api/admin/debug/extraction");
+      if (!res.ok) throw new Error("Kunne ikke hente ekstraksjons-audit");
+      return AdminExtractionAuditResponseSchema.parse(await res.json());
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAdminKbHealth() {
+  return useQuery({
+    queryKey: ["admin", "kb", "health"],
+    queryFn: async (): Promise<AdminKbHealthResponse> => {
+      const res = await fetchApi("/api/admin/debug/kb-health");
+      if (!res.ok) throw new Error("Kunne ikke hente KB-helse");
+      return AdminKbHealthResponseSchema.parse(await res.json());
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useAdminFeedbackTriage() {
+  return useQuery({
+    queryKey: ["admin", "feedback", "triage"],
+    queryFn: async (): Promise<AdminFeedbackTriageResponse> => {
+      const res = await fetchApi("/api/admin/debug/feedback-triage");
+      if (!res.ok) throw new Error("Kunne ikke hente feedback-triage");
+      return AdminFeedbackTriageResponseSchema.parse(await res.json());
     },
     staleTime: 30_000,
   });
@@ -795,6 +876,51 @@ export function useForceCanvasResync() {
   });
 }
 
+export function useRetryFailedCrawls() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (): Promise<AdminMaintenanceRetryCrawlsResponse> =>
+      submitAndPollMaintenanceOp(
+        "retry-failed-crawls",
+        "/api/admin/maintenance/retry-failed-crawls",
+        AdminMaintenanceRetryCrawlsResponseSchema,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "crawler", "stats"] });
+    },
+  });
+}
+
+export function useReindexMissingFiles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (): Promise<AdminMaintenanceReindexMissingResponse> =>
+      submitAndPollMaintenanceOp(
+        "reindex-missing-files",
+        "/api/admin/maintenance/reindex-missing-files",
+        AdminMaintenanceReindexMissingResponseSchema,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "extraction", "audit"] });
+    },
+  });
+}
+
+export function useReextractTruncatedFiles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (): Promise<AdminMaintenanceReextractTruncatedResponse> =>
+      submitAndPollMaintenanceOp(
+        "reextract-truncated-files",
+        "/api/admin/maintenance/reextract-truncated-files",
+        AdminMaintenanceReextractTruncatedResponseSchema,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "extraction", "audit"] });
+    },
+  });
+}
+
 export function useCleanExpiredShares() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -1004,6 +1130,9 @@ export type {
   AdminMaintenanceEncryptionStatusResponse,
   AdminMaintenanceReencryptResponse,
   AdminMaintenanceDatabaseHealthResponse,
+  AdminMaintenanceRetryCrawlsResponse,
+  AdminMaintenanceReindexMissingResponse,
+  AdminMaintenanceReextractTruncatedResponse,
   AdminLangsmithOverviewResponse,
   AdminLangsmithRunsResponse,
   AdminLangsmithRunDetail,
@@ -1016,4 +1145,9 @@ export type {
   AdminContactMessage,
   ContactMessageStatus,
   AdminBrukerDetalj,
+  AdminRetrievalDebugRequest,
+  AdminRetrievalDebugResponse,
+  AdminExtractionAuditResponse,
+  AdminKbHealthResponse,
+  AdminFeedbackTriageResponse,
 };

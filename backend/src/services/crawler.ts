@@ -925,7 +925,13 @@ async function downloadAndProcessPdf(
   }
 }
 
-function createStableFileId(source: string): number {
+/**
+ * Deterministisk syntetisk fileId for crawlede eksterne URL-er. Samme URL gir
+ * alltid samme ID på tvers av prosesser, så vi kan reverse-match URL → fileId
+ * for å backfille manglende `externalUrl` på ContentEmbedding-rader som ble
+ * indeksert før feltet fantes.
+ */
+export function createStableFileId(source: string): number {
   const digest = crypto.createHash("sha256").update(source, "utf8").digest();
   const high = digest.readUInt32BE(0) & 0x001fffff; // behold 21 bit
   const low = digest.readUInt32BE(4); // behold 32 bit
@@ -1354,6 +1360,7 @@ async function crawlExternalUrlItem(
         fileHash: directPdf.hash,
         chunks,
         fullText: directPdf.content,
+        externalUrl: item.externalUrl,
       });
       result.pdfsIndexed++;
       await updateItemCrawlStatus(userId, courseId, item.moduleId, item.itemId, directPdf.hash);
@@ -1416,6 +1423,7 @@ async function crawlExternalUrlItem(
         fileHash: contentHash,
         chunks,
         fullText: text,
+        externalUrl: item.externalUrl,
       });
 
       result.crawled++;
@@ -1533,6 +1541,7 @@ async function processSubpageLinks(
               fileHash: subHash,
               chunks,
               fullText: subText,
+              externalUrl: link.url,
             });
 
             newlyIndexed.push(link.url);
@@ -1582,6 +1591,7 @@ async function processSubpageLinks(
                 fileHash: pdfResult.hash,
                 chunks: pdfChunks,
                 fullText: pdfResult.content,
+                externalUrl: pdf.url,
               });
               result.pdfsIndexed++;
               subpagePdfCount++;
@@ -1682,6 +1692,7 @@ async function processPdfLinks(
           fileHash: pdfResult.hash,
           chunks,
           fullText: pdfResult.content,
+          externalUrl: pdf.url,
         });
 
         newlyIndexedPdfs.push(pdf.url);

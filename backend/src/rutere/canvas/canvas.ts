@@ -29,6 +29,7 @@ import { noCache } from "../../middleware/no-cache.js";
 import { logger } from "../../utils/logger.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
+import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { User } from "../../database/models/User.js";
 import {
   buildCanvasUserPayload,
@@ -1428,6 +1429,67 @@ router.get("/emner/:courseId/files", async (req, res) => {
   }
 });
 
+/**
+ * Finn Canvas UI-URL for en ressurs via brukerens lagrede CanvasStructure.
+ * Brukes som fallback når Canvas-API returnerer 403/404 — Canvas' egen UI
+ * er ofte tilgjengelig selv uten fil-API-lesetilgang og viser forhåndsvisning
+ * + korrekt feilmelding tilpasset brukerens rolle.
+ *
+ * Matcher på både `content_id` (File/Assignment/Page via content_id) og
+ * `id` (modul-item-id), siden chat-kilder kan referere til enten avhengig
+ * av ressurstype og historikk-alder.
+ */
+async function finnCanvasUiUrlForRessurs(
+  userId: string,
+  fileIdNum: number,
+  canvasOrigin: string,
+): Promise<string | null> {
+  try {
+    const struktur = await CanvasStructureModel.findOne(
+      {
+        userId,
+        "moduler.items": {
+          $elemMatch: {
+            $or: [{ content_id: fileIdNum }, { id: fileIdNum }],
+          },
+        },
+      },
+      { courseId: 1, moduler: 1 },
+    ).lean();
+    if (!struktur) return null;
+    const courseId = struktur.courseId;
+    for (const modul of struktur.moduler ?? []) {
+      for (const item of modul.items ?? []) {
+        const matchesContentId = item.content_id === fileIdNum;
+        const matchesItemId = item.id === fileIdNum;
+        if (!matchesContentId && !matchesItemId) continue;
+        if (item.type === "File" && typeof item.content_id === "number") {
+          return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/files/${item.content_id}`;
+        }
+        if (item.type === "Page" && item.page_url) {
+          return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/pages/${encodeURIComponent(item.page_url)}`;
+        }
+        if (item.type === "Assignment" && typeof item.content_id === "number") {
+          return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/assignments/${item.content_id}`;
+        }
+        if (item.type === "ExternalUrl" && item.external_url) {
+          return item.external_url;
+        }
+        // Ukjent type men item er funnet — fall tilbake til modules-siden for
+        // kurset så brukeren i det minste havner riktig sted.
+        return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/modules`;
+      }
+    }
+    return null;
+  } catch (err) {
+    logger.warn(
+      { err, userId, fileIdNum },
+      "finnCanvasUiUrlForRessurs feilet",
+    );
+    return null;
+  }
+}
+
 // GET /filer/:fileId/download - Strømming av fil uten redirect (unngår open redirect)
 router.get("/filer/:fileId/download", async (req, res) => {
   try {
@@ -1437,7 +1499,36 @@ router.get("/filer/:fileId/download", async (req, res) => {
     if (!canvasBaseUrl)
       return apiError.badRequest(res, "Canvas-institusjon mangler");
     const canvasOrigin = new URL(canvasBaseUrl).origin;
-    const { data: file } = await fetchFileMetadata(req.canvasToken, fileIdNum, req.canvasBaseUrl);
+    const metadataResult = await fetchFileMetadata(
+      req.canvasToken,
+      fileIdNum,
+      req.canvasBaseUrl,
+    ).catch(async (metadataError: unknown) => {
+      const metaErr = metadataError as CanvasApiError;
+      const isAccessError =
+        metaErr?.name === "CanvasApiError" &&
+        (metaErr.code === "permission_denied" ||
+          metaErr.code === "resource_not_found");
+      const userId = req.user?.id;
+      if (isAccessError && userId) {
+        const uiUrl = await finnCanvasUiUrlForRessurs(
+          userId,
+          fileIdNum,
+          canvasOrigin,
+        );
+        if (uiUrl) {
+          logger.info(
+            { userId, fileIdNum, code: metaErr.code, uiUrl },
+            "Fil-download fallback: redirect til Canvas UI",
+          );
+          res.redirect(302, uiUrl);
+          return null;
+        }
+      }
+      throw metadataError;
+    });
+    if (metadataResult === null) return;
+    const file = metadataResult.data;
     const safeUrl = validateCanvasRedirectUrl(
       file.url,
       canvasOrigin,

@@ -187,6 +187,11 @@ export default function FaqPage() {
       iconClassName: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300",
       items: [
         {
+          q: t("faq.responseTimeQ"),
+          a: t("faq.responseTimeA"),
+          searchText: [t("faq.responseTimeQ"), t("faq.responseTimeA")].join(" "),
+        },
+        {
           q: t("faq.fileTypesQ"),
           a: t("faq.fileTypesA"),
           searchText: [t("faq.fileTypesQ"), t("faq.fileTypesA")].join(" "),

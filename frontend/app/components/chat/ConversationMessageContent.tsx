@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useDeferredValue } from "react";
 import { FileText, Image } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -75,23 +76,31 @@ const sanitizeSchema = {
 };
 
 
-export function ConversationMessageContent({
+function AssistantMarkdown({ innhold }: { innhold: string }) {
+  // useDeferredValue lar React hoppe over mellomliggende render-stadier under
+  // rask streaming — markdown-parsingen (remark+rehype+KaTeX+sanitize) er
+  // tung, så deferred rendering holder UI-tråden responsiv.
+  const deferred = useDeferredValue(innhold);
+  return (
+    <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
+        components={contentRendererComponents}
+      >
+        {deferred}
+      </ReactMarkdown>
+    </div>
+  );
+}
+
+function ConversationMessageContentImpl({
   message,
 }: {
   message: ConversationDisplayMessage;
 }) {
   if (message.rolle === "assistant") {
-    return (
-      <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkMath]}
-          rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
-          components={contentRendererComponents}
-        >
-          {message.innhold}
-        </ReactMarkdown>
-      </div>
-    );
+    return <AssistantMarkdown innhold={message.innhold} />;
   }
 
   const { tekst, filer } = hentSamtaleinnhold(message);
@@ -119,3 +128,25 @@ export function ConversationMessageContent({
     </>
   );
 }
+
+function vedleggLiktArray(
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// Memoiser så ferdige meldinger ikke re-parser markdown når den streamende
+// meldingen oppdateres. Comparator sjekker rolle + innhold + vedlegg slik at
+// oppdateringer på samme melding fortsatt trigger re-render.
+export const ConversationMessageContent = memo(
+  ConversationMessageContentImpl,
+  (prev, next) =>
+    prev.message.rolle === next.message.rolle
+    && prev.message.innhold === next.message.innhold
+    && vedleggLiktArray(prev.message.vedleggNavn, next.message.vedleggNavn),
+);

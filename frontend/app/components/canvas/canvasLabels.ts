@@ -13,6 +13,14 @@ export function getCanvasLabels(language: Language) {
                 courses: "Courses",
                 assignments: "Assignments",
             } satisfies Record<CanvasVisning, string>,
+            sectionDescriptions: {
+                announcements:
+                    "Latest messages from your instructors — sorted chronologically, with reading status synced across devices.",
+                courses:
+                    "All your active courses from Canvas — click one to explore modules, pages, and files.",
+                assignments:
+                    "Upcoming submissions from all your courses — sorted by deadline, color-coded per course.",
+            } satisfies Record<CanvasVisning, string>,
             announcementsLoading: "Loading announcements...",
             announcementsLoadError: "Could not load announcements. Try again.",
             announcementsEmpty: "No announcements",
@@ -101,6 +109,14 @@ export function getCanvasLabels(language: Language) {
             announcements: "Kunngjøringer",
             courses: "Emner",
             assignments: "Oppgaver",
+        } satisfies Record<CanvasVisning, string>,
+        sectionDescriptions: {
+            announcements:
+                "De nyeste meldingene fra foreleserne dine — sortert kronologisk, med lese-status synkronisert mellom enheter.",
+            courses:
+                "Alle dine aktive emner fra Canvas — klikk ett for å utforske moduler, sider og filer.",
+            assignments:
+                "Kommende innleveringer fra alle dine emner — sortert etter frist, fargekodet per emne.",
         } satisfies Record<CanvasVisning, string>,
         announcementsLoading: "Laster kunngjøringer...",
         announcementsLoadError: "Kunne ikke laste kunngjøringer. Prøv igjen.",
