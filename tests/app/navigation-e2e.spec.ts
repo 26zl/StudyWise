@@ -30,7 +30,19 @@ test.describe("Navigasjon — sidelasting", () => {
 });
 
 test.describe("Navigasjon — tema", () => {
-  test("tema-knapp er synlig og kan klikkes", async ({ page }) => {
+  test("tema-knapp er synlig og kan klikkes", async ({ page, context }) => {
+    // Forhåndssett gjeste-samtykke for å unngå at cookie-banneret (fixed inset-0 z-50)
+    // dekker tema-knappen og blokkerer click actionability — ellers henger testen til timeout.
+    await context.addCookies([
+      {
+        name: "studywise_guest_consent",
+        value: "accepted",
+        domain: "localhost",
+        path: "/",
+        sameSite: "Lax",
+      },
+    ]);
+
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
