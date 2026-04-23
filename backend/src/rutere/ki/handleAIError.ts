@@ -112,12 +112,26 @@ export function classifyAIError(
             ? (error as { status: number }).status
             : undefined;
 
-    // Timeout
+    // Timeout — eksplisitt label-match fra kallsted (SSE-ruter setter dette
+    // når de vet hvilken etikett deres timeout-wrapper bruker).
     if (options?.timeoutLabel && errorMessage.includes(options.timeoutLabel)) {
         return {
             category: "timeout",
             userMessage:
                 options.timeoutMessage ?? "Forespørselen tok for lang tid. Prøv igjen.",
+            status: 504,
+        };
+    }
+
+    // Generisk timeout-fallback: fanger provider-feil ("Request timeout",
+    // "timeout exceeded", "operation timed out") og AbortSignal-aborter uten
+    // at kallstedet må vite den eksakte etiketten. JSON-ruter (taskBreakdown
+    // m.fl.) kan lene seg på denne i stedet for å sette timeoutLabel.
+    if (lower.includes("timeout") || lower.includes("timed out")) {
+        return {
+            category: "timeout",
+            userMessage:
+                options?.timeoutMessage ?? "Forespørselen tok for lang tid. Prøv igjen.",
             status: 504,
         };
     }
