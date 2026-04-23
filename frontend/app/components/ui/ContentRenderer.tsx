@@ -322,6 +322,42 @@ function MarkdownSection({ children, ...props }: React.ComponentProps<"section">
   return <section {...props}>{children}</section>;
 }
 
+// ─── Anker-komponent med nedlastings-triggering for Canvas-kildefiler ─────────
+
+/**
+ * Custom `<a>`-renderer som:
+ * - Detekterer Canvas-download-URL-er (inneholder `/download?download_frd=1`)
+ *   og legger til HTML `download`-attributtet slik at nettleseren trigger
+ *   direkte nedlasting istedenfor å navigere til URL-en i ny fane.
+ * - Legger til `rel="noopener noreferrer"` på alle eksterne lenker (sikkerhet).
+ * - Beholder `target="_blank"` for ikke-download-lenker så brukeren ikke mister
+ *   chat-konteksten.
+ */
+function MarkdownAnchor(
+  props: React.AnchorHTMLAttributes<HTMLAnchorElement>,
+): React.ReactElement {
+  const { href, children, ...rest } = props;
+  const hrefStr = typeof href === "string" ? href : "";
+  const erCanvasDownload = hrefStr.includes("/download?download_frd=1");
+
+  if (erCanvasDownload) {
+    // For Canvas-download: bruk `download`-attributt, ikke target="_blank".
+    // Da åpner nettleseren ingen ekstra fane — bare starter download direkte.
+    return (
+      <a href={href} download rel="noopener noreferrer" {...rest}>
+        {children}
+      </a>
+    );
+  }
+
+  // Standard eksterne lenker åpnes i ny fane med sikker rel.
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+      {children}
+    </a>
+  );
+}
+
 // ─── Eksportert components-objekt for ReactMarkdown ───────────────────────────
 
 /**
@@ -339,6 +375,7 @@ export const contentRendererComponents: Components = {
   td: MarkdownTd,
   blockquote: MarkdownBlockquote,
   section: MarkdownSection,
+  a: MarkdownAnchor,
 };
 
 // ─── Hjelpefunksjon ───────────────────────────────────────────────────────────

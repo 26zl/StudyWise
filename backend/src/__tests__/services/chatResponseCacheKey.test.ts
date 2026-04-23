@@ -141,6 +141,6 @@ describe("buildChatResponseCacheKey", () => {
       moduleHint: "leksjon 8",
       fileHint: null,
     });
-    expect(key).toContain(":v1:");
+    expect(key).toContain(":v2:");
   });
 });

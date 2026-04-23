@@ -44,6 +44,7 @@ import { Arbeidsplan } from "../../database/models/arbeidsplan.js";
 import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { ContentEmbedding } from "../../database/models/ContentEmbedding.js";
+import { FileExtractionStatus } from "../../database/models/FileExtractionStatus.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { requireRecentAuth } from "../../middleware/auth.js";
@@ -311,6 +312,14 @@ router.post("/maintenance/cleanup-orphaned", requireRecentAuth, async (req, res)
         KnowledgeBase.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
         KBContentChunk.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
       ]);
+
+      // Rydd FileExtractionStatus for foreldreløse brukere — ikke kritisk,
+      // så vi gjør det etter hovedopprydningen og logger uten å telle i respons.
+      try {
+        await FileExtractionStatus.deleteMany({ userId: { $nin: alleBrukerIds } });
+      } catch (err) {
+        logger.warn({ err }, "Opprydding av foreldreløse FileExtractionStatus feilet");
+      }
 
       const deleted = {
         samtaler,

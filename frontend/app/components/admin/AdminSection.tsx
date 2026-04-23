@@ -73,6 +73,9 @@ import {
   useAdminCrawlerStats,
   useAdminRetrievalDebug,
   useAdminExtractionAudit,
+  useAdminExtractionFailures,
+  useDeleteExtractionFailure,
+  useRescanExtractionFailures,
   useAdminKbHealth,
   useAdminFeedbackTriage,
   useRetryFailedCrawls,
@@ -128,6 +131,7 @@ import type {
   AdminAuditCategory,
   AdminBruker,
   AdminContactMessage,
+  AdminExtractionFailureItem,
   AdminFeedbackItem,
   AdminFeedbackRating,
   AdminQueueOverviewItem,
@@ -663,6 +667,7 @@ function MaintenanceFane() {
     { id: "crawler" as const, labelKey: "admin.maintenance.subtabs.crawler" as const },
     { id: "retrieval" as const, labelKey: "admin.maintenance.subtabs.retrieval" as const },
     { id: "extraction" as const, labelKey: "admin.maintenance.subtabs.extraction" as const },
+    { id: "extractionFailures" as const, labelKey: "admin.maintenance.subtabs.extractionFailures" as const },
     { id: "kbHealth" as const, labelKey: "admin.maintenance.subtabs.kbHealth" as const },
   ];
   type MaintenanceSubFane = (typeof SUB_FANER)[number]["id"];
@@ -706,6 +711,7 @@ function MaintenanceFane() {
       {aktivSub === "crawler" && <CrawlerFane />}
       {aktivSub === "retrieval" && <RetrievalDebugFane />}
       {aktivSub === "extraction" && <ExtractionAuditFane />}
+      {aktivSub === "extractionFailures" && <ExtractionFailuresFane />}
       {aktivSub === "kbHealth" && <KbHealthFane />}
 
       {aktivSub === "ops" && (
@@ -5686,6 +5692,227 @@ function ExtractionAuditFane() {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+// ── Ekstraksjons-feil (filer som ikke kunne leses) ──────────────────────────
+
+function ExtractionFailuresFane() {
+  const { t } = useLanguage();
+  const [statusFilter, setStatusFilter] = useState<
+    "" | "empty" | "sparse" | "failed" | "too_large" | "unsupported"
+  >("");
+  const { data, isLoading, error, refetch, isFetching } = useAdminExtractionFailures(
+    statusFilter ? { status: statusFilter, limit: 200 } : { limit: 200 },
+  );
+  const deleteMutation = useDeleteExtractionFailure();
+  const rescanMutation = useRescanExtractionFailures();
+
+  if (isLoading) return <LoadingSpinner />;
+  if (error || !data)
+    return <FeilMelding melding={t("admin.extractionFailures.error")} />;
+
+  const handleDelete = (id: string, fileName: string) => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.extractionFailures.deleteConfirm", { fileName }),
+      handlingstekst: t("admin.extractionFailures.deleteAction"),
+      onBekreft: () => {
+        deleteMutation.mutate(id, {
+          onSuccess: () =>
+            showToast.success(t("admin.extractionFailures.deleteSuccess")),
+          onError: (e) =>
+            showToast.error(
+              t("admin.extractionFailures.deleteFailed"),
+              hentFeilmelding(e, t("admin.extractionFailures.deleteFailed")),
+            ),
+        });
+      },
+    });
+  };
+
+  const statusLabel = (s: AdminExtractionFailureItem["status"]): string => {
+    switch (s) {
+      case "empty":
+        return t("admin.extractionFailures.statusEmpty");
+      case "sparse":
+        return t("admin.extractionFailures.statusSparse");
+      case "failed":
+        return t("admin.extractionFailures.statusFailed");
+      case "too_large":
+        return t("admin.extractionFailures.statusTooLarge");
+      case "unsupported":
+        return t("admin.extractionFailures.statusUnsupported");
+    }
+  };
+
+  const handleRescan = () => {
+    visBekreftelsesToast({
+      t,
+      melding: t("admin.extractionFailures.rescanConfirm"),
+      handlingstekst: t("admin.extractionFailures.rescanAction"),
+      onBekreft: () => {
+        rescanMutation.mutate(undefined, {
+          onSuccess: (r) =>
+            showToast.success(
+              t("admin.extractionFailures.rescanSuccess"),
+              t("admin.extractionFailures.rescanSummary", {
+                found: String(r.sparseCandidatesFound),
+                flagged: String(r.newlyFlagged),
+                skipped: String(r.skippedExistingStronger),
+                cleared: String(r.previousRetroactiveCleared),
+              }),
+            ),
+          onError: (e) =>
+            showToast.error(
+              t("admin.extractionFailures.rescanFailed"),
+              hentFeilmelding(e, t("admin.extractionFailures.rescanFailed")),
+            ),
+        });
+      },
+    });
+  };
+
+  return (
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+          {t("admin.extractionFailures.title")}
+        </h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t("admin.extractionFailures.description")}
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm text-slate-600 dark:text-slate-300">
+          {t("admin.extractionFailures.filterStatus")}
+        </label>
+        <select
+          value={statusFilter}
+          onChange={(e) =>
+            setStatusFilter(
+              e.target.value as "" | "empty" | "sparse" | "failed" | "too_large" | "unsupported",
+            )
+          }
+          className="rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm"
+        >
+          <option value="">{t("admin.extractionFailures.filterAll")}</option>
+          <option value="empty">{statusLabel("empty")}</option>
+          <option value="sparse">{statusLabel("sparse")}</option>
+          <option value="failed">{statusLabel("failed")}</option>
+          <option value="too_large">{statusLabel("too_large")}</option>
+          <option value="unsupported">{statusLabel("unsupported")}</option>
+        </select>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+        >
+          <RefreshCcw size={14} className={isFetching ? "animate-spin" : ""} />
+          {t("admin.extractionFailures.refresh")}
+        </button>
+        <button
+          type="button"
+          onClick={handleRescan}
+          disabled={rescanMutation.isPending}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          title={t("admin.extractionFailures.rescanDescription")}
+        >
+          {rescanMutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          {rescanMutation.isPending
+            ? t("admin.extractionFailures.rescanRunning")
+            : t("admin.extractionFailures.rescanAction")}
+        </button>
+        <span className="ml-auto text-xs text-slate-500 dark:text-slate-400">
+          {t("admin.extractionFailures.totalLabel", { count: String(data.total) })}
+        </span>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        {data.items.length === 0 ? (
+          <p className="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">
+            {t("admin.extractionFailures.empty")}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase text-slate-500 dark:text-slate-400">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnCourse")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnModule")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnFile")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnStatus")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnReason")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnAttempts")}
+                  </th>
+                  <th className="px-4 py-3 text-left font-medium">
+                    {t("admin.extractionFailures.columnLastAttempt")}
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    {t("admin.extractionFailures.columnActions")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                {data.items.map((item) => (
+                  <tr key={item.id}>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                      {item.courseName}
+                      <div className="text-[11px] text-slate-400">{item.courseId}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                      {item.moduleTitle ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                      {item.fileName}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center rounded-full bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                        {statusLabel(item.status)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-md">
+                      {item.reason ?? "—"}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                      {item.attemptCount}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      {formaterDatoOgTid(item.lastAttempt)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id, item.fileName)}
+                        disabled={deleteMutation.isPending}
+                        className="inline-flex items-center gap-1 rounded-md border border-red-200 dark:border-red-800 px-2 py-1 text-xs text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                        aria-label={t("admin.extractionFailures.deleteAction")}
+                      >
+                        <Trash2 size={12} />
+                        {t("admin.extractionFailures.deleteAction")}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

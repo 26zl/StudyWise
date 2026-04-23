@@ -39,6 +39,8 @@ import {
   AdminMaintenanceRetryCrawlsResponseSchema,
   AdminMaintenanceReindexMissingResponseSchema,
   AdminMaintenanceReextractTruncatedResponseSchema,
+  AdminExtractionFailuresResponseSchema,
+  AdminExtractionRescanResponseSchema,
   AdminRetrievalDebugResponseSchema,
   AdminExtractionAuditResponseSchema,
   AdminKbHealthResponseSchema,
@@ -97,6 +99,9 @@ import type {
   AdminRetrievalDebugRequest,
   AdminRetrievalDebugResponse,
   AdminExtractionAuditResponse,
+  AdminExtractionFailureItem,
+  AdminExtractionFailuresResponse,
+  AdminExtractionRescanResponse,
   AdminKbHealthResponse,
   AdminFeedbackTriageResponse,
   QueueJobStatus,
@@ -232,6 +237,64 @@ export function useAdminExtractionAudit() {
       return AdminExtractionAuditResponseSchema.parse(await res.json());
     },
     staleTime: 60_000,
+  });
+}
+
+export function useAdminExtractionFailures(params?: {
+  courseId?: string;
+  status?: AdminExtractionFailureItem["status"];
+  limit?: number;
+  skip?: number;
+}) {
+  const query = new URLSearchParams();
+  if (params?.courseId) query.set("courseId", params.courseId);
+  if (params?.status) query.set("status", params.status);
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.skip) query.set("skip", String(params.skip));
+  const qs = query.toString();
+
+  return useQuery({
+    queryKey: ["admin", "extraction", "failures", params ?? {}],
+    queryFn: async (): Promise<AdminExtractionFailuresResponse> => {
+      const res = await fetchApi(
+        `/api/admin/extraction-failures${qs.length > 0 ? `?${qs}` : ""}`,
+      );
+      if (!res.ok) throw new Error("Kunne ikke hente ekstraksjons-feil");
+      return AdminExtractionFailuresResponseSchema.parse(await res.json());
+    },
+    staleTime: 30_000,
+  });
+}
+
+export function useDeleteExtractionFailure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string): Promise<void> => {
+      const res = await fetchApi(`/api/admin/extraction-failures/${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Kunne ikke slette ekstraksjons-status");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "extraction", "failures"] });
+    },
+  });
+}
+
+export function useRescanExtractionFailures() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<AdminExtractionRescanResponse> => {
+      const res = await fetchApi("/api/admin/extraction-failures/rescan", {
+        method: "POST",
+        headers: { "x-studywise-csrf": "1" },
+      });
+      if (!res.ok) throw new Error("Kunne ikke kjøre retroaktiv skann");
+      return AdminExtractionRescanResponseSchema.parse(await res.json());
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "extraction", "failures"] });
+    },
   });
 }
 
@@ -1148,6 +1211,9 @@ export type {
   AdminRetrievalDebugRequest,
   AdminRetrievalDebugResponse,
   AdminExtractionAuditResponse,
+  AdminExtractionFailureItem,
+  AdminExtractionFailuresResponse,
+  AdminExtractionRescanResponse,
   AdminKbHealthResponse,
   AdminFeedbackTriageResponse,
 };

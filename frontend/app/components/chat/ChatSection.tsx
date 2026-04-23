@@ -258,6 +258,12 @@ export function ChatSection() {
     const isMountedRef = useRef(true);
     const retriedPendingSaveRef = useRef<string | null>(null);
     const brukerErVedBunnRef = useRef(true);
+    /** Markerer at neste render-ferdig-tilstand skal trigge scroll-til-bunn.
+     * Settes når brukeren åpner en chat. Lange chatter rendres progressivt
+     * (16 meldinger per 32ms), og markdown/LaTeX/kode-layout settles i
+     * paint-fasen — så vi trenger å vente til ALT er rendret før vi scroller
+     * ned. Ellers treffer scroll en scrollHeight som fortsatt vokser. */
+    const ventendeScrollTilBunnRef = useRef(false);
     /** Ref for animasjonsintervall — ryddes opp ved unmount eller ny melding. */
     const animationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     /** AbortController for aktiv KI-forespørsel — brukes av stopp-knappen. */
@@ -426,6 +432,42 @@ export function ChatSection() {
         if (!brukerErVedBunnRef.current) return;
         scrollTilBunn(skriver || analyserarDokument || animerendeMeldingId ? "auto" : "smooth");
     }, [visibleMeldinger, skriver, analyserarDokument, animerendeMeldingId, scrollTilBunn]);
+
+    // Flagg ventende scroll når brukeren åpner en chat. Kombinert med effekten
+    // under sikrer dette at lange chatter skroller helt ned når all progressiv
+    // rendering er ferdig — ikke bare til bunnen av den første batchen.
+    useEffect(() => {
+        if (aktivChatId) {
+            ventendeScrollTilBunnRef.current = true;
+        }
+    }, [aktivChatId]);
+
+    // Når all progressiv rendering er fullført (renderedMessageCount === meldinger.length)
+    // og det er en ventende scroll, snap til bunnen. Double requestAnimationFrame
+    // venter på at markdown/LaTeX/kode-blokker har settled sin layout før vi måler
+    // scrollHeight. Uten dette treffer scrollen en scrollHeight som fortsatt vokser.
+    useEffect(() => {
+        if (!ventendeScrollTilBunnRef.current) return;
+        if (bytterSamtale) return;
+        if (meldinger.length === 0) {
+            ventendeScrollTilBunnRef.current = false;
+            return;
+        }
+        if (renderedMessageCount < meldinger.length) return;
+
+        ventendeScrollTilBunnRef.current = false;
+        let raf2: number | null = null;
+        const raf1 = requestAnimationFrame(() => {
+            scrollTilBunn("auto");
+            raf2 = requestAnimationFrame(() => {
+                scrollTilBunn("auto");
+            });
+        });
+        return () => {
+            cancelAnimationFrame(raf1);
+            if (raf2 !== null) cancelAnimationFrame(raf2);
+        };
+    }, [bytterSamtale, meldinger.length, renderedMessageCount, scrollTilBunn]);
 
     useEffect(() => {
         meldingerRef.current = meldinger;
@@ -1554,22 +1596,42 @@ export function ChatSection() {
     const handleKildeKlikk = useCallback((kilde: import("common/ki").KIChatSource) => {
         const harSourceUrl =
             typeof kilde.sourceUrl === "string" && isSafeExternalUrl(kilde.sourceUrl);
-        // Foretrekk sourceUrl når den finnes. Ekte Canvas-filer har aldri
-        // sourceUrl satt — feltet fylles kun for crawlet eksternt innhold
-        // (PDFer og sider hentet fra f.eks. windowsnett.no). Å prøve Canvas-
-        // nedlasting først for crawlede kilder er bortkastet: endepunktet
-        // returnerer alltid 404 siden fileId er syntetisk.
-        if (harSourceUrl) {
-            window.open(kilde.sourceUrl!, "_blank", "noopener,noreferrer");
-            return;
-        }
-        if (Number.isFinite(kilde.fileId)) {
+        // Canvas-kontekst-kilder har ikke sourceKind i skjemaet (ContextSource
+        // er duplisert i backend uten sourceKind-feltet). Crawlet ExternalUrl/
+        // PDF og Canvas Pages har syntetisk fileId + sourceUrl — disse skal
+        // åpnes i ny fane, ikke sendes til /api/canvas/filer/:id/download
+        // (som gir 404 for syntetiske ID-er). Ekte Canvas-filer har enten
+        // eksplisitt sourceKind="canvas_file" eller undefined uten sourceUrl.
+        const erCanvasFil =
+            kilde.sourceKind === "canvas_file"
+            || (kilde.sourceKind === undefined && !harSourceUrl);
+        const harGyldigFileId =
+            typeof kilde.fileId === "number" && Number.isFinite(kilde.fileId) && kilde.fileId > 0;
+
+        // Canvas-filer med gyldig fileId: alltid foretrekk backend download-
+        // endepunkt, selv om sourceUrl er satt. Backend streamer via bruker-
+        // autentisert Canvas API og laster ned uten å åpne ny fane.
+        // sourceUrl på Canvas-filer kan peke til Canvas' preview- eller
+        // download-URL, men `window.open` på en cross-origin URL trigger nytt
+        // tab-åpning som er uønsket UX. Backend-proxy gir ren nedlasting.
+        if (erCanvasFil && harGyldigFileId) {
+            showToast.info(t("chat.sourceDownloadStarted"));
             void downloadAuthedFile(
                 `/api/canvas/filer/${kilde.fileId}/download`,
                 visFilnavn(kilde.fileName),
-            ).catch(() => {
-                showToast.error(t("chat.sourceDownloadFailed"));
-            });
+            )
+                .then(() => {
+                    showToast.success(t("chat.sourceDownloadSuccess"));
+                })
+                .catch(() => {
+                    showToast.error(t("chat.sourceDownloadFailed"));
+                });
+            return;
+        }
+        // Eksterne lenker (kb_link, live_url, crawlet innhold med syntetisk
+        // fileId): åpne i ny fane — vi har ikke backend-proxy for disse.
+        if (harSourceUrl) {
+            window.open(kilde.sourceUrl!, "_blank", "noopener,noreferrer");
             return;
         }
         // kb_file: originalfilen lagres ikke — vis info om at det er indeksert innhold

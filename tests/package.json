@@ -8,8 +8,8 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.2",
-    "@clerk/backend": "^3.2.13",
-    "@clerk/testing": "^2.0.17",
+    "@clerk/backend": "^3.3.0",
+    "@clerk/testing": "^2.0.19",
     "@playwright/test": "^1.59.1",
     "dotenv": "^17.4.2",
     "mongoose": "^9.5.0",

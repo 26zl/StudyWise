@@ -22,6 +22,12 @@ import {
   pineconeDeleteByFilter,
 } from "./pinecone.service.js";
 import { escapeRegex } from "../utils/regexUtils.js";
+import {
+  clearAllExtractionFailuresForCourse,
+  clearExtractionFailuresForMissingFiles,
+  clearExtractionFailure,
+} from "./file-extraction-status.service.js";
+import { FileExtractionStatus } from "../database/models/FileExtractionStatus.js";
 
 export { EMBEDDING_DIMENSIONS };
 
@@ -949,11 +955,14 @@ export async function deleteMissingFilesForCourse(
       courseId,
       fileId: { $in: removableFileIds },
     });
+    // Rydd extraction-status for samme filer
+    await clearExtractionFailuresForMissingFiles(userId, courseId, keepFileIds);
     return result.deletedCount;
   }
   // GDPR: Pinecone først — feiler dette, slettes ikke MongoDB heller
   await pineconeDeleteByFilter({ userId, courseId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId });
+  await clearAllExtractionFailuresForCourse(userId, courseId);
   return result.deletedCount;
 }
 
@@ -964,6 +973,7 @@ export async function deleteStoredFileContent(
 ): Promise<number> {
   await pineconeDeleteByFilter({ userId, courseId, fileId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId, fileId });
+  await clearExtractionFailure(userId, courseId, fileId);
   return result.deletedCount;
 }
 
@@ -974,6 +984,7 @@ export async function deleteStoredCourseContent(
   // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent
   await pineconeDeleteByFilter({ userId, courseId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId });
+  await clearAllExtractionFailuresForCourse(userId, courseId);
   return result.deletedCount;
 }
 
@@ -989,11 +1000,16 @@ export async function deleteStoredUserMongoContent(
     { userId },
     session ? { session } : undefined,
   );
+  await FileExtractionStatus.deleteMany(
+    { userId },
+    session ? { session } : undefined,
+  );
   return result.deletedCount;
 }
 
 export async function deleteStoredUserContent(userId: string): Promise<number> {
-  // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent
+  // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent.
+  // deleteStoredUserMongoContent sletter også FileExtractionStatus i samme kall.
   await deleteStoredUserVectors(userId);
   return deleteStoredUserMongoContent(userId);
 }

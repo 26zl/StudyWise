@@ -1002,3 +1002,53 @@ export const AdminRedisFlushResultSchema = z.object({
   deletedCount: z.number().int().min(0),
 });
 export type AdminRedisFlushResult = z.infer<typeof AdminRedisFlushResultSchema>;
+
+// ── Admin extraction failures ───────────────────────────────────────────────
+
+export const AdminExtractionStatusEnum = z.enum([
+  "empty",
+  "sparse",
+  "failed",
+  "too_large",
+  "unsupported",
+]);
+export type AdminExtractionStatusCode = z.infer<typeof AdminExtractionStatusEnum>;
+
+export const AdminExtractionFailureItemSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  courseId: z.string(),
+  courseName: z.string(),
+  moduleId: z.number().nullable(),
+  moduleTitle: z.string().nullable(),
+  fileName: z.string(),
+  fileId: z.number(),
+  status: AdminExtractionStatusEnum,
+  reason: z.string().nullable(),
+  attemptCount: z.number().int().min(0),
+  lastAttempt: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type AdminExtractionFailureItem = z.infer<
+  typeof AdminExtractionFailureItemSchema
+>;
+
+export const AdminExtractionFailuresResponseSchema = z.object({
+  total: z.number().int().min(0),
+  items: z.array(AdminExtractionFailureItemSchema),
+});
+export type AdminExtractionFailuresResponse = z.infer<
+  typeof AdminExtractionFailuresResponseSchema
+>;
+
+export const AdminExtractionRescanResponseSchema = z.object({
+  sparseCandidatesFound: z.number().int().min(0),
+  newlyFlagged: z.number().int().min(0),
+  skippedExistingStronger: z.number().int().min(0),
+  previousRetroactiveCleared: z.number().int().min(0),
+  threshold: z.number().int().min(0),
+});
+export type AdminExtractionRescanResponse = z.infer<
+  typeof AdminExtractionRescanResponseSchema
+>;

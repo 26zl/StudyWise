@@ -11,7 +11,7 @@
  * Alle kategorier er universelle — ikke IT-spesifikke — siden StudyWise
  * støtter studenter på tvers av alle norske studier.
  *
- * Pool-størrelse er stor (~120 entries totalt) slik at lange KI-operasjoner
+ * Pool-størrelse er stor (~175 entries totalt) slik at lange KI-operasjoner
  * (2-3 min) ikke viser samme melding to ganger under samme session. Ved
  * tilfeldig stokking per mount blir brukeropplevelsen variert og fersk.
  */
@@ -53,11 +53,24 @@ export const LOADING_MESSAGES: Record<LoadingMessageCategory, string[]> = {
     "Aktiverer dypt svar-modus",
     "Henter detaljene som betyr noe",
     "Kontrollerer kursdataen",
+    // Ekstra status-meldinger
+    "Filtrerer gjennom søkeresultater",
+    "Sammenligner kapitler på tvers av kurset",
+    "Henter relevante eksamensoppgaver",
+    "Verifiserer mot pensum og notater",
+    "Leser Canvas-modulene dine nøye",
+    "Aktiverer dypt fokus på faginnholdet",
+    "Setter sammen svaret som en historie",
+    "Rydder opp i lange setninger",
+    "Skreddersyr forklaringen for deg",
+    "Bygger en klar faglig struktur",
+    "Forankrer svaret i pensum",
+    "Dobbeltsjekker viktige detaljer",
   ],
   "visste-du-at": [
     // Klassiske studieteknikker
     "Visste du at hjernen lærer best når du forklarer ting med egne ord?",
-    "Visste du at korte pauser hver 25. minutt øker konsentrasjonen?",
+    "Visste du at korte pauser hvert 25. minutt øker konsentrasjonen?",
     "Visste du at søvn er like viktig for læring som selve studien?",
     "Visste du at håndskrevne notater ofte gir bedre hukommelse enn PC?",
     "Visste du at å lære bort noe er en av de kraftigste læringsmetodene?",
@@ -99,6 +112,23 @@ export const LOADING_MESSAGES: Record<LoadingMessageCategory, string[]> = {
     "Visste du at nervesignaler kan løpe opptil 430 km/t?",
     "Visste du at hjernen har ~86 milliarder nevroner?",
     "Visste du at stress blokkerer læring — kortisol hemmer hukommelsen?",
+    // Ekstra studieteknikk-fakta
+    "Visste du at 10 min meditasjon kan øke arbeidsminnet ditt?",
+    "Visste du at sulten hjerne glemmer — spis før du leser!",
+    "Visste du at interleaving (variere fag) slår massepugging?",
+    "Visste du at selvtester øker læring mer enn å lese to ganger?",
+    "Visste du at arbeidsminnet bare holder ~4 elementer samtidig?",
+    "Visste du at dopamin slippes ut når du krysser av oppgaver?",
+    "Visste du at å drikke vann kan gi opptil 14 % bedre fokus?",
+    "Visste du at kroppstemperaturen peaker kl 16 — god studietid?",
+    "Visste du at planlagt forglemmelse faktisk styrker hukommelsen?",
+    "Visste du at 15 min sosial kontakt senker stressnivåene?",
+    "Visste du at å se grønt i 40 sek kan resette fokuset?",
+    "Visste du at ditt beste tidspunkt å lære på er unikt for deg?",
+    "Visste du at eksamensangst dempes ved dyp pusting i 2 min?",
+    "Visste du at hjernen trenger vann for å danne nye synapser?",
+    "Visste du at å forklare med eksempler festner kunnskapen?",
+    "Visste du at du husker 90 % av det du lærer bort til andre?",
   ],
   motivasjon: [
     // Kvalitet og tid
@@ -131,10 +161,23 @@ export const LOADING_MESSAGES: Record<LoadingMessageCategory, string[]> = {
     "Fokuset ditt er superkraften din",
     "Tålmodighet er kunsten å bli sterk",
     "Det du lærer nå, glemmer du aldri helt",
+    // Ekstra motivasjon
+    "Kunnskap er den beste investeringen du kan gjøre",
+    "Hver side du leser bringer deg nærmere målet",
+    "Du har bestemt deg — det er halve jobben",
+    "Eksamen er bare ett steg på din vei",
+    "Du bygger grunnmuren for din karriere",
+    "Fokus skiller gode fra eksepsjonelle studenter",
+    "Energi investert nå = frihet senere",
+    "Ditt beste deg er nærmere enn du tror",
+    "Hver studieøkt er en stein i grunnmuren",
+    "Du er sterkere enn gårsdagens deg",
+    "Gode vaner bygger store resultater",
+    "Tenk langsiktig — belønningen kommer",
   ],
   pause: [
     // Koffein og mat
-    "Dette kan ta en kaffe-kopps tid ☕",
+    "Dette kan ta en kaffekopps tid ☕",
     "Kos deg med en snack 🍎",
     "Unn deg litt mørk sjokolade 🍫",
     "En varm kopp te er godt akkurat nå 🍵",
@@ -171,6 +214,21 @@ export const LOADING_MESSAGES: Record<LoadingMessageCategory, string[]> = {
     "Finn en ny podcast-anbefaling? 🎧",
     "Send en melding til en venn 💌",
     "Godt jobbet til nå — ta to minutter 👏",
+    // Ekstra pauseforslag
+    "Nynn en sang du liker 🎶",
+    "Rist løs trøtte PC-hender 💻",
+    "Gå en kort runde rundt pulten 🚶",
+    "Rull øynene i en sirkel — øyehvile 👀",
+    "Klapp tre ganger — gir energiboost 👏",
+    "Rull skuldrene baklengs tre ganger 🔄",
+    "Sett på favorittspillelisten i bakgrunnen 🎧",
+    "Spis en frukt imens — hjernemat 🍌",
+    "Tell til ti — du har fortjent det 🔢",
+    "Sjekk værmeldingen for morgendagen 🌤️",
+    "Fikk en idé? Skriv den ned fort ✏️",
+    "Strekk armene over hodet — lett yoga 🙆",
+    "Ta en slurk kaldt vann for våkenhet 🧊",
+    "Kikk på noe langt unna — øynene takker 👓",
   ],
 };
 

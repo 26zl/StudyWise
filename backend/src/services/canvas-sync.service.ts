@@ -45,6 +45,10 @@ import {
   fetchPage,
 } from "../rutere/canvas/canvasService.js";
 import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
+import {
+  markExtractionFailure,
+  clearExtractionFailure,
+} from "./file-extraction-status.service.js";
 import { stripHtml } from "../utils/htmlUtils.js";
 import {
   createChunksFromContent,
@@ -80,6 +84,18 @@ const SYNC_STATUS_TTL = 300;
 
 /** Maks antall filer/sider å ekstrahere per synkronisering */
 const MAX_FILES_PER_SYNC = 200;
+
+/**
+ * Terskler for "sparse"-deteksjon: store filer (>= 2 MB) som gir mindre enn
+ * 1500 tegn per MB etter ekstraksjon flagges som sparse. Treffer typisk bilde-
+ * tunge PowerPoint-filer der kun slide-titler og fottekst ekstraheres.
+ * Filen blir fortsatt indeksert — men KI får beskjed om at innholdet er
+ * partielt og at brukeren bør laste filen opp manuelt for bedre dekning.
+ *
+ * Valgt konservativt for å unngå falske positiver på små, legitime filer.
+ */
+const SPARSE_MIN_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+const SPARSE_CHARS_PER_MB_THRESHOLD = 1500;
 
 /**
  * Minneterskel i MB — pauser filekstraksjon over dette nivået.
@@ -847,6 +863,7 @@ async function _doSync(
                         .map((chunk) => chunk.text)
                         .join("\n\n"),
                     });
+                    await clearExtractionFailure(userId, courseId, contentId);
                     return "ok";
                   }
                 }
@@ -897,6 +914,18 @@ async function _doSync(
                   { userId, courseId, fileId: contentId, filename: fileData.filename },
                   "Fil ga ikke ekstraherbart innhold — beholder eventuell tidligere lagring",
                 );
+                await markExtractionFailure({
+                  userId,
+                  courseId,
+                  courseName: course.name,
+                  moduleId,
+                  moduleTitle,
+                  fileName: fileData.filename,
+                  fileId: contentId,
+                  status: "empty",
+                  reason:
+                    "Ekstraksjon returnerte ingen tekst (sannsynligvis bilde-basert PPTX/PDF, for stor fil, eller ulesbart format)",
+                });
                 return "skipped";
               }
 
@@ -908,7 +937,20 @@ async function _doSync(
                 fileId: contentId,
               });
 
-              if (chunks.length === 0) return "skipped";
+              if (chunks.length === 0) {
+                await markExtractionFailure({
+                  userId,
+                  courseId,
+                  courseName: course.name,
+                  moduleId,
+                  moduleTitle,
+                  fileName: fileData.filename,
+                  fileId: contentId,
+                  status: "empty",
+                  reason: "Tekst ekstrahert men ga ingen gyldige chunks",
+                });
+                return "skipped";
+              }
 
               await upsertStoredFileContent({
                 userId,
@@ -922,6 +964,32 @@ async function _doSync(
                 chunks,
                 fullText: content,
               });
+
+              // Sparse-deteksjon: store filer med lite ekstrahert tekst flagges
+              // slik at KI vet at innholdet er partielt og kan be brukeren laste
+              // filen opp manuelt for bedre dekning. Filen er fremdeles indeksert.
+              const fileSizeBytes = fileData.size ?? 0;
+              if (fileSizeBytes >= SPARSE_MIN_FILE_SIZE_BYTES) {
+                const sizeMB = fileSizeBytes / (1024 * 1024);
+                const charsPerMB = content.length / sizeMB;
+                if (charsPerMB < SPARSE_CHARS_PER_MB_THRESHOLD) {
+                  await markExtractionFailure({
+                    userId,
+                    courseId,
+                    courseName: course.name,
+                    moduleId,
+                    moduleTitle,
+                    fileName: fileData.filename,
+                    fileId: contentId,
+                    status: "sparse",
+                    reason: `Kun ${content.length} tegn ekstrahert fra ${sizeMB.toFixed(1)} MB fil (${Math.round(charsPerMB)} tegn/MB, terskel ${SPARSE_CHARS_PER_MB_THRESHOLD}) — typisk bilde-tung PowerPoint`,
+                  });
+                } else {
+                  await clearExtractionFailure(userId, courseId, contentId);
+                }
+              } else {
+                await clearExtractionFailure(userId, courseId, contentId);
+              }
               fileCount++;
               return "ok";
             } catch (error) {
@@ -929,6 +997,18 @@ async function _doSync(
                 { err: error, userId, contentId, filename: fileData.filename },
                 "Feil ved filekstraksjon under sync",
               );
+              await markExtractionFailure({
+                userId,
+                courseId,
+                courseName: course.name,
+                moduleId,
+                moduleTitle,
+                fileName: fileData.filename,
+                fileId: contentId,
+                status: "failed",
+                reason:
+                  error instanceof Error ? error.message : "Ukjent feil under ekstraksjon",
+              });
               return "skipped";
             }
           };

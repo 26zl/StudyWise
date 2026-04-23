@@ -103,7 +103,13 @@ export function buildChatResponseCacheKey(
   const hintPart = input.moduleHint
     ? normalizeModuleHint(input.moduleHint)
     : `file-${input.fileHint?.slice(0, 40) ?? "unknown"}`;
-  return `chat-response:v1:${input.primaryCourseId}:${input.primaryFileId}:${triggerClass}:${hintPart}`;
+  // Versjonsnummer oppdateres når system-prompten endrer vesentlig oppførsel.
+  // v1 → v2 (2026-04-23): la til anti-hallusinasjons-guard og proaktiv-bruk-
+  // regel som hindrer AI i å si "last opp filen" når Canvas-kontekst faktisk
+  // finnes. Gamle v1-svar inneholder forbudte formuleringer og må ikke
+  // lenger serveres — bumpen gjør alle eksisterende v1-nøkler utilgjengelige
+  // (de utløper naturlig via 24t TTL).
+  return `chat-response:v2:${input.primaryCourseId}:${input.primaryFileId}:${triggerClass}:${hintPart}`;
 }
 
 export async function getCachedChatResponse(

@@ -195,13 +195,54 @@ export function isClientAvailable(_model: string): boolean {
 }
 
 /**
+ * Vindu i ms der en registrert kreditt-feil holder Anthropic-helsen som "down".
+ * `/v1/models` bruker ikke kreditt, så metadata-sjekken svarer 200 OK selv når
+ * kontoen er tom. Ved å huske siste credit-failure kan vi rapportere korrekt
+ * status uten å brenne kreditt på en ekte chat-ping. Selvhelbredes ved å
+ * utløpe — hvis kreditt fylles på, kommer helsestatus tilbake automatisk
+ * når vinduet går ut og neste echte KI-kall lykkes.
+ */
+const CREDIT_FAILURE_STICKY_WINDOW_MS = 15 * 60 * 1000; // 15 min
+
+let lastAnthropicCreditFailureAtMs: number | null = null;
+
+/**
+ * Kalles fra feilhåndtering (classifyAIError → credit_exhausted) for å markere
+ * at vi akkurat har sett en konto-tom-feil fra Anthropic. Brukes av helsesjekken
+ * til å rapportere "down" selv om metadata-endepunktet fortsatt svarer 200.
+ */
+export function recordAnthropicCreditFailure(): void {
+    lastAnthropicCreditFailureAtMs = Date.now();
+    logger.warn(
+        "Anthropic credit-failure registrert — helsesjekk rapporterer down i 15 min",
+    );
+}
+
+/**
+ * Brukes av helsesjekken (og ev. UI) for å sjekke om vi nylig har observert
+ * en credit-exhausted-feil. Returnerer true hvis vinduet ennå ikke er utløpt.
+ */
+export function hasRecentAnthropicCreditFailure(): boolean {
+    if (lastAnthropicCreditFailureAtMs === null) return false;
+    const elapsed = Date.now() - lastAnthropicCreditFailureAtMs;
+    if (elapsed > CREDIT_FAILURE_STICKY_WINDOW_MS) {
+        // Vinduet er utløpt — nullstill så neste vellykkede ping kan gjenopprette "up"
+        lastAnthropicCreditFailureAtMs = null;
+        return false;
+    }
+    return true;
+}
+
+/**
  * Pinger Anthropic /v1/models for å verifisere at API-et svarer.
  * Brukes av /status og /health/dependencies for å rapportere faktisk provider-helse.
- * Returnerer false hvis nøkkel mangler, nettverket svikter, eller API-et svarer
- * med 5xx / autentiseringsfeil.
+ * Returnerer false hvis nøkkel mangler, nettverket svikter, API-et svarer
+ * med 5xx / autentiseringsfeil, ELLER vi nylig har observert en credit-exhausted-
+ * feil (`/v1/models` bruker ikke kreditt og kan derfor ikke oppdage tom konto).
  */
 export async function isAnthropicHealthy(): Promise<boolean> {
     if (!ANTHROPIC_API_KEY) return false;
+    if (hasRecentAnthropicCreditFailure()) return false;
     try {
         const response = await fetch("https://api.anthropic.com/v1/models?limit=1", {
             method: "GET",

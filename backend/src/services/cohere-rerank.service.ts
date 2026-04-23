@@ -67,13 +67,42 @@ export function isCohereConfigured(): boolean {
 }
 
 /**
+ * Sticky-signal for kvote-oppbrukt. Cohere /v1/models bruker ikke trial-
+ * kvoten, så health-pingen svarer 200 OK selv når rerank-kall feiler med
+ * quota exceeded. Ved å huske siste quota-failure kan vi rapportere "down"
+ * uten å brenne kvote på en ekte rerank-test. Samme mønster som
+ * recordAnthropicCreditFailure i aiClient.ts.
+ */
+const COHERE_QUOTA_FAILURE_WINDOW_MS = 15 * 60 * 1000; // 15 min
+let lastCohereQuotaFailureAtMs: number | null = null;
+
+export function recordCohereQuotaFailure(): void {
+  lastCohereQuotaFailureAtMs = Date.now();
+  logger.warn(
+    "Cohere quota-failure registrert — helsesjekk rapporterer down i 15 min",
+  );
+}
+
+function hasRecentCohereQuotaFailure(): boolean {
+  if (lastCohereQuotaFailureAtMs === null) return false;
+  const elapsed = Date.now() - lastCohereQuotaFailureAtMs;
+  if (elapsed > COHERE_QUOTA_FAILURE_WINDOW_MS) {
+    lastCohereQuotaFailureAtMs = null;
+    return false;
+  }
+  return true;
+}
+
+/**
  * Pinger Cohere /v1/models for å verifisere at API-et svarer.
  * Brukes av /status og /health/dependencies for å rapportere faktisk provider-helse.
- * Returnerer false hvis nøkkel mangler, nettverket svikter, eller API-et returnerer
- * en feilstatus.
+ * Returnerer false hvis nøkkel mangler, nettverket svikter, API-et returnerer
+ * en feilstatus, ELLER vi nylig har observert en quota-exceeded-feil (siden
+ * /v1/models ikke bruker kvote og ikke kan oppdage tom trial-konto).
  */
 export async function isCohereHealthy(): Promise<boolean> {
   if (!COHERE_API_KEY) return false;
+  if (hasRecentCohereQuotaFailure()) return false;
   try {
     const response = await fetch("https://api.cohere.com/v1/models?page_size=1", {
       method: "GET",
@@ -142,6 +171,19 @@ export async function cohereRerank(
             { status: res.status, body },
             "Cohere rerank API feilet",
           );
+          // 402 (Payment Required) eller 429 med quota/billing-hint = trial oppbrukt.
+          // Marker helsen som down slik at admin-statusen viser riktig bilde.
+          const lowerBody = body.toLowerCase();
+          if (
+            res.status === 402
+            || lowerBody.includes("quota")
+            || lowerBody.includes("billing")
+            || lowerBody.includes("trial")
+            || lowerBody.includes("insufficient")
+            || lowerBody.includes("credits")
+          ) {
+            recordCohereQuotaFailure();
+          }
           throw new Error(`Cohere rerank feilet: ${res.status}`);
         }
 

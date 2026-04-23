@@ -34,7 +34,7 @@ import {
   setCachedChatResponse,
 } from "../../services/chat-response-cache.service.js";
 import { chatCompletion } from "./aiClient.js";
-import { handleAIError, checkAIClientUnavailable } from "./handleAIError.js";
+import { handleAIError, checkAIClientUnavailable, classifyAIError } from "./handleAIError.js";
 import {
   loadCanvasContext,
   ensureCanvasSync,
@@ -2122,7 +2122,87 @@ Never guess or invent a name from email, username, or other profile fields.
 
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
     let intent = detectIntent(messages);
+
+    // Referensiell-oppfølging-override:
+    // Når detectIntent returnerer "general_chat" fordi nåværende melding
+    // mangler Canvas-signaler ("leksjon", "forelesning" osv.), MEN brukeren
+    // egentlig stiller en referensiell oppfølging på et Canvas-basert svar
+    // (f.eks. "Du nevner sti-avhengighet, kan du utdype dette?") — så må
+    // vi arve canvas_full-intent. Uten det hopper vi over Canvas-kontekst
+    // og faller til Haiku (1400 token-cap), noe som gir:
+    //   1) bredt svar fra Claudes generelle kunnskap (ikke studentens pensum)
+    //   2) trunkering midt i setningen på 1400 tokens
+    //
+    // Signal på Canvas-basert forrige svar: AI-svaret starter med
+    // "Basert på [fil].pdf" eller inneholder en "**Kilder:**"-seksjon —
+    // begge er standardmaler vi genererer når Canvas-fil brukes.
+    const referentialOnCanvasPattern =
+      /\b(kan du utdype|utdyp (?:dette|svaret|mer)|forklar (?:mer|dette|dette mer)|gi mer detaljer|mer om (?:dette|det)|forrige svar|svaret ditt|det du (?:sa|skrev|nevnte)|du nevner|du nevnte)\b/i;
+    // Fileer vi plukker ut fra forrige assistent-svar sin kilde-overskrift —
+    // brukes som fallback-fileHint for target-ekstraksjon når referensiell
+    // oppfølging promoterer intent til canvas_full men hverken nåværende eller
+    // tidligere bruker-melding ga konkret fil/modul-hint. Uten dette faller
+    // canvas_full tilbake til brede tverr-kurs-søk.
+    let assistantSourceFileHint: string | null = null;
+    if (intent === "general_chat" && referentialOnCanvasPattern.test(lastUserMessage)) {
+      const lastAssistantMsg =
+        [...messages].reverse().find((m) => m.role === "assistant")?.content ?? "";
+      const trimmed = lastAssistantMsg.trim();
+      const sourceHeadingMatch = trimmed.match(
+        /^(?:Basert på|Based on)\s+(\S+\.(?:pdf|pptx?|docx?|xlsx?))/i,
+      );
+      const hasCanvasSourcesSection =
+        /\*\*Kilder:\*\*|\*\*Sources:\*\*/.test(lastAssistantMsg);
+      if (sourceHeadingMatch || hasCanvasSourcesSection) {
+        logger.info(
+          {
+            previousIntent: "general_chat",
+            overriddenIntent: "canvas_full",
+            reason: "referential_followup_on_canvas_answer",
+            messagePreview: lastUserMessage.substring(0, 120),
+          },
+          "Referensiell oppfølging på Canvas-svar — arver canvas_full-intent",
+        );
+        intent = "canvas_full";
+        if (sourceHeadingMatch) {
+          assistantSourceFileHint = sourceHeadingMatch[1];
+        }
+      }
+    }
+
     const lastMessageNormalized = normaliserSkrivefeil(lastUserMessage);
+
+    // Intent-override ved eksplisitt fil/modul-referanse i siste melding:
+    // detectIntent ser på siste 3 bruker-meldinger samlet. Hvis en tidligere
+    // melding var en struktur-spørring ("hvilke emner er jeg registrert på"),
+    // får *hele* samtalen canvas_light — selv om siste melding eksplisitt ber
+    // om innholdet i en konkret leksjon/kapittel/modul.
+    //
+    // Eksempel som feilet uten dette: user sendte "Hvilke emner er jeg på?"
+    // → canvas_light. Deretter "WEB1100 forklar leksjon 1" — burde vært
+    // canvas_full, men arvet canvas_light fra forrige melding → Haiku + 2k
+    // token-cap → AI hallusinerte "Canvas nekter tilgang" i stedet for å
+    // bruke den faktisk innlastede fil-konteksten.
+    //
+    // Signalene vi ser etter er konkrete innholdstype-referanser i SISTE
+    // melding: "leksjon/kapittel/modul/forelesning N" — disse indikerer
+    // at brukeren vil ha faktisk fil-innhold, ikke struktur-oversikt.
+    const lastMessageHasConcreteContentRef =
+      /\b(?:leksjon|lesson|kapittel|chapter|modul|module|forelesning|lecture|forelesing)\s+\d+/i
+        .test(lastUserMessage);
+    if (intent === "canvas_light" && lastMessageHasConcreteContentRef) {
+      logger.info(
+        {
+          previousIntent: "canvas_light",
+          overriddenIntent: "canvas_full",
+          reason: "last_message_concrete_content_ref",
+          messagePreview: lastUserMessage.substring(0, 120),
+        },
+        "Siste melding ber om konkret fil-innhold — promoterer til canvas_full",
+      );
+      intent = "canvas_full";
+    }
+
     const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(lastMessageNormalized);
     const hasDirectUrlInLastMessage = extractFirstHttpUrl(lastUserMessage) !== null;
     const hasSlashKbCommandInLastMessage = extractSlashKBBaseName(lastUserMessage) !== null;
@@ -2261,6 +2341,18 @@ Never guess or invent a name from email, username, or other profile fields.
     // konteksten er i konflikt med brukerens primær. Cache ville fått
     // korrupte treff.
     let crossCourseGuardTriggered = false;
+    // Flagg som forhindrer response-cache ved referensielle oppfølginger
+    // ("utdyp X", "mer om Y", "forklar dette").
+    //
+    // Hvorfor: cache-nøkkelen bygges av (courseId, fileId, triggerClass,
+    // moduleHint). Ved referensiell arv får en oppfølging samme nøkkel som
+    // den opprinnelige brede forespørselen — selv om brukerens faktiske
+    // spørsmål er helt annerledes. Observert: "Utdyp sti-avhengighet fra
+    // leksjon 6" arvet moduleHint "leksjon 6" + triggerWord "gå igjennom"
+    // fra forrige melding og fikk servert det 15k-tegn store sammendraget
+    // av hele leksjonen på nytt, i stedet for et målrettet svar om sti-
+    // avhengighet. Vi må generere nytt svar for slike forespørsler.
+    let referentialFollowUpInherited = false;
     let contextKilder: import("common/ki").KIChatSource[] | undefined;
     let kbKilder: import("common/ki").KIChatSource[] | undefined;
     let liveUrlKilder: import("common/ki").KIChatSource[] | undefined;
@@ -2402,6 +2494,7 @@ Never guess or invent a name from email, username, or other profile fields.
         if (inheritedFromPrior) {
           effectiveMsgForTargeting = `${inheritedFromPrior} ${lastUserMsg}`;
           target = extractQueryTarget(effectiveMsgForTargeting);
+          referentialFollowUpInherited = true;
           logger.info(
             {
               currentPreview: lastUserMsg.slice(0, 80),
@@ -2413,6 +2506,23 @@ Never guess or invent a name from email, username, or other profile fields.
       }
       // Variabel eksponert for evt. fremtidig bruk; ikke referert her.
       void inheritedFromPrior;
+
+      // Fallback: arv fileHint fra forrige assistent-svar sin kilde-overskrift
+      // når referensiell oppfølging promoterte intent til canvas_full men
+      // hverken nåværende eller tidligere bruker-melding bidro med fil-hint.
+      // Forhindrer at "utdyp dette" etter et Canvas-basert svar utløser et
+      // bredt tverr-kurs-søk med tom target.
+      if (assistantSourceFileHint && !target.fileHint) {
+        target = { ...target, fileHint: assistantSourceFileHint };
+        logger.info(
+          {
+            fileHint: assistantSourceFileHint,
+            reason: "inherited_from_prior_assistant_source_heading",
+          },
+          "Referensiell oppfølging: arvet fileHint fra forrige AI-svars kildeoverskrift",
+        );
+      }
+
       const isLikelyFollowUp = isLikelyFollowUpQuestion(lastUserMsg);
 
       // ─── Session-locked courseHint ───
@@ -2782,6 +2892,63 @@ Never guess or invent a name from email, username, or other profile fields.
       fullDocumentPrimaryFileId = contextResult.primaryFileId ?? null;
       contextKilder = contextResult.kilder && contextResult.kilder.length > 0 ? contextResult.kilder : undefined;
       syncJustWaited = !!contextResult.syncWaited;
+
+      // Anti-hallusinasjons-guard: når Canvas-kontekst faktisk er lastet inn
+      // (hasCanvasData=true), skal modellen ALDRI svare at den mangler tilgang
+      // eller at "Canvas nekter StudyWise å hente innholdet". Vi har det
+      // allerede — hvis modellen ikke finner *nøyaktig* den filen brukeren
+      // nevnte, skal den jobbe med hva den har og tilby å bekrefte eller be
+      // om presisering, ikke oppfinne en tilgangsbegrensning.
+      //
+      // Observert bug: bruker spurte "forklar leksjon 1" i WEB1100. Systemet
+      // lastet 14 935 tegn kontekst (F2-pptx, HTML/CSS-pptx, eksamensfiler).
+      // Modellen fant ikke en fil som het eksakt "Leksjon 1" og svarte
+      // "Canvas tillater ikke at StudyWise henter innholdet direkte" — feil.
+      // Riktig svar: "Jeg finner F2 — Internett og verdensveven.pptx i
+      // pensum-modulen — er det denne du mener som leksjon 1?"
+      //
+      // Viktig: guarden aktiveres KUN når kontekst faktisk inneholder fil-
+      // innhold (hasRealCanvasContent). Hvis det bare er et extraction-failure-
+      // notat (filen finnes i Canvas men kunne ikke indekseres) skal modellen
+      // følge notat-instruksjonen — som eksplisitt ber brukeren laste filen
+      // opp manuelt — og den ville motsagt guardens "IKKE be om opplasting".
+      if (hasCanvasData && contextResult.hasRealCanvasContent !== false) {
+        enhancedSystemPrompt += `
+
+## ANTI-HALLUSINASJON OG PROAKTIV BRUK AV KONTEKST — VIKTIG
+
+Canvas-kontekst er allerede lastet inn i meldingen over (markert
+<canvas-kursdata>). Du har innhold fra brukerens Canvas-filer.
+
+**Du skal ALDRI si** (med mindre <canvas-kursdata> er faktisk tom):
+- "Canvas tillater ikke StudyWise å hente innholdet"
+- "Dette er en tillatelsesbegrensning"
+- "Systemet kan ikke hente filen"
+- "Last opp filen her"
+- "Kopier teksten fra filen og lim den inn"
+- "Du må lime inn teksten"
+- "Selve innholdet i den filen er ikke tilgjengelig"
+
+**Hovedregel**: Hvis brukeren spør om et tema (leksjon/kapittel/modul) og du
+har tilgjengelige pensumfiler i <canvas-kursdata> som dekker det temaet, skal
+du GI ET FULLSTENDIG SVAR basert på disse filene — IKKE be om opplasting,
+IKKE diskutere hvorfor den eksakte filen mangler.
+
+Flyt når brukeren spør om "leksjon X" eller lignende:
+1. Finn de mest relevante filene i <canvas-kursdata> (uansett filnavn)
+2. Hvis det finnes filer om samme tema eller fra samme kurs — **bruk dem
+   direkte og forklar innholdet**. Ikke pause for å spørre om tillatelse.
+3. Si kort hvilken fil svaret bygger på ("Basert på F2 - Internett og
+   verdensveven, som er neste leksjon i samme modul...")
+4. Lever selve faginnholdet. Dette er det brukeren ba om.
+
+**Kun** hvis <canvas-kursdata> er helt tom for temaet, eller kun inneholder
+eksamensfiler uten forelesningsinnhold, kan du foreslå upload — og da KORT,
+én gang, uten gjentakelse.
+
+Tilgangsbegrensninger er allerede håndtert av systemet. Hvis det står innhold
+i <canvas-kursdata>, er det ditt å bruke — gi brukeren svaret de ba om.`;
+      }
 
       // Cross-course-guard: hvis samtalens primær-kurs er satt og retrieval
       // returnerte innhold fra et ANNET kurs, må modellen varsle brukeren
@@ -3417,7 +3584,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // fra Redis på ~2 sek i stedet for 60-140 sek. Cachen bygges først når
     // vi har sett et vellykket Claude-svar, så første spørring om en leksjon
     // tar normal tid — påfølgende er instant.
-    const cacheInput = fullDocumentModeActive && !crossCourseGuardTriggered
+    const cacheInput = fullDocumentModeActive && !crossCourseGuardTriggered && !referentialFollowUpInherited
       ? {
           primaryCourseId:
             tracePersistentPrimaryCourseId ??
@@ -3429,6 +3596,15 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         }
       : null;
     const responseCacheKey = cacheInput ? buildChatResponseCacheKey(cacheInput) : null;
+    if (referentialFollowUpInherited) {
+      // Eksplisitt log så telemetri viser at vi bevisst hopper over cache
+      // for referensielle oppfølginger. Uten denne loggen ville "hvorfor
+      // ble ikke dette cachet-hit?"-diagnose kreve source-inspeksjon.
+      logger.info(
+        { moduleHint: traceModuleHint, fileHint: traceFileHint },
+        "Hopper over response-cache: referensiell oppfølging trenger nytt, målrettet svar",
+      );
+    }
     if (responseCacheKey) {
       const cached = await getCachedChatResponse(responseCacheKey);
       if (cached) {
@@ -3636,16 +3812,24 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // Respons allerede avsluttet — ingenting mer å gjøre
     if (res.writableEnded) return;
 
-    // Hvis SSE-headere allerede er sendt, send feil via SSE
+    // Hvis SSE-headere allerede er sendt, send feil via SSE.
+    // Bruk samme klassifiserer som JSON-flyten slik at brukeren får en
+    // meningsfull melding også her (f.eks. "Kontokreditt er oppbrukt" når
+    // Anthropic svarer med credit-balance-feil midt i streamen).
     if (sseStarted) {
-      const errorMessage = error instanceof Error && error.message === "CHAT_TIMEOUT"
-        ? "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet."
-        : "Kunne ikke få svar fra KI-assistenten. Prøv igjen senere.";
+      const classified = classifyAIError(error, {
+        timeoutLabel: "CHAT_TIMEOUT",
+        timeoutMessage:
+          "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
+      });
 
-      logger.error({ err: error }, "ki-chat feil (SSE)");
+      logger.error(
+        { err: error, category: classified.category },
+        "ki-chat feil (SSE)",
+      );
       const errorPayload = KIChatResponseSchema.parse({
         suksess: false,
-        melding: errorMessage,
+        melding: classified.userMessage,
         response: "",
       });
       if (writeSSE(res, errorPayload)) {

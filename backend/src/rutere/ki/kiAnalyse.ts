@@ -32,6 +32,7 @@ import { chatCompletion, chatCompletionWithVision, isVisionAvailable, isClientAv
 import type { ImageAttachment } from "./aiClient.js";
 import { STUDYWISE_SYSTEM_PROMPT, STUDYWISE_DOCUMENT_PROMPT } from "./systemPrompt.js";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
+import { classifyAIError } from "./handleAIError.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
 
 /** Send SSE-feilrespons og avslutt strømmen */
@@ -406,14 +407,21 @@ router.post("/analyze-document", rateLimitKi, upload.single('document'), async (
         logger.info("analyze-document avbrutt etter at response allerede var lukket");
         return;
     }
-    logger.error({ err: error }, "analyze-document unhandled error");
     try {
-        const isTimeout = error instanceof Error && error.message === "ANALYSE_TIMEOUT";
+        // Bruk samme klassifiserer som chat-SSE-flyten slik at credit_exhausted /
+        // rate_limit / auth_error får riktig bruker-melding også her.
+        const classified = classifyAIError(error, {
+            timeoutLabel: "ANALYSE_TIMEOUT",
+            timeoutMessage:
+                "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen.",
+        });
+        logger.error(
+            { err: error, category: classified.category },
+            "analyze-document unhandled error",
+        );
         const errorPayload = KIDocumentAnalyseResponseSchema.parse({
             suksess: false,
-            melding: isTimeout
-                ? "Dokumentanalysen tok for lang tid. Prøv med et mindre dokument eller prøv igjen."
-                : "Kunne ikke analysere dokumentet. Prøv igjen.",
+            melding: classified.userMessage,
             response: "",
         });
         if (writeSSE(res, errorPayload)) {

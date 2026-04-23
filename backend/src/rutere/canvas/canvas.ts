@@ -1464,7 +1464,9 @@ async function finnCanvasUiUrlForRessurs(
         const matchesItemId = item.id === fileIdNum;
         if (!matchesContentId && !matchesItemId) continue;
         if (item.type === "File" && typeof item.content_id === "number") {
-          return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/files/${item.content_id}`;
+          // Direkte nedlasting istedenfor forhåndsvisning — sparer brukeren
+          // ett ekstra klikk på "Download" i Canvas-preview-siden.
+          return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/files/${item.content_id}/download?download_frd=1`;
         }
         if (item.type === "Page" && item.page_url) {
           return `${canvasOrigin}/courses/${encodeURIComponent(courseId)}/pages/${encodeURIComponent(item.page_url)}`;

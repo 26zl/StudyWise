@@ -27,11 +27,9 @@ if (!ArrayBuffer.prototype.transferToFixedLength) {
 }
 // --- End polyfill ---
 
-import { renderPageAsImage } from "unpdf";
-import { PDFParse } from "pdf-parse";
-import mammoth from "mammoth";
-import Tesseract from "tesseract.js";
-import sharp from "sharp";
+// Tunge parsere (unpdf, pdf-parse, mammoth, tesseract.js, sharp) lazy-lastes inne
+// i funksjonene som faktisk bruker dem — holder cold-start lav på Heroku-dynoen
+// når ingen laster opp dokumenter i sesjonen.
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
 import { isProd } from "../utils/env.js";
@@ -432,6 +430,7 @@ function sanitizeText(text: string): { cleanText: string; redacted: boolean } {
  */
 async function preprocessImageForOCR(buffer: Buffer): Promise<Buffer> {
     try {
+        const { default: sharp } = await import("sharp");
         const image = sharp(buffer);
         const metadata = await image.metadata();
         
@@ -494,10 +493,11 @@ async function preprocessImageForOCR(buffer: Buffer): Promise<Buffer> {
 async function performOCR(buffer: Buffer): Promise<{ text: string; confidence: number }> {
     try {
         logger.info({ bufferLength: buffer.length }, "Starting OCR processing");
-        
+
         // Forbehandle bildet for bedre OCR-resultater
         const processedBuffer = await preprocessImageForOCR(buffer);
-        
+
+        const { default: Tesseract } = await import("tesseract.js");
         // Wrap OCR i en Promise med timeout
         const ocrPromise = Tesseract.recognize(processedBuffer, "nor+eng", {
             logger: (info) => {
@@ -618,6 +618,8 @@ async function ocrPdfPages(pdfSource: Buffer, numPages: number, opts?: { maxPage
     const pagesToProcess = Math.min(numPages, pageLimit);
     logger.info({ totalPages: numPages, pagesToProcess }, "Starting PDF page rasterization for OCR");
 
+    const { renderPageAsImage } = await import("unpdf");
+
     const pageTexts: string[] = [];
     let totalConfidence = 0;
     let successfulPages = 0;
@@ -684,6 +686,7 @@ async function parsePdfDocument(buffer: Buffer, options?: ParseDocumentOptions):
 
         // pdf-parse er mer robust for ren tekstekstraksjon og unngår kjente
         // unhandled-rejection-problemer vi har observert i unpdf/pdf.js-løpet.
+        const { PDFParse } = await import("pdf-parse");
         const parser = new PDFParse({ data: buffer });
         let text: string;
         let numPages: number;
@@ -889,6 +892,7 @@ async function parsePdfDocument(buffer: Buffer, options?: ParseDocumentOptions):
 async function extractImagesFromDocx(buffer: Buffer): Promise<Buffer[]> {
     const images: Buffer[] = [];
 
+    const { default: mammoth } = await import("mammoth");
     await mammoth.convertToHtml(
         { buffer },
         {
@@ -946,6 +950,7 @@ async function ocrImageBuffers(
  */
 async function parseWordDocument(buffer: Buffer): Promise<DocumentParseResult> {
     try {
+        const { default: mammoth } = await import("mammoth");
         const result = await mammoth.extractRawText({ buffer });
         const text = result.value;
 

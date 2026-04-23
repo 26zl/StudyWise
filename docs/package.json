@@ -12,7 +12,7 @@
     },
     "dependencies": {
         "vitepress": "^1.6.4",
-        "vue": "^3.5.32"
+        "vue": "^3.5.33"
     },
     "optionalDependencies": {
         "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15"

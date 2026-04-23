@@ -58,6 +58,8 @@ import { fetchPdfContent, fetchFileContent, fetchFileMetadata } from "../rutere/
 import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
 import { createChunksFromContent } from "./chunk.service.js";
 import { upsertStoredFileContent } from "./embedding.service.js";
+import { getExtractionFailuresForCourses } from "./file-extraction-status.service.js";
+import type { IFileExtractionStatus } from "../database/models/FileExtractionStatus.js";
 
 import { z } from "zod";
 
@@ -156,11 +158,15 @@ async function buildCrawledFileIdUrlMap(
           && typeof item.content_id === "number"
           && !idToUrl.has(item.content_id)
         ) {
-          // Canvas file-info-side — viser forhåndsvisning selv uten
-          // file-API-lesetilgang. Bedre enn 403 på download-endepunktet.
+          // Canvas file-download-URL med download_frd=1 som trigger direkte
+          // nedlasting istedenfor forhåndsvisning. Hvis brukeren ikke har
+          // tilgang viser Canvas en feilmelding — men i praksis pleier
+          // studenten som spør om filen å ha tilgang (filen er i Canvas-
+          // modulen de er påmeldt). Dette sparer dem ett klikk vs. å lande
+          // på forhåndsvisnings-siden og klikke "Download" der.
           idToUrl.set(
             item.content_id,
-            `${normalizedBaseUrl}/courses/${courseId}/files/${item.content_id}`,
+            `${normalizedBaseUrl}/courses/${courseId}/files/${item.content_id}/download?download_frd=1`,
           );
         } else if (
           item.type === "Assignment"
@@ -238,6 +244,11 @@ async function backfillMissingSourceUrls(
 export const ContextResultSchema = z.object({
   kontekst: z.string(),
   hasCanvasData: z.boolean(),
+  /** true når `kontekst` inneholder faktisk fil-innhold (ikke bare
+   *  extraction-failure-notat). Styrer om anti-hallusinasjons-guarden i
+   *  system-prompten skal aktiveres: guarden påstår "du har innhold fra
+   *  Canvas-filer" og gir mening kun når faktisk fil-innhold er lastet. */
+  hasRealCanvasContent: z.boolean().optional(),
   source: z.enum(["redis", "mongodb", "api", "vector", "chunks", "none"]),
   /** true hvis minst én chunk inneholder sparse kulepunkt-innhold (PowerPoint etc.) */
   hasSparseChunks: z.boolean().optional(),
@@ -300,9 +311,24 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "utdype",
   "utdyp",
   "forklar forelesning",
+  "forklare forelesning",
   "forklar mer om",
   "fortell mer om",
   "mer om forelesning",
+  // "Forklar/fortell + [leksjon|kapittel|modul]" — dekker "kan du forklare
+  // leksjon 1", "forklar kapittel 3", "fortell om modul 2". Krever eksplisitt
+  // innhold-type (leksjon/kapittel/modul) for å unngå at bredt "forklar X"
+  // drar inn full-dokument-mode på generelle begreps-forespørsler.
+  "forklar leksjon",
+  "forklare leksjon",
+  "forklar kapittel",
+  "forklare kapittel",
+  "forklar modul",
+  "forklare modul",
+  "fortell om leksjon",
+  "fortell om kapittel",
+  "fortell om modul",
+  "fortell om forelesning",
   // Engelsk
   "summarize",
   "summarise",
@@ -321,6 +347,12 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "tell me more about",
   "explain lecture",
   "more about lecture",
+  "explain lesson",
+  "explain chapter",
+  "explain module",
+  "tell me about lesson",
+  "tell me about chapter",
+  "tell me about module",
 ];
 
 /** Prefiksord som indikerer at et påfølgende tall refererer til en kapittel/modul/seksjon. */
@@ -2538,13 +2570,33 @@ async function byggKontekstFraHybridSearch(
           }
         }
 
-        if (catalogMatch && catalogMatch.fileId !== primary.source.fileId) {
+        // Richness-guard: ikke overstyr primærfil med en tom wrapper-fil.
+        // Canvas lagrer ofte "Pages" som 100-300 tegn metadata (lenker til
+        // eksterne PDF-er) mens den faktiske forelesningsteksten ligger i
+        // crawlede PDF-er eller pptx-er. Hvis vi blindt bytter til wrappere
+        // bare fordi filnavnet matcher tallet, ender vi med å gi AI ~200 tegn
+        // og må fallbacke til supplement-filer — som ofte er eksamensfiler
+        // eller urelatert innhold fra samme kurs.
+        //
+        // Observert: "forklar leksjon 1" i WEB1100 overstyrte en 10k+-tegn
+        // eksamensfil (feil originalvalg fra hybrid-søk, men minst med reell
+        // tekst) med en 217-tegns "PENSUM - Forelesning 1 - Del 1"-wrapper.
+        // AI fikk dermed praktisk talt ingen forelesningstekst å jobbe med.
+        //
+        // Hvis katalogmatchen har lite innhold, behold opprinnelig primær
+        // og la supplement-fasen eventuelt berike med katalogtreffet i
+        // stedet (der det ikke går på bekostning av primær-rikdom).
+        const CATALOG_MATCH_MIN_CHARS = 1500;
+        const catalogHasRichContent =
+          catalogMatch && catalogMatch.charCount >= CATALOG_MATCH_MIN_CHARS;
+        if (catalogMatch && catalogMatch.fileId !== primary.source.fileId && catalogHasRichContent) {
           logger.info(
             {
               numericHints: primarySelection.numericHints,
               originalPrimaryFile: primary.source.fileName,
               catalogMatchFile: catalogMatch.fileName,
               catalogMatchFileId: catalogMatch.fileId,
+              catalogMatchChars: catalogMatch.charCount,
               reason: catalogMatchReason,
             },
             "Full dokument-mode: primærfil overstyrt fra kurs-katalog-skanning",
@@ -2558,6 +2610,17 @@ async function byggKontekstFraHybridSearch(
               moduleTitle: catalogMatch.moduleTitle,
             },
           };
+        } else if (catalogMatch && !catalogHasRichContent) {
+          logger.info(
+            {
+              catalogMatchFile: catalogMatch.fileName,
+              catalogMatchFileId: catalogMatch.fileId,
+              catalogMatchChars: catalogMatch.charCount,
+              threshold: CATALOG_MATCH_MIN_CHARS,
+              keptPrimary: primary.source.fileName,
+            },
+            "Hopper over katalog-override: match er en tom wrapper/metadata-fil",
+          );
         }
       }
 
@@ -3326,6 +3389,127 @@ async function hentModulFilerOnDemand(
 // ─── Hovedfunksjoner ───────────────────────────────────────
 
 /**
+ * Finner FileExtractionStatus-rader som matcher target.fileHint/moduleHint
+ * innenfor brukerens kurs-scope. Brukes til å injisere et SYSTEM-NOTAT
+ * når brukeren spør om en fil vi vet ikke kan indekseres (bilde-basert PPTX
+ * o.l.) — slik at KI-en kan gi deterministisk "last opp manuelt"-beskjed
+ * istedenfor å prøve å gjette fra supplement-materiell.
+ *
+ * Design-valg:
+ * - Krever target.courseIdHint for å unngå cross-course støy.
+ * - Match fileHint mot fileName direkte (titleMatchesFileHint).
+ * - Match moduleHint mot moduleTitle (modulTitleMatcherHint) OG mot
+ *   fileName via numeric hints ("leksjon 1" → filer med "F1" o.l.).
+ */
+async function finnMatchendeEkstraksjonsFeil(
+  userId: string,
+  target: TargetedQuery | undefined,
+): Promise<IFileExtractionStatus[]> {
+  if (!target) return [];
+  if (!target.fileHint && !target.moduleHint) return [];
+  if (target.courseIdHint == null) return [];
+
+  const failures = await getExtractionFailuresForCourses(userId, [
+    String(target.courseIdHint),
+  ]);
+  if (failures.length === 0) return [];
+
+  const matched = new Map<number, IFileExtractionStatus>();
+
+  if (target.fileHint) {
+    for (const f of failures) {
+      if (titleMatchesFileHint(f.fileName, target.fileHint)) {
+        matched.set(f.fileId, f);
+      }
+    }
+  }
+
+  if (target.moduleHint) {
+    const numHints = extractNumericHintsFromMessage(target.moduleHint);
+    for (const f of failures) {
+      if (matched.has(f.fileId)) continue;
+      const moduleMatches =
+        !!f.moduleTitle && modulTitleMatcherHint(f.moduleTitle, target.moduleHint);
+      const numMatches =
+        numHints.length > 0 && fileNameMatchesNumericHints(f.fileName, numHints);
+      if (moduleMatches || numMatches) {
+        matched.set(f.fileId, f);
+      }
+    }
+  }
+
+  return [...matched.values()];
+}
+
+/**
+ * Bygger SYSTEM-NOTAT-blokken som forteller KI-en hvilke filer som enten
+ * mangler innhold helt eller kun har partielt innhold. Returnerer tom streng
+ * når listen er tom.
+ *
+ * Skiller mellom:
+ *   - "sparse"           → filen er indeksert men har lite tekst (bilde-tung)
+ *   - alle andre statuser → filen ble ikke indeksert i det hele tatt
+ */
+function byggEkstraksjonsFeilNotat(failures: IFileExtractionStatus[]): string {
+  if (failures.length === 0) return "";
+
+  const sparse = failures.filter((f) => f.status === "sparse");
+  const uleselige = failures.filter((f) => f.status !== "sparse");
+
+  const blokker: string[] = [];
+
+  if (uleselige.length > 0) {
+    const linjer = uleselige.map((f) => {
+      const modulDel = f.moduleTitle ? `, modul: "${f.moduleTitle}"` : "";
+      const grunn = f.reason ?? "ukjent grunn";
+      return `- "${f.fileName}" (kurs: "${f.courseName}"${modulDel}) — ${grunn}`;
+    });
+    blokker.push(
+      [
+        "",
+        "<system-notat-filer-uten-innhold>",
+        "Følgende fil(er) finnes i Canvas-kursstrukturen, men innholdet kunne IKKE leses av systemet (typisk bilde-basert PowerPoint, korrupt fil, eller uspøttet format):",
+        ...linjer,
+        "",
+        "Instruksjon til KI:",
+        "- Ikke lat som du kjenner innholdet i disse filene.",
+        "- Fortell brukeren konkret at filen(e) finnes i Canvas, men at innholdet ikke kunne indekseres automatisk (typisk fordi slidene er bilder istedenfor tekst).",
+        "- Anbefal brukeren å laste filen(e) opp manuelt i Kunnskapsbasen (Dashboard → Kunnskapsbase) for å aktivere KI-støtte på innholdet.",
+        "- Hvis du har støttemateriell fra samme kurs (andre leksjoner, eksamener, sensorveiledning), kan du fortsatt bruke det — men vær tydelig på at det ikke erstatter selve filen.",
+        "</system-notat-filer-uten-innhold>",
+        "",
+      ].join("\n"),
+    );
+  }
+
+  if (sparse.length > 0) {
+    const linjer = sparse.map((f) => {
+      const modulDel = f.moduleTitle ? `, modul: "${f.moduleTitle}"` : "";
+      const grunn = f.reason ?? "partiell ekstraksjon";
+      return `- "${f.fileName}" (kurs: "${f.courseName}"${modulDel}) — ${grunn}`;
+    });
+    blokker.push(
+      [
+        "",
+        "<system-notat-filer-med-partielt-innhold>",
+        "Følgende fil(er) er indeksert, men kun en liten del av innholdet er tilgjengelig som tekst (typisk bilde-tung PowerPoint der bare slide-titler og fottekst er lesbart):",
+        ...linjer,
+        "",
+        "Instruksjon til KI:",
+        "- Innholdet du har tilgang til fra disse filene er ufullstendig — bruk det, men vær transparent om begrensningen.",
+        "- Fortell brukeren at filen er delvis indeksert, men at mye av det faglige innholdet (hoved-poenger på slidene) sannsynligvis bare finnes som bilder og derfor ikke er tilgjengelig som tekst.",
+        "- Anbefal brukeren å laste filen opp manuelt i Kunnskapsbasen (Dashboard → Kunnskapsbase) for fullstendig KI-dekning av innholdet.",
+        "- Støttemateriell fra samme kurs (andre leksjoner, eksamener, sensorveiledning) kan brukes som supplement.",
+        "</system-notat-filer-med-partielt-innhold>",
+        "",
+      ].join("\n"),
+    );
+  }
+
+  return blokker.join("\n");
+}
+
+/**
  * Laster Canvas-kontekst for KI-chatten basert på intent.
  *
  * Strategi:
@@ -3360,19 +3544,62 @@ export async function loadCanvasContext(
   // IIFE-wrappen lar oss annotere alle eksisterende return-punkter uten å
   // måtte røre hver enkelt av dem.
   const state = { syncWaited: false };
-  const result = await loadCanvasContextCore(
-    state,
-    userId,
-    canvasToken,
-    intent,
-    target,
-    message,
-    baseUrl,
-    signal,
-    contextPrefs,
-    hiddenCourseIds,
-  );
-  return state.syncWaited ? { ...result, syncWaited: true } : result;
+  const [result, ekstraksjonsFeil] = await Promise.all([
+    loadCanvasContextCore(
+      state,
+      userId,
+      canvasToken,
+      intent,
+      target,
+      message,
+      baseUrl,
+      signal,
+      contextPrefs,
+      hiddenCourseIds,
+    ),
+    finnMatchendeEkstraksjonsFeil(userId, target),
+  ]);
+
+  // Appendér notat om uleselige filer når target treffer minst én kjent-feil.
+  // Viktig: vi legger til _etter_ eksisterende kontekst slik at suksessflyten
+  // (supplement-materiell, full-dokument-mode, chunks) ikke påvirkes.
+  const notat = byggEkstraksjonsFeilNotat(ekstraksjonsFeil);
+  // Fanger om det faktisk var fil-innhold før notatet ble appendet — brukes
+  // av chat-handleren til å skille "ekte Canvas-kontekst + evt. notat" fra
+  // "kun notat om uleselige filer". Anti-hallusinasjons-guarden skal KUN
+  // aktiveres i første tilfelle (guarden forbyr å be brukeren om opplasting,
+  // mens notatet eksplisitt ber om det for de listede filene).
+  const hadRealContent = result.kontekst.trim().length > 0;
+  const resultMedNotat =
+    notat.length > 0
+      ? {
+          ...result,
+          kontekst: result.kontekst + notat,
+          hasCanvasData: true,
+          hasRealCanvasContent: hadRealContent,
+        }
+      : {
+          ...result,
+          hasRealCanvasContent: hadRealContent,
+        };
+
+  if (notat.length > 0) {
+    logger.info(
+      {
+        userId,
+        courseIdHint: target?.courseIdHint,
+        fileHint: target?.fileHint,
+        moduleHint: target?.moduleHint,
+        failedFileCount: ekstraksjonsFeil.length,
+        failedFiles: ekstraksjonsFeil.map((f) => f.fileName),
+      },
+      "Extraction-failure-notat injisert i Canvas-kontekst",
+    );
+  }
+
+  return state.syncWaited
+    ? { ...resultMedNotat, syncWaited: true }
+    : resultMedNotat;
 }
 
 async function loadCanvasContextCore(
