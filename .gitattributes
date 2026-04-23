@@ -1,0 +1,12 @@
+# Normaliser til LF ved checkin — forsvar mot CRLF hvis en co-committer en
+# gang bruker Windows, eller hvis en editor skriver CRLF av vanvare. Husky-
+# hookene og shell-skriptene våre feiler på CRLF, så dette er billig forsikring.
+* text=auto eol=lf
+
+# Shell-skript må eksplisitt være LF — feiler stille på Linux/macOS med CRLF.
+*.sh text eol=lf
+
+# Generert av pnpm — kollaps i GitHub PR-differ og skjul fra språkstatistikk,
+# så PR-review ikke drukner i lockfile-støy og Repo-insights ikke rapporterer
+# 40 % YAML.
+pnpm-lock.yaml linguist-generated=true

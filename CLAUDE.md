@@ -45,7 +45,7 @@ All commands run from the repo root via pnpm:
 
 ```bash
 # Development
-pnpm dev                    # Starts all services (builds common first, then backend, frontend, docs)
+pnpm dev                    # Starts all services. Backend starts first; frontend and docs wait on http://localhost:4000/health before launching.
 pnpm dev:backend            # Backend only (tsx watch, port 4000)
 pnpm dev:frontend           # Frontend only (Next.js turbopack, port 3000)
 pnpm dev:docs               # Docs only (VitePress, port 5173)
@@ -65,13 +65,15 @@ pnpm format:check           # Prettier check (no write)
 
 # Tests
 pnpm test:unit              # Vitest unit tests (common + backend + frontend)
+pnpm test:unit:common       # Common unit tests only
 pnpm test:unit:backend      # Backend unit tests only
 pnpm test:unit:frontend     # Frontend unit tests only
 pnpm test                   # Integration test runner (tsx run.ts)
 pnpm test:auth              # Auth integration tests
+pnpm test:auth:db           # Auth DB connectivity/state check
+pnpm test:auth:smoke        # Fast auth smoke subset
 pnpm test:auth:e2e          # Playwright E2E auth tests
 pnpm test:auth:matrix       # Auth identity matrix (120 scenarios); :basic/:oauth/:update/:delete/:session/:race for subsets
-pnpm test:auth:smoke        # Fast auth smoke subset
 pnpm test:ki                # AI/KI integration tests
 pnpm test:ki:smoke          # Fast KI smoke subset
 pnpm test:canvas            # Canvas integration tests
@@ -79,10 +81,13 @@ pnpm test:canvas:smoke      # Fast Canvas smoke subset
 
 # Maintenance
 pnpm knip                   # Dead code detection
+pnpm knip:fix               # Auto-remove detected dead code (may delete files)
 pnpm syncpack:list          # Check dependency version consistency
+pnpm syncpack:fix            # Fix version mismatches and reformat package.json files
+pnpm clean:all              # Remove node_modules and build artifacts
 pnpm clean:install          # Full clean reinstall + rebuild
-pnpm lint:soft-delete       # Lint soft-delete patterns (scripts/lint-soft-delete.mjs)
-pnpm db:reset-encrypted     # Reset encrypted fields in DB (rarely used; key rotation helper)
+pnpm lint:soft-delete       # Lint soft-delete patterns
+pnpm db:reset-encrypted     # Reset encrypted DB fields (key rotation helper)
 ```
 
 Per-package scripts (run with `pnpm --filter <pkg> <script>`): `dev`, `build`, `lint`, `typecheck`, `test`, `test:watch`.
@@ -97,7 +102,11 @@ Canvas LMS -> Backend (fetch/validate/transform) -> Frontend (fetch/display). Re
 
 ### Authentication
 
-Clerk handles user auth. Backend verifies Bearer tokens via Clerk SDK. Local `User` model syncs from Clerk and stores encrypted Canvas API tokens. `CanvasUser` caches Canvas profile info linked back to `User`.
+Clerk handles user auth. Backend verifies Bearer tokens via Clerk SDK. Local `User` model syncs from Clerk and stores encrypted Canvas API tokens. `CanvasUser` caches Canvas profile info linked back to `User`. Cloudflare Turnstile guards sensitive auth flows (frontend widget + backend verification).
+
+### Observability
+
+PostHog for product analytics (frontend). Datadog APM and LangSmith tracing are opt-in on the backend via `DD_*` and `LANGCHAIN_*` env vars. Pino is the structured logger across the backend.
 
 ### AI Chat Pipeline
 
@@ -113,14 +122,13 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 
 ### Backend Organization
 
-- `backend/src/rutere/` — Express routers organized by feature (auth/, canvas/, ki/, quiz/, flashcards/, kunnskapsbase/, arbeidsplan/, admin/, contact/, debug/)
-- `backend/src/services/` — Business logic (context-loader, canvas-sync, embedding, hybrid-retrieval, semantic-search, crawler, etc.)
-- `backend/src/queues/` — BullMQ queues with shared Redis connection (Clerk deletion, Pinecone cleanup, web push)
-- `backend/src/database/models/` — Mongoose models (User, CanvasUser, ChatHistory, ContentEmbedding, Kunnskapsbase, etc.)
+- `backend/src/rutere/` — Express routers organized by feature
+- `backend/src/services/` — Business logic
+- `backend/src/queues/` — BullMQ queues with shared Redis connection
+- `backend/src/database/models/` — Mongoose models
 - `backend/src/middleware/` — Express middleware stack
-- `backend/src/utils/apiError.ts` — Standardized error responses (`apiError.unauthorized()`, `apiError.badRequest()`, `sendZodError()`, `sendUnknownError()`, `requireUserId()`)
-- `backend/src/utils/env.ts` — Environment validation at startup via `validateEnv()`
-- `backend/src/swagger.ts` — OpenAPI spec; Swagger UI mounted at `/api-docs` in development only
+- `backend/src/utils/` — Shared utilities including `apiError` helpers and `validateEnv` startup checks
+- OpenAPI spec exposed via Swagger UI at `/api-docs` in development only
 
 ### Frontend Organization
 
@@ -136,14 +144,7 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 
 ### Cloudflare Worker
 
-`cloudflare/worker.js` — Resend email relay for contact form. Backend sends to worker via `CONTACT_WORKER_URL` with `X-Contact-Secret` header auth.
-
-### Key Configuration Files
-
-- AI models: `backend/src/rutere/ki/aiModels.ts`
-- System prompt: `backend/src/rutere/ki/systemPrompt.ts`
-- Canvas pagination: `PAGE_SIZE`, `MAX_PAGES` in `canvasUtils.ts`
-- Cache TTL: `CACHE_TTL` in `canvasUtils.ts`, `SYNC_CACHE_TTL` in `canvas-sync.service.ts`
+`cloudflare/worker.js` — Resend email relay for the contact form, invoked by the backend via secret-header auth.
 
 ## Conventions
 
@@ -162,17 +163,13 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
-Husky + lint-staged auto-run Prettier on staged files (`.ts/.tsx/.js/.json/.md/.yml/.css`) at commit time. The hook installs via the `prepare` script on `pnpm install`.
+The Husky pre-commit hook is **currently disabled** — see the comment in `.husky/pre-commit`. It will be reactivated after `main` has been bulk-formatted to avoid noisy diffs. Until then, run `pnpm format` and the checklist above manually before commit. CI enforces the same checks on pull requests. The `lint-staged` config in `package.json` is kept ready for reactivation.
 
 ## Deployment
 
-- **Backend** deploys to Heroku. `heroku-postbuild` builds `common` then `backend`; `Procfile` runs `node --max-old-space-size=384 --optimize-for-size --expose-gc backend/dist/index.js` (tuned for Heroku dyno memory).
+- **Backend** deploys to Heroku (`heroku-postbuild` builds `common` then `backend`; `Procfile` runs the built backend with Node flags tuned for dyno memory).
 - **Frontend** deploys to Vercel.
-- **Docs** deploy to GitHub Pages via `.github/workflows/deploy.docs.yml`.
-
-## Debugging notes
-
-- **Dev-only 401 on `/api/user/me` with mixed Clerk cookies**: caused by switching between `pk_test_*` and `pk_live_*` on `localhost:3000`. Quick fix in browser console: `window.__studywiseResetClerk()` (clears Clerk cookies and reloads). Auto-cleanup and a single retry are built into the frontend and are dev-only — production is unaffected.
+- **Docs** deploy to GitHub Pages via GitHub Actions.
 
 ## Docker
 
