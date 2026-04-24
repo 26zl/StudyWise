@@ -154,10 +154,7 @@ export async function indexKBContent(options: IndexContentOptions): Promise<numb
     }
   }
 
-  logger.info(
-    { baseId, sourceId, sourceType, chunkCount: chunks.length },
-    "KB-innhold indeksert",
-  );
+  logger.info({ baseId, sourceId, sourceType, chunkCount: chunks.length }, "KB-innhold indeksert");
 
   return chunks.length;
 }
@@ -194,10 +191,7 @@ export async function deleteKBSourceContent(
 /**
  * Sletter alt indeksert innhold for en hel base.
  */
-export async function deleteKBBaseContent(
-  userId: string,
-  baseId: string,
-): Promise<void> {
+export async function deleteKBBaseContent(userId: string, baseId: string): Promise<void> {
   if (isPineconeConfigured()) {
     try {
       await pineconeDeleteByFilter({
@@ -219,35 +213,30 @@ export async function deleteKBBaseContent(
 /**
  * Sletter alt indeksert KB-innhold for en bruker (kontosletting / GDPR).
  */
-export async function deleteAllKBContentForUser(
-  userId: string,
-  baseIds?: string[],
-): Promise<void> {
+export async function deleteAllKBContentForUser(userId: string, baseIds?: string[]): Promise<void> {
   const resolvedBaseIds = Array.from(
     new Set(
-      (
-        baseIds && baseIds.length > 0
-          ? baseIds
-          : await (async () => {
-              const bases = await KnowledgeBase.find({ userId }, { _id: 1 }).lean();
-              if (bases.length > 0) {
-                return bases.map((base) => String(base._id));
-              }
+      (baseIds && baseIds.length > 0
+        ? baseIds
+        : await (async () => {
+            const bases = await KnowledgeBase.find({ userId }, { _id: 1 }).lean();
+            if (bases.length > 0) {
+              return bases.map((base) => String(base._id));
+            }
 
-              // Hvis base-dokumentene allerede er slettet, prøv å hente baseId fra chunks.
-              // Bruker $group-aggregation i stedet for .distinct() fordi MongoDB
-              // Stable API v1 ikke støtter distinct-kommandoen.
-              const chunkBaseIds = await KBContentChunk.aggregate<{ _id: unknown }>([
-                { $match: { userId } },
-                { $group: { _id: "$baseId" } },
-              ]);
-              return chunkBaseIds
-                .map((doc) => doc._id)
-                .filter(
-                  (value): value is string =>
-                    typeof value === "string" && value.trim().length > 0,
-                );
-            })()
+            // Hvis base-dokumentene allerede er slettet, prøv å hente baseId fra chunks.
+            // Bruker $group-aggregation i stedet for .distinct() fordi MongoDB
+            // Stable API v1 ikke støtter distinct-kommandoen.
+            const chunkBaseIds = await KBContentChunk.aggregate<{ _id: unknown }>([
+              { $match: { userId } },
+              { $group: { _id: "$baseId" } },
+            ]);
+            return chunkBaseIds
+              .map((doc) => doc._id)
+              .filter(
+                (value): value is string => typeof value === "string" && value.trim().length > 0,
+              );
+          })()
       )
         .map((value) => value.trim())
         .filter((value) => value.length > 0),
@@ -264,10 +253,7 @@ export async function deleteAllKBContentForUser(
         });
       } catch (err) {
         failedBaseIds.push(baseId);
-        logger.error(
-          { err, baseId },
-          "Pinecone-sletting feilet for KB-base ved kontosletting",
-        );
+        logger.error({ err, baseId }, "Pinecone-sletting feilet for KB-base ved kontosletting");
       }
     }
   }
@@ -311,6 +297,87 @@ function parseKBPineconeId(id: string): { sourceId: string; chunkIndex: number }
   return { sourceId, chunkIndex };
 }
 
+// Stoppord for KB-søk. Vi filtrerer kun bort funksjonsord (pronomen, preposisjoner,
+// modalverb osv.) og meta-ord om selve kilden — IKKE innholdsbærende ord som
+// "innhold", "dokument", "oppsummer", "hva" eller "hvordan", siden disse ofte er
+// semantisk meningsbærende i studiekontekst (f.eks. "hva står i dokumentet").
+// Ord ≤ 2 tegn faller uansett bort i extractKBQueryTerms, så kortord ekskluderes her.
+const KB_QUERY_STOPWORDS = new Set([
+  // Norske funksjonsord
+  "kan",
+  "jeg",
+  "meg",
+  "det",
+  "den",
+  "dette",
+  "denne",
+  "disse",
+  "og",
+  "på",
+  "av",
+  "for",
+  "til",
+  "fra",
+  "med",
+  "om",
+  "som",
+  "var",
+  "blir",
+  "skal",
+  "vil",
+  "må",
+  "kunne",
+  "har",
+  // KB-/link-meta-ord (referer til selve kilden, ikke innholdet)
+  "base",
+  "basen",
+  "kunnskapsbase",
+  "kunnskapsbasen",
+  "lenke",
+  "lenken",
+  "link",
+  "linken",
+  "url",
+  "nettside",
+  "webside",
+  "kilde",
+  "kilden",
+  // Engelske funksjonsord
+  "the",
+  "and",
+  "with",
+  "from",
+  "about",
+]);
+
+function extractKBQueryTerms(query: string): string[] {
+  const normalized = query
+    .toLowerCase()
+    .replace(/[^\wæøå\s-]/g, " ")
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter((word) => word.length > 2)
+    .filter((word) => !KB_QUERY_STOPWORDS.has(word));
+
+  return [...new Set(normalized)];
+}
+
+function shouldPreferLinkResults(query: string): boolean {
+  return /\b(?:lenke|lenken|link|linken|url|nettside|webside|kilde|kilden)\b/i.test(query);
+}
+
+function prioritizeKBResults<T extends { sourceType: "link" | "file" }>(
+  results: T[],
+  topK: number,
+  preferLinks: boolean,
+): T[] {
+  if (!preferLinks) return results.slice(0, topK);
+  const linkResults = results.filter((result) => result.sourceType === "link");
+  if (linkResults.length === 0) return results.slice(0, topK);
+  const fileResults = results.filter((result) => result.sourceType === "file");
+  return [...linkResults, ...fileResults].slice(0, topK);
+}
+
 /**
  * Henter relevante chunks fra en aktiv kunnskapsbase basert på brukerens spørsmål.
  * Bruker Pinecone for semantisk søk, med fallback til MongoDB keyword-søk.
@@ -333,7 +400,12 @@ export async function searchKBContent(
   // Logger-hjelper: gir enhetlig observabilitet for alle retur-veier
   // (Pinecone-treff, Pinecone-tom, MongoDB-match, MongoDB-nyeste, tom base).
   const logOutcome = async (
-    source: "pinecone" | "mongodb_regex" | "mongodb_recent" | "pinecone_parse_failed" | "pinecone_empty",
+    source:
+      | "pinecone"
+      | "mongodb_regex"
+      | "mongodb_recent"
+      | "pinecone_parse_failed"
+      | "pinecone_empty",
     resultCount: number,
     pineconeFailed = false,
   ) => {
@@ -347,11 +419,8 @@ export async function searchKBContent(
     // Ved 0 treff teller vi totalChunks i basen så vi kan skille
     // "tom base" fra "ingen match mot spørsmål".
     const totalChunks = await KBContentChunk.countDocuments({ userId, baseId });
-    const reason = totalChunks === 0
-      ? "empty_base"
-      : pineconeFailed
-        ? "pinecone_unavailable"
-        : "no_match";
+    const reason =
+      totalChunks === 0 ? "empty_base" : pineconeFailed ? "pinecone_unavailable" : "no_match";
     logger.warn(
       { userId, baseId, source, resultCount: 0, totalChunks, reason, queryLen: query.length },
       "KB-søk: ingen treff",
@@ -359,6 +428,8 @@ export async function searchKBContent(
   };
 
   let pineconeFailed = false;
+  const preferLinkResults = shouldPreferLinkResults(query);
+  const queryWords = extractKBQueryTerms(query);
 
   // Prøv Pinecone semantisk søk
   if (isPineconeConfigured()) {
@@ -392,38 +463,54 @@ export async function searchKBContent(
           })),
         }).lean();
 
-        const mapped = chunks.map((chunk) => ({
-          text: chunk.text,
-          sourceId: chunk.sourceId,
-          sourceName: chunk.sourceName,
-          sourceType: chunk.sourceType,
-          sourceUrl: chunk.sourceUrl,
-          score: pineconeResults.find((r) =>
-            r.id === `kb:${userId}:${baseId}:${chunk.sourceId}:${chunk.chunkIndex}`,
-          )?.score,
-        }));
-        await logOutcome("pinecone", mapped.length);
-        return mapped;
+        const scoreById = new Map(pineconeResults.map((result) => [result.id, result.score]));
+
+        const mapped = chunks
+          .map((chunk) => {
+            const resultId = `kb:${userId}:${baseId}:${chunk.sourceId}:${chunk.chunkIndex}`;
+            return {
+              text: chunk.text,
+              sourceId: chunk.sourceId,
+              sourceName: chunk.sourceName,
+              sourceType: chunk.sourceType,
+              sourceUrl: chunk.sourceUrl,
+              score: scoreById.get(resultId),
+            };
+          })
+          .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+
+        const prioritized = prioritizeKBResults(mapped, topK, preferLinkResults);
+        await logOutcome("pinecone", prioritized.length);
+        return prioritized;
       }
       // Pinecone kom tilbake med tomt resultat — fall videre til MongoDB-fallback
       // for å skille "ikke funnet semantisk" fra "kan gjenfinnes via keyword".
     } catch (err) {
       pineconeFailed = true;
-      logger.warn(
-        { err, baseId },
-        "Pinecone-søk feilet for KB — fallback til MongoDB",
-      );
+      logger.warn({ err, baseId }, "Pinecone-søk feilet for KB — fallback til MongoDB");
     }
   }
 
   // Reserveløsning: nøkkelordsøk i MongoDB
-  const queryWords = query.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
   if (queryWords.length === 0) {
-    // Returner de nyeste chunks (f.eks. ved kort "oppsummer"-spørsmål)
-    const chunks = await KBContentChunk.find({ userId, baseId })
-      .sort({ createdAt: -1 })
+    // Returner de nyeste chunks ved generiske spørsmål.
+    // Hvis bruker ber om lenke-innhold, prioriter link-kilder.
+    let chunks = await KBContentChunk.find({
+      userId,
+      baseId,
+      ...(preferLinkResults ? { sourceType: "link" as const } : {}),
+    })
+      .sort({ createdAt: -1, chunkIndex: 1 })
       .limit(topK)
       .lean();
+
+    if (chunks.length === 0 && preferLinkResults) {
+      chunks = await KBContentChunk.find({ userId, baseId })
+        .sort({ createdAt: -1, chunkIndex: 1 })
+        .limit(topK)
+        .lean();
+    }
+
     const mapped = chunks.map((c) => ({
       text: c.text,
       sourceId: c.sourceId,
@@ -436,14 +523,16 @@ export async function searchKBContent(
   }
 
   // Enkel nøkkelord-matching via regex
-  const regexPattern = queryWords.map((w) => `(?=.*${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`).join("");
+  const regexPattern = queryWords
+    .map((w) => `(?=.*${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`)
+    .join("");
   const chunks = await KBContentChunk.find({
     userId,
     baseId,
     // eslint-disable-next-line security/detect-non-literal-regexp -- queryWords er sanitert med regex-escape
     text: { $regex: new RegExp(regexPattern, "i") },
   })
-    .limit(topK)
+    .limit(preferLinkResults ? topK * 3 : topK)
     .lean();
 
   const mapped = chunks.map((c) => ({
@@ -453,8 +542,9 @@ export async function searchKBContent(
     sourceType: c.sourceType,
     sourceUrl: c.sourceUrl,
   }));
-  await logOutcome("mongodb_regex", mapped.length, pineconeFailed);
-  return mapped;
+  const prioritized = prioritizeKBResults(mapped, topK, preferLinkResults);
+  await logOutcome("mongodb_regex", prioritized.length, pineconeFailed);
+  return prioritized;
 }
 
 /**
@@ -464,12 +554,14 @@ export async function searchKBContent(
  * instruksjoner til modellen.
  */
 function sanitizeForPromptTag(value: string): string {
-  return value
-    .replace(/[<>]/g, " ")
-    .replace(/&/g, "&amp;")
-    .replace(/"/g, "'")
-    // eslint-disable-next-line no-control-regex -- fjerner null-bytes for å hindre prompt-injection
-    .replace(/\u0000/g, "");
+  return (
+    value
+      .replace(/[<>]/g, " ")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "'")
+      // eslint-disable-next-line no-control-regex -- fjerner null-bytes for å hindre prompt-injection
+      .replace(/\u0000/g, "")
+  );
 }
 
 /**
@@ -477,11 +569,13 @@ function sanitizeForPromptTag(value: string): string {
  * brukerinnhold slik at KB-tekst ikke kan terminere konteksten tidlig.
  */
 function sanitizeKBBodyText(text: string): string {
-  return text
-    .replace(/<\/?kunnskapsbase[^>]*>/gi, " ")
-    .replace(/<\/?live_url[^>]*>/gi, " ")
-    // eslint-disable-next-line no-control-regex -- fjerner null-bytes for å hindre prompt-injection
-    .replace(/\u0000/g, "");
+  return (
+    text
+      .replace(/<\/?kunnskapsbase[^>]*>/gi, " ")
+      .replace(/<\/?live_url[^>]*>/gi, " ")
+      // eslint-disable-next-line no-control-regex -- fjerner null-bytes for å hindre prompt-injection
+      .replace(/\u0000/g, "")
+  );
 }
 
 /**
