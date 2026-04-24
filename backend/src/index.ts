@@ -28,8 +28,8 @@ import { swaggerSpec } from "./swagger.js";
 import { connectToDatabase } from "./database/database.js";
 import { logger } from "./utils/logger.js";
 import redisClient, { stopRedisReconnect, isRedisReady } from "./cache/redis.js";
-import arbeidsplanRuter from "./rutere/arbeidsplan/arbeidsplan.js";    
-import canvasRuter from "./rutere/canvas/canvas.js";  
+import arbeidsplanRuter from "./rutere/arbeidsplan/arbeidsplan.js";
+import canvasRuter from "./rutere/canvas/canvas.js";
 import kiRuter from "./rutere/ki/ki.js";
 import brukerAuthRuter from "./rutere/auth/brukerAuth.js";
 import { notionSettingsRouter } from "./rutere/auth/notionSettings.js";
@@ -37,11 +37,11 @@ import taskBreakdownRouter from "./rutere/ki/taskBreakdown.js";
 import weeklyPlanRouter from "./rutere/ki/weeklyPlan.js";
 import { kiOppsummeringRouter } from "./rutere/ki/kiOppsummering.js";
 import debugRouter from "./rutere/debug/canvasDiagnostic.js";
-import authDiagnosticRouter, {
-  testAuthFlowRouter,
-} from "./rutere/debug/authDiagnostic.js";
+import authDiagnosticRouter, { testAuthFlowRouter } from "./rutere/debug/authDiagnostic.js";
 import quizRouter from "./rutere/quiz/quiz.js";
+import quizLagretRouter from "./rutere/quiz/quizLagret.js";
 import flashcardsRouter from "./rutere/flashcards/flashcards.js";
+import flashcardsLagretRouter from "./rutere/flashcards/flashcardsLagret.js";
 import knowledgeBaseRouter from "./rutere/kunnskapsbase/kunnskapsbase.js";
 import { kiExportRouter } from "./rutere/ki/kiExport.js";
 import {
@@ -73,10 +73,7 @@ import { noCache } from "./middleware/no-cache.js";
 import { rateLimitMe } from "./middleware/rate-limit.js";
 import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
-import {
-  getConfiguredWebOriginSet,
-  normalizeWebOrigin,
-} from "./utils/webOrigins.js";
+import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
 import { isPublicApiPath } from "./utils/publicApiPaths.js";
 import { authTurnstileRouter } from "./rutere/auth/authTurnstile.js";
 import {
@@ -91,10 +88,7 @@ import {
   sweepCorruptedChatHistory,
 } from "./services/chatHistoryCleanup.service.js";
 import { startQueueWorkers, stopQueueWorkers } from "./queues/index.js";
-import {
-  startWebPushPolling,
-  processWebPushNotifications,
-} from "./services/webPush.service.js";
+import { startWebPushPolling, processWebPushNotifications } from "./services/webPush.service.js";
 
 // Initialiserer Express app
 const app = express();
@@ -127,10 +121,7 @@ function shouldExitOnUnhandledRejection(): boolean {
 // Global error handlers - fanger uventede feil
 process.on("unhandledRejection", (reason, promise) => {
   const exitOnUnhandledRejection = shouldExitOnUnhandledRejection();
-  logger.fatal(
-    { reason, promise, exitOnUnhandledRejection },
-    "Unhandled Promise Rejection",
-  );
+  logger.fatal({ reason, promise, exitOnUnhandledRejection }, "Unhandled Promise Rejection");
 
   if (exitOnUnhandledRejection) {
     logger.fatal("Avslutter prosess pga unhandled rejection");
@@ -160,25 +151,14 @@ if (isProd) {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
   );
-  const publicHealthPaths = new Set([
-    "/health",
-    "/ready",
-    "/health/dependencies",
-  ]);
+  const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
   app.use((req, res, next) => {
     const host = req.get("host");
     const requestHost = host?.split(":")[0]?.trim().toLowerCase();
     // Tillat health checks fra Heroku (ingen host header eller intern IP)
     if (publicHealthPaths.has(req.path)) return next();
-    if (
-      requestHost &&
-      requestHost !== tillattHost &&
-      !internalHosts.has(requestHost)
-    ) {
-      logger.warn(
-        { host, requestHost, path: req.path },
-        "Blokkert forespørsel fra ugyldig host",
-      );
+    if (requestHost && requestHost !== tillattHost && !internalHosts.has(requestHost)) {
+      logger.warn({ host, requestHost, path: req.path }, "Blokkert forespørsel fra ugyldig host");
       return sendError(res, "forbidden", { feil: "Forbidden" });
     }
     next();
@@ -233,8 +213,7 @@ app.use(requestIdMiddleware);
 app.use(
   pinoHttp({
     logger,
-    genReqId: (req) =>
-      (req as express.Request & { id?: string }).id ?? crypto.randomUUID(),
+    genReqId: (req) => (req as express.Request & { id?: string }).id ?? crypto.randomUUID(),
   }),
 );
 
@@ -257,11 +236,7 @@ app.use(
 // Clerk Webhook — monteres FØR JSON body parser fordi signaturverifisering krever rå body.
 // Også før CSRF og auth da Clerk ikke sender disse headerne.
 import { clerkWebhookRouter } from "./rutere/auth/clerkWebhook.js";
-app.use(
-  "/api/clerk-webhook",
-  express.raw({ type: "application/json" }),
-  clerkWebhookRouter,
-);
+app.use("/api/clerk-webhook", express.raw({ type: "application/json" }), clerkWebhookRouter);
 
 // JSON body parser med økt størrelse på 10mb
 app.use(express.json({ limit: "10mb" }));
@@ -290,9 +265,7 @@ app.use((req, res, next) => {
   const origin = req.get("origin");
   const normalizedOrigin = normalizeWebOrigin(origin);
   const host = req.get("host");
-  const backendOrigin = host
-    ? normalizeWebOrigin(`${req.protocol}://${host}`)
-    : null;
+  const backendOrigin = host ? normalizeWebOrigin(`${req.protocol}://${host}`) : null;
 
   if (
     !origin ||
@@ -319,10 +292,7 @@ app.use(
       // Forespørsler uten origin (curl, same-origin, health checks) tillates
       if (!origin) return cb(null, true);
       const normalizedOrigin = normalizeWebOrigin(origin);
-      return cb(
-        null,
-        normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin),
-      );
+      return cb(null, normalizedOrigin !== null && allowedOrigins.has(normalizedOrigin));
     },
     credentials: true,
   }),
@@ -403,7 +373,9 @@ app.use("/api/user", noCache, brukerAuthRuter);
 app.use("/api/user", noCache, notionSettingsRouter);
 app.use("/api", noCache, announcementRouter);
 app.use("/api/arbeidsplan", noCache, arbeidsplanRuter);
+app.use("/api/quiz/lagrede", noCache, quizLagretRouter);
 app.use("/api/quiz", noCache, quizRouter);
+app.use("/api/flashcards/lagrede", noCache, flashcardsLagretRouter);
 app.use("/api/flashcards", noCache, flashcardsRouter);
 app.use("/api/kb", noCache, knowledgeBaseRouter);
 
@@ -429,7 +401,6 @@ app.use("/api/kb", noCache, knowledgeBaseRouter);
   app.use("/api/admin", noCache, rateLimitMe, requireRole("admin"), adminRouter);
 }
 
-
 // Debug-ruter (kun development, krever auth)
 if (!isProd) {
   app.use("/api/debug", noCache, knyttCanvasToken, debugRouter);
@@ -444,17 +415,10 @@ app.use((req, res) => {
 });
 
 // Feil håndtering globalt
-app.use(
-  (
-    err: Error,
-    _req: express.Request,
-    res: express.Response,
-    _next: express.NextFunction,
-  ) => {
-    logger.error({ err }, "Internal Server Error");
-    apiError.serverError(res);
-  },
-);
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  logger.error({ err }, "Internal Server Error");
+  apiError.serverError(res);
+});
 
 // Start server og kobler til database med Mongoose
 const port = process.env.PORT!; // Allerede validert i validateEnv
@@ -515,9 +479,7 @@ connectToDatabase()
         queueState.started = true;
         logger.info(
           { attempt },
-          attempt === 1
-            ? "BullMQ-workers startet"
-            : "BullMQ-workers startet etter retry",
+          attempt === 1 ? "BullMQ-workers startet" : "BullMQ-workers startet etter retry",
         );
         queueState.webPushInterval = startWebPushPolling();
         void processWebPushNotifications().catch((error) => {
@@ -560,10 +522,7 @@ connectToDatabase()
     });
     // Graceful shutdown - håndterer SIGTERM/SIGINT for ryddig avslutning
     const gracefulShutdown = async (signal: string) => {
-      logger.info(
-        { signal },
-        "Mottok shutdown-signal, avslutter gracefully...",
-      );
+      logger.info({ signal }, "Mottok shutdown-signal, avslutter gracefully...");
       // Stopp å ta imot nye requests
       server.close(async () => {
         logger.info("HTTP-server lukket");

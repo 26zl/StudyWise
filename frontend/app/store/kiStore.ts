@@ -15,6 +15,8 @@ import type {
   QuizGenerateResponse,
   FlashcardsGenerateRequest,
   FlashcardsGenerateResponse,
+  QuizQuestion,
+  Flashcard,
 } from "common/ki";
 import {
   generateTaskBreakdownApi,
@@ -54,6 +56,22 @@ interface QuizJob {
   error?: string;
 }
 
+/** Replay-tilstand for en lagret quiz som skal spilles om igjen. */
+export interface ReplayQuizPayload {
+  id: string;
+  title: string;
+  topic: string;
+  questions: QuizQuestion[];
+}
+
+/** Replay-tilstand for et lagret flashcard-sett som skal øves på igjen. */
+export interface ReplayFlashcardSettPayload {
+  id: string;
+  title: string;
+  topic: string;
+  cards: Flashcard[];
+}
+
 interface KIState {
   // Chat — markerer hvilken chat som kjører (brukes av ChatSection + sidebar)
   runningChatId: string | null;
@@ -87,6 +105,14 @@ interface KIState {
     mode: QuizJob["mode"];
     payload: QuizGenerateRequest | FlashcardsGenerateRequest;
   };
+
+  // Replay av lagret quiz/flashcard-sett — leses av QuizView for å starte en økt
+  // med eksisterende spørsmål/kort (uten ny AI-generering).
+  replayQuiz: ReplayQuizPayload | null;
+  replayFlashcardSett: ReplayFlashcardSettPayload | null;
+  startReplayQuiz: (payload: ReplayQuizPayload) => void;
+  startReplayFlashcardSett: (payload: ReplayFlashcardSettPayload) => void;
+  clearReplay: () => void;
 }
 
 // Global peker til aktiv quiz/flashcard-forespørsel slik at den ikke avbrytes ved navigasjon.
@@ -117,7 +143,10 @@ function kjørQuizJob(
           lastQuizRequest: undefined,
         }));
       } else {
-        const data = await generateFlashcardsApi(payload as FlashcardsGenerateRequest, abortController.signal);
+        const data = await generateFlashcardsApi(
+          payload as FlashcardsGenerateRequest,
+          abortController.signal,
+        );
         set(() => ({
           quizJob: { status: "success", mode: "flashcards", result: data },
           lastQuizRequest: undefined,
@@ -143,186 +172,230 @@ function kjørQuizJob(
 export const useKIStore = create<KIState>()(
   persist(
     (set, get) => ({
-  // --- Chat ---
-  runningChatId: null,
-  setRunningChatId: (id) => set({ runningChatId: id }),
+      // --- Chat ---
+      runningChatId: null,
+      setRunningChatId: (id) => set({ runningChatId: id }),
 
-  // --- Oppgavedeling ---
-  taskBreakdownJobs: {},
+      // --- Oppgavedeling ---
+      taskBreakdownJobs: {},
 
-  startTaskBreakdown: (assignmentId, request) => {
-    set((state) => ({
-      taskBreakdownJobs: {
-        ...state.taskBreakdownJobs,
-        [assignmentId]: { status: "pending", assignmentId },
+      startTaskBreakdown: (assignmentId, request) => {
+        set((state) => ({
+          taskBreakdownJobs: {
+            ...state.taskBreakdownJobs,
+            [assignmentId]: { status: "pending", assignmentId },
+          },
+        }));
+
+        void generateTaskBreakdownApi(assignmentId, request)
+          .then(async (data) => {
+            try {
+              await saveTaskBreakdownApi(assignmentId, data.subtasks);
+            } catch {
+              // Ignorér lagringsfeil — bruker kan lagre manuelt senere
+            }
+
+            set((state) => ({
+              taskBreakdownJobs: {
+                ...state.taskBreakdownJobs,
+                [assignmentId]: { status: "success", assignmentId, result: data },
+              },
+            }));
+          })
+          .catch((error) => {
+            set((state) => ({
+              taskBreakdownJobs: {
+                ...state.taskBreakdownJobs,
+                [assignmentId]: {
+                  status: "error",
+                  assignmentId,
+                  error: error instanceof Error ? error.message : "ki_generation_failed",
+                },
+              },
+            }));
+          });
       },
-    }));
 
-    void generateTaskBreakdownApi(assignmentId, request)
-      .then(async (data) => {
-        try {
-          await saveTaskBreakdownApi(assignmentId, data.subtasks);
-        } catch {
-          // Ignorér lagringsfeil — bruker kan lagre manuelt senere
-        }
-
-        set((state) => ({
-          taskBreakdownJobs: {
-            ...state.taskBreakdownJobs,
-            [assignmentId]: { status: "success", assignmentId, result: data },
-          },
-        }));
-      })
-      .catch((error) => {
-        set((state) => ({
-          taskBreakdownJobs: {
-            ...state.taskBreakdownJobs,
-            [assignmentId]: {
-              status: "error",
-              assignmentId,
-              error: error instanceof Error ? error.message : "ki_generation_failed",
-            },
-          },
-        }));
-      });
-  },
-
-  clearTaskBreakdown: (assignmentId) => {
-    set((state) => {
-      const { [assignmentId]: _, ...rest } = state.taskBreakdownJobs;
-      return { taskBreakdownJobs: rest };
-    });
-  },
-
-  // --- Ukeplan ---
-  weeklyPlanJob: null,
-
-  startWeeklyPlan: (assignments) => {
-    set({ weeklyPlanJob: { status: "pending" } });
-
-    const sortedAssignments = [...assignments]
-      .filter((a): a is WeeklyPlanAssignment & { dueAt: NonNullable<WeeklyPlanAssignment["dueAt"]> } => !!a.dueAt)
-      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())
-      .slice(0, 20);
-
-    void generateWeeklyPlanApi({ assignments: sortedAssignments })
-      .then((data) => {
-        set({ weeklyPlanJob: { status: "success", result: data } });
-      })
-      .catch((error) => {
-        set({
-          weeklyPlanJob: {
-            status: "error",
-            error: error instanceof Error ? error.message : "ki_generation_failed",
-          },
+      clearTaskBreakdown: (assignmentId) => {
+        set((state) => {
+          const { [assignmentId]: _, ...rest } = state.taskBreakdownJobs;
+          return { taskBreakdownJobs: rest };
         });
-      });
-  },
-
-  clearWeeklyPlan: () => {
-    set({ weeklyPlanJob: null });
-  },
-
-  // --- Oppsummering ---
-  oppsummeringJobs: {},
-
-  startOppsummering: (tekst) => {
-    const key = simpleHash(tekst);
-
-    set((state) => ({
-      oppsummeringJobs: {
-        ...state.oppsummeringJobs,
-        [key]: { status: "pending" },
       },
-    }));
 
-    void generateOppsummeringApi(tekst, "begge")
-      .then((data) => {
+      // --- Ukeplan ---
+      weeklyPlanJob: null,
+
+      startWeeklyPlan: (assignments) => {
+        set({ weeklyPlanJob: { status: "pending" } });
+
+        const sortedAssignments = [...assignments]
+          .filter(
+            (
+              a,
+            ): a is WeeklyPlanAssignment & { dueAt: NonNullable<WeeklyPlanAssignment["dueAt"]> } =>
+              !!a.dueAt,
+          )
+          .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime())
+          .slice(0, 20);
+
+        void generateWeeklyPlanApi({ assignments: sortedAssignments })
+          .then((data) => {
+            set({ weeklyPlanJob: { status: "success", result: data } });
+          })
+          .catch((error) => {
+            set({
+              weeklyPlanJob: {
+                status: "error",
+                error: error instanceof Error ? error.message : "ki_generation_failed",
+              },
+            });
+          });
+      },
+
+      clearWeeklyPlan: () => {
+        set({ weeklyPlanJob: null });
+      },
+
+      // --- Oppsummering ---
+      oppsummeringJobs: {},
+
+      startOppsummering: (tekst) => {
+        const key = simpleHash(tekst);
+
         set((state) => ({
           oppsummeringJobs: {
             ...state.oppsummeringJobs,
-            [key]: { status: "success", result: data },
+            [key]: { status: "pending" },
           },
         }));
-      })
-      .catch((error) => {
-        set((state) => ({
-          oppsummeringJobs: {
-            ...state.oppsummeringJobs,
-            [key]: {
-              status: "error",
-              error: error instanceof Error ? error.message : "summarization_failed",
-            },
-          },
-        }));
-      });
 
-    return key;
-  },
+        void generateOppsummeringApi(tekst, "begge")
+          .then((data) => {
+            set((state) => ({
+              oppsummeringJobs: {
+                ...state.oppsummeringJobs,
+                [key]: { status: "success", result: data },
+              },
+            }));
+          })
+          .catch((error) => {
+            set((state) => ({
+              oppsummeringJobs: {
+                ...state.oppsummeringJobs,
+                [key]: {
+                  status: "error",
+                  error: error instanceof Error ? error.message : "summarization_failed",
+                },
+              },
+            }));
+          });
 
-  clearOppsummering: (key) => {
-    set((state) => {
-      const { [key]: _, ...rest } = state.oppsummeringJobs;
-      return { oppsummeringJobs: rest };
-    });
-  },
+        return key;
+      },
 
-  // --- Quiz/Flashcards ---
-  quizJob: null,
+      clearOppsummering: (key) => {
+        set((state) => {
+          const { [key]: _, ...rest } = state.oppsummeringJobs;
+          return { oppsummeringJobs: rest };
+        });
+      },
 
-  startQuizGeneration: (request) => {
-    const { quizJob } = get();
-    if (quizJob?.status === "pending") return;
+      // --- Quiz/Flashcards ---
+      quizJob: null,
 
-    // Lagre forespørsel slik at den kan fullføres i bakgrunnen selv om brukeren navigerer.
-    set({
-      quizJob: { status: "pending", mode: "quiz" },
-      lastQuizRequest: { mode: "quiz", payload: request },
-    });
+      startQuizGeneration: (request) => {
+        const { quizJob } = get();
+        if (quizJob?.status === "pending") return;
 
-    kjørQuizJob("quiz", request, set);
-  },
+        // Lagre forespørsel slik at den kan fullføres i bakgrunnen selv om brukeren navigerer.
+        set({
+          quizJob: { status: "pending", mode: "quiz" },
+          lastQuizRequest: { mode: "quiz", payload: request },
+        });
 
-  startFlashcardGeneration: (request) => {
-    const { quizJob } = get();
-    if (quizJob?.status === "pending") return;
+        kjørQuizJob("quiz", request, set);
+      },
 
-    set({
-      quizJob: { status: "pending", mode: "flashcards" },
-      lastQuizRequest: { mode: "flashcards", payload: request },
-    });
+      startFlashcardGeneration: (request) => {
+        const { quizJob } = get();
+        if (quizJob?.status === "pending") return;
 
-    kjørQuizJob("flashcards", request, set);
-  },
+        set({
+          quizJob: { status: "pending", mode: "flashcards" },
+          lastQuizRequest: { mode: "flashcards", payload: request },
+        });
 
-  cancelQuizJob: () => {
-    if (activeQuizAbortController) {
-      activeQuizAbortController.abort();
-      activeQuizAbortController = null;
-    }
-    quizJobRunning = false;
-    set({ quizJob: null, lastQuizRequest: undefined });
-  },
+        kjørQuizJob("flashcards", request, set);
+      },
 
-  clearQuizJob: () => {
-    set({ quizJob: null, lastQuizRequest: undefined });
-  },
+      cancelQuizJob: () => {
+        if (activeQuizAbortController) {
+          activeQuizAbortController.abort();
+          activeQuizAbortController = null;
+        }
+        quizJobRunning = false;
+        set({ quizJob: null, lastQuizRequest: undefined });
+      },
 
-  resumeQuizJob: () => {
-    const { quizJob, lastQuizRequest } = get();
-    if (quizJobRunning) return;
-    if (!lastQuizRequest) return;
-    if (quizJob?.status === "pending") {
-      kjørQuizJob(lastQuizRequest.mode, lastQuizRequest.payload, set);
-    }
-  },
-}),
+      clearQuizJob: () => {
+        set({ quizJob: null, lastQuizRequest: undefined });
+      },
+
+      resumeQuizJob: () => {
+        const { quizJob, lastQuizRequest } = get();
+        if (quizJobRunning) return;
+        if (!lastQuizRequest) return;
+        if (quizJob?.status === "pending") {
+          kjørQuizJob(lastQuizRequest.mode, lastQuizRequest.payload, set);
+        }
+      },
+
+      // --- Replay av lagrede quizer/flashcard-sett ---
+      replayQuiz: null,
+      replayFlashcardSett: null,
+
+      startReplayQuiz: (payload) => {
+        // Avbryt evt. pågående generering — brukeren vil spille den lagrede quizen.
+        if (activeQuizAbortController) {
+          activeQuizAbortController.abort();
+          activeQuizAbortController = null;
+        }
+        quizJobRunning = false;
+        set({
+          replayQuiz: payload,
+          replayFlashcardSett: null,
+          quizJob: null,
+          lastQuizRequest: undefined,
+        });
+      },
+
+      startReplayFlashcardSett: (payload) => {
+        if (activeQuizAbortController) {
+          activeQuizAbortController.abort();
+          activeQuizAbortController = null;
+        }
+        quizJobRunning = false;
+        set({
+          replayFlashcardSett: payload,
+          replayQuiz: null,
+          quizJob: null,
+          lastQuizRequest: undefined,
+        });
+      },
+
+      clearReplay: () => {
+        set({ replayQuiz: null, replayFlashcardSett: null });
+      },
+    }),
     {
       name: "ki-store-quiz-cache",
       storage: createJSONStorage(() => sessionStorage),
       partialize: (state) => ({
         quizJob: state.quizJob,
         lastQuizRequest: state.lastQuizRequest,
+        replayQuiz: state.replayQuiz,
+        replayFlashcardSett: state.replayFlashcardSett,
       }),
     },
   ),

@@ -20,6 +20,12 @@ import {
   RotateCw,
   ThumbsUp,
   ThumbsDown,
+  BookOpen,
+  Save,
+  Trash2,
+  BarChart3,
+  BookMarked,
+  Clock,
 } from "lucide-react";
 import { fetchApi } from "@/app/lib/apiClient";
 import { cn } from "@/app/lib/utils";
@@ -33,6 +39,20 @@ import { RotatingStatusMessage } from "@/app/components/ui/RotatingStatusMessage
 import { showToast } from "@/app/components/ui/Toaster";
 import { useKIStore } from "@/app/store/kiStore";
 import {
+  useLagreQuiz,
+  useLagredeQuizer,
+  useRegistrerQuizForsok,
+  useSlettLagretQuiz,
+} from "@/app/ki/quiz-lagret-api";
+import {
+  useLagreFlashcardSett,
+  useLagredeFlashcardSett,
+  useRegistrerFlashcardOkt,
+  useSlettLagretFlashcardSett,
+} from "@/app/ki/flashcards-lagret-api";
+import { LagretQuizStatistikk } from "./LagretQuizStatistikk";
+import { LagretFlashcardStatistikk } from "./LagretFlashcardStatistikk";
+import {
   FlashcardsGenerateRequestSchema,
   FlashcardsGenerateResponseSchema,
   QuizGenerateRequestSchema,
@@ -40,6 +60,16 @@ import {
   type Flashcard,
   type QuizQuestion,
 } from "common/ki";
+import {
+  LAGRET_QUIZ_SCORE_TERSKLER,
+  type LagretQuiz,
+  type RegistrerQuizForsokRequest,
+} from "common/quizLagret";
+import {
+  LAGRET_FLASHCARD_SCORE_TERSKLER,
+  type LagretFlashcardSett,
+  type RegistrerFlashcardOktRequest,
+} from "common/flashcardsLagret";
 
 // --- Typer ---
 
@@ -61,6 +91,27 @@ interface PersistApiLike {
 }
 
 type StudyMode = "quiz" | "flashcards";
+type SetupTab = "ny" | "lagrede";
+type LagredeFilter = "alle" | "quiz" | "flashcards";
+
+interface QuizAnswerResult {
+  questionId: string;
+  selectedOption: string;
+  correct: boolean;
+}
+
+interface QuizCompletionResult {
+  score: number;
+  total: number;
+  durationSeconds: number;
+  answers: QuizAnswerResult[];
+}
+
+interface FlashcardCompletionResult {
+  known: number;
+  unknown: number;
+  durationSeconds: number;
+}
 
 // --- Feltkomponenter ---
 
@@ -176,9 +227,7 @@ function QuestionCountSelector({
   const presets = [5, 10, 15, 20];
   return (
     <div className="space-y-4">
-      {label && (
-        <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
-      )}
+      {label && <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>}
       <div className="flex flex-wrap items-center gap-3">
         {presets.map((n) => (
           <button
@@ -189,7 +238,7 @@ function QuestionCountSelector({
               "flex h-14 w-14 items-center justify-center rounded-xl border text-base font-semibold transition-all duration-200",
               count === n
                 ? "border-blue-600 bg-blue-600 text-white dark:border-blue-500 dark:bg-blue-500"
-                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+                : "border-slate-300 bg-white text-slate-600 hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white",
             )}
             aria-pressed={count === n}
           >
@@ -226,47 +275,70 @@ function QuestionCountSelector({
 
 function ModeToggle({
   mode,
+  setupTab,
+  lagredeCount,
   onChangeMode,
+  onOpenSaved,
 }: {
   mode: StudyMode;
+  setupTab: SetupTab;
+  lagredeCount: number;
   onChangeMode: (m: StudyMode) => void;
+  onOpenSaved: () => void;
 }) {
-  const { t } = useLanguage();
   return (
     <div
       className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800"
       role="tablist"
-      aria-label={t("quiz.selectStudyMode")}
+      aria-label="Velg visning"
     >
       <button
         type="button"
         onClick={() => onChangeMode("quiz")}
         role="tab"
-        aria-selected={mode === "quiz"}
+        aria-selected={mode === "quiz" && setupTab === "ny"}
         className={cn(
-          "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-          mode === "quiz"
+          "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200",
+          mode === "quiz" && setupTab === "ny"
             ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
-            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
         )}
       >
-        <Brain className="w-4 h-4" />
-        {t("quiz.quizMode")}
+        <Brain className="h-4 w-4" />
+        Quiz
       </button>
       <button
         type="button"
         onClick={() => onChangeMode("flashcards")}
         role="tab"
-        aria-selected={mode === "flashcards"}
+        aria-selected={mode === "flashcards" && setupTab === "ny"}
         className={cn(
-          "flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-          mode === "flashcards"
+          "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200",
+          mode === "flashcards" && setupTab === "ny"
             ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
-            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
         )}
       >
-        <Layers className="w-4 h-4" />
-        {t("quiz.flashcardsMode")}
+        <Layers className="h-4 w-4" />
+        Flashcards
+      </button>
+      <button
+        type="button"
+        onClick={onOpenSaved}
+        role="tab"
+        aria-selected={setupTab === "lagrede"}
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200",
+          setupTab === "lagrede"
+            ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
+            : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
+        )}
+      >
+        <BookOpen className="h-4 w-4" />
+        Lagrede
+        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+          {lagredeCount}
+        </span>
       </button>
     </div>
   );
@@ -280,7 +352,7 @@ function FlashcardActive({
   onBack,
 }: {
   cards: Flashcard[];
-  onFinish: (known: number, unknown: number) => void;
+  onFinish: (result: FlashcardCompletionResult) => void;
   onBack: () => void;
 }) {
   const [current, setCurrent] = useState(0);
@@ -288,8 +360,10 @@ function FlashcardActive({
   const [known, setKnown] = useState(0);
   const [unknown, setUnknown] = useState(0);
   const nextTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
+    startedAtRef.current = Date.now();
     return () => {
       if (nextTimerRef.current) clearTimeout(nextTimerRef.current);
     };
@@ -301,7 +375,11 @@ function FlashcardActive({
   // fullfør quiz-en i stedet for å krasje på card.front/back-access.
   useEffect(() => {
     if (cards.length > 0 && current >= cards.length) {
-      onFinish(known, unknown);
+      onFinish({
+        known,
+        unknown,
+        durationSeconds: Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000)),
+      });
     }
   }, [current, cards.length, known, unknown, onFinish]);
 
@@ -317,7 +395,11 @@ function FlashcardActive({
     else setUnknown((u) => u + 1);
 
     if (isLast) {
-      onFinish(newKnown, newUnknown);
+      onFinish({
+        known: newKnown,
+        unknown: newUnknown,
+        durationSeconds: Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000)),
+      });
     } else {
       setFlipped(false);
       if (nextTimerRef.current) clearTimeout(nextTimerRef.current);
@@ -351,10 +433,12 @@ function FlashcardActive({
           </span>
           <div className="flex items-center gap-4">
             <span className="text-base text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-900 dark:text-white">{known}</span> {t("quiz.knownCount")}
+              <span className="font-medium text-slate-900 dark:text-white">{known}</span>{" "}
+              {t("quiz.knownCount")}
             </span>
             <span className="text-base text-slate-500 dark:text-slate-400">
-              <span className="font-medium text-slate-900 dark:text-white">{unknown}</span> {t("quiz.practiceMoreCount")}
+              <span className="font-medium text-slate-900 dark:text-white">{unknown}</span>{" "}
+              {t("quiz.practiceMoreCount")}
             </span>
           </div>
         </div>
@@ -518,9 +602,7 @@ function ResultFeedback({
       });
       if (!r.ok) throw new Error("feedback");
       showToast.success(
-        newRating === "up"
-          ? t("chat.feedbackThanksGood")
-          : t("chat.feedbackThanksBad"),
+        newRating === "up" ? t("chat.feedbackThanksGood") : t("chat.feedbackThanksBad"),
       );
     } catch {
       setRating(previous);
@@ -545,12 +627,8 @@ function ResultFeedback({
             type="button"
             onClick={() => submit(value)}
             className={`rounded-lg p-2 transition-colors ${activeClass}`}
-            title={
-              value === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")
-            }
-            aria-label={
-              value === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")
-            }
+            title={value === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")}
+            aria-label={value === "up" ? t("chat.feedbackGood") : t("chat.feedbackBad")}
             aria-pressed={active}
           >
             <Icon className={`h-4 w-4 ${active ? "fill-current" : ""}`} />
@@ -566,16 +644,27 @@ function FlashcardResults({
   total,
   onBack,
   feedbackContext,
+  onSave,
+  isSaving,
+  onOpenSaved,
 }: {
   known: number;
   total: number;
   onBack: () => void;
   feedbackContext: string;
+  onSave?: () => void;
+  isSaving?: boolean;
+  onOpenSaved?: () => void;
 }) {
   const { t } = useLanguage();
   const pct = Math.round((known / total) * 100);
   const emoji = pct >= 80 ? "🎉" : pct >= 50 ? "👍" : "💪";
-  const msg = pct >= 80 ? t("quiz.resultGreat") : pct >= 50 ? t("quiz.resultGood") : t("quiz.resultKeepPracticing");
+  const msg =
+    pct >= 80
+      ? t("quiz.resultGreat")
+      : pct >= 50
+        ? t("quiz.resultGood")
+        : t("quiz.resultKeepPracticing");
 
   return (
     <motion.div
@@ -614,14 +703,37 @@ function FlashcardResults({
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={onBack}
-        className="mx-auto flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-      >
-        <ArrowLeft className="w-5 h-5" />
-        {t("quiz.back")}
-      </button>
+      <div className="flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          {t("quiz.back")}
+        </button>
+        {onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+          >
+            <Save className="h-5 w-5" />
+            {isSaving ? "Lagrer..." : "Lagre flashcards"}
+          </button>
+        )}
+        {onOpenSaved && (
+          <button
+            type="button"
+            onClick={onOpenSaved}
+            className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+          >
+            <BookMarked className="h-5 w-5" />
+            Se lagrede flashcards
+          </button>
+        )}
+      </div>
       <ResultFeedback kind="flashcards" contextSummary={feedbackContext} />
     </motion.div>
   );
@@ -635,7 +747,7 @@ function QuizActive({
   onBack,
 }: {
   questions: QuizQuestion[];
-  onFinish: (score: number, total: number) => void;
+  onFinish: (result: QuizCompletionResult) => void;
   onBack: () => void;
 }) {
   const [current, setCurrent] = useState(0);
@@ -643,11 +755,15 @@ function QuizActive({
   const [showExplanation, setShowExplanation] = useState(false);
   const [score, setScore] = useState(0);
   const scoreRef = useRef(0);
+  const answersRef = useRef<QuizAnswerResult[]>([]);
+  const startedAtRef = useRef<number>(Date.now());
   const { t } = useLanguage();
 
   // Nullstill scoreRef ved nye spørsmål for å hindre at gammel score videreføres
   useEffect(() => {
     scoreRef.current = 0;
+    answersRef.current = [];
+    startedAtRef.current = Date.now();
   }, [questions]);
 
   // Safety-net: hvis `current` har passert siste spørsmål, behandle det som
@@ -657,7 +773,12 @@ function QuizActive({
   // sessionStorage-hydrering setter current til en verdi ute av rekkevidde.
   useEffect(() => {
     if (questions.length > 0 && current >= questions.length) {
-      onFinish(scoreRef.current, questions.length);
+      onFinish({
+        score: scoreRef.current,
+        total: questions.length,
+        durationSeconds: Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000)),
+        answers: answersRef.current,
+      });
     }
   }, [current, questions.length, onFinish]);
 
@@ -691,6 +812,13 @@ function QuizActive({
     if (selected !== null) return;
     setSelected(idx);
     setShowExplanation(true);
+    const selectedOption = q.options[idx] ?? "";
+    const answer: QuizAnswerResult = {
+      questionId: q.id,
+      selectedOption,
+      correct: idx === q.correctIndex,
+    };
+    answersRef.current = [...answersRef.current, answer];
     if (idx === q.correctIndex) setScore((s) => s + 1);
     if (idx === q.correctIndex) {
       scoreRef.current += 1;
@@ -699,7 +827,12 @@ function QuizActive({
 
   const handleNext = () => {
     if (isLast) {
-      onFinish(scoreRef.current, questions.length);
+      onFinish({
+        score: scoreRef.current,
+        total: questions.length,
+        durationSeconds: Math.max(0, Math.round((Date.now() - startedAtRef.current) / 1000)),
+        answers: answersRef.current,
+      });
     } else {
       setCurrent((c) => c + 1);
       setSelected(null);
@@ -780,7 +913,7 @@ function QuizActive({
                   disabled={selected !== null}
                   className={cn(
                     "flex items-center gap-4 w-full px-5 py-4 rounded-xl border text-left transition-all duration-200",
-                    style
+                    style,
                   )}
                 >
                   <span
@@ -789,8 +922,8 @@ function QuizActive({
                       selected !== null && isCorrect
                         ? "border-green-600 bg-green-600 text-white dark:border-green-500 dark:bg-green-500"
                         : selected !== null && isSelected && !isCorrect
-                        ? "border-red-600 bg-red-600 text-white dark:border-red-500 dark:bg-red-500"
-                        : "border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400"
+                          ? "border-red-600 bg-red-600 text-white dark:border-red-500 dark:bg-red-500"
+                          : "border-slate-300 text-slate-500 dark:border-slate-600 dark:text-slate-400",
                     )}
                   >
                     {String.fromCharCode(65 + idx)}
@@ -857,17 +990,28 @@ function QuizResults({
   onRestart,
   onBack,
   feedbackContext,
+  onSave,
+  isSaving,
+  onOpenSaved,
 }: {
   score: number;
   total: number;
   onRestart: () => void;
   onBack: () => void;
   feedbackContext: string;
+  onSave?: () => void;
+  isSaving?: boolean;
+  onOpenSaved?: () => void;
 }) {
   const { t } = useLanguage();
   const pct = Math.round((score / total) * 100);
   const emoji = pct >= 80 ? "🎉" : pct >= 50 ? "👍" : "💪";
-  const msg = pct >= 80 ? t("quiz.resultGreat") : pct >= 50 ? t("quiz.resultGood") : t("quiz.resultKeepPracticingShort");
+  const msg =
+    pct >= 80
+      ? t("quiz.resultGreat")
+      : pct >= 50
+        ? t("quiz.resultGood")
+        : t("quiz.resultKeepPracticingShort");
 
   return (
     <motion.div
@@ -923,9 +1067,265 @@ function QuizResults({
           <RotateCcw className="w-5 h-5" />
           {t("chat.retryButton")}
         </button>
+        {onSave && (
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+          >
+            <Save className="w-5 h-5" />
+            {isSaving ? "Lagrer..." : "Lagre quiz"}
+          </button>
+        )}
+        {onOpenSaved && (
+          <button
+            type="button"
+            onClick={onOpenSaved}
+            className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+          >
+            <BookMarked className="w-5 h-5" />
+            Se lagrede quizer
+          </button>
+        )}
       </div>
       <ResultFeedback kind="quiz" contextSummary={feedbackContext} />
     </motion.div>
+  );
+}
+
+function formatDateTime(value: Date | string): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return new Intl.DateTimeFormat("nb-NO", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function LagredeQuizerPanel({
+  quizer,
+  isLoading,
+  onReplay,
+  onDelete,
+  deletingId,
+}: {
+  quizer: LagretQuiz[];
+  isLoading: boolean;
+  onReplay: (quiz: LagretQuiz) => void;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+}) {
+  const [openStatsId, setOpenStatsId] = useState<string | null>(null);
+
+  if (isLoading) {
+    return <LoadingView text="Laster lagrede quizer..." fullPage={false} />;
+  }
+
+  if (quizer.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+        Du har ingen lagrede quizer ennå.
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-4">
+      {quizer.map((quiz) => {
+        const sisteForsok = quiz.attempts.at(-1);
+        const sistePct = sisteForsok
+          ? Math.round((sisteForsok.score / sisteForsok.total) * 100)
+          : null;
+        const sisteBadge =
+          sistePct === null
+            ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            : sistePct >= LAGRET_QUIZ_SCORE_TERSKLER.GOD
+              ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300"
+              : sistePct >= LAGRET_QUIZ_SCORE_TERSKLER.MIDDELS
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300";
+        const erApen = openStatsId === quiz.id;
+
+        return (
+          <li
+            key={quiz.id}
+            className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {quiz.title}
+                  </h3>
+                  {sistePct !== null && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sisteBadge}`}
+                    >
+                      {sistePct}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Emne: {quiz.topic}</p>
+                <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  <span>{quiz.questions.length} spørsmål</span>
+                  <span className="text-slate-400 dark:text-slate-500">•</span>
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>{formatDateTime(quiz.createdAt)}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onReplay(quiz)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Ta på nytt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenStatsId(erApen ? null : quiz.id)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  {erApen ? "Skjul statistikk" : "Statistikk"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(quiz.id)}
+                  disabled={deletingId === quiz.id}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-all hover:border-red-300 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/60 dark:text-red-300 dark:hover:border-red-800 dark:hover:text-red-200"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deletingId === quiz.id ? "Sletter..." : "Slett"}
+                </button>
+              </div>
+            </div>
+
+            {erApen && (
+              <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <LagretQuizStatistikk quiz={quiz} />
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function LagredeFlashcardsPanel({
+  sett,
+  isLoading,
+  onReplay,
+  onDelete,
+  deletingId,
+}: {
+  sett: LagretFlashcardSett[];
+  isLoading: boolean;
+  onReplay: (sett: LagretFlashcardSett) => void;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
+}) {
+  const [openStatsId, setOpenStatsId] = useState<string | null>(null);
+
+  if (isLoading) {
+    return <LoadingView text="Laster lagrede flashcards..." fullPage={false} />;
+  }
+
+  if (sett.length === 0) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+        Du har ingen lagrede flashcard-sett ennå.
+      </div>
+    );
+  }
+
+  return (
+    <ul className="space-y-4">
+      {sett.map((item) => {
+        const sisteOkt = item.sessions.at(-1);
+        const sistePct =
+          sisteOkt && sisteOkt.totalCards > 0
+            ? Math.round((sisteOkt.knewCount / sisteOkt.totalCards) * 100)
+            : null;
+        const sisteBadge =
+          sistePct === null
+            ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+            : sistePct >= LAGRET_FLASHCARD_SCORE_TERSKLER.GOD
+              ? "bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300"
+              : sistePct >= LAGRET_FLASHCARD_SCORE_TERSKLER.MIDDELS
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+                : "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300";
+        const erApen = openStatsId === item.id;
+        return (
+          <li
+            key={item.id}
+            className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    {item.title}
+                  </h3>
+                  {sistePct !== null && (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${sisteBadge}`}
+                    >
+                      {sistePct}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Emne: {item.topic}</p>
+                <p className="flex flex-wrap items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400">
+                  <span>{item.cards.length} kort</span>
+                  <span className="text-slate-400 dark:text-slate-500">•</span>
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>{formatDateTime(item.createdAt)}</span>
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onReplay(item)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Ta på nytt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpenStatsId(erApen ? null : item.id)}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  {erApen ? "Skjul statistikk" : "Statistikk"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(item.id)}
+                  disabled={deletingId === item.id}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-sm font-medium text-red-700 transition-all hover:border-red-300 hover:text-red-800 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/60 dark:text-red-300 dark:hover:border-red-800 dark:hover:text-red-200"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  {deletingId === item.id ? "Sletter..." : "Slett"}
+                </button>
+              </div>
+            </div>
+
+            {erApen && (
+              <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <LagretFlashcardStatistikk sett={item} />
+              </div>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -953,6 +1353,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       .withOptions({ clearOnDefault: false }),
   );
   const [phase, setPhase] = useState<QuizPhase>("setup");
+  const [setupTab, setSetupTab] = useState<SetupTab>("ny");
+  const [lagredeFilter, setLagredeFilter] = useState<LagredeFilter>("alle");
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
@@ -961,7 +1363,18 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [finalScore, setFinalScore] = useState({ score: 0, total: 0 });
+  const [quizResultMeta, setQuizResultMeta] = useState<{
+    durationSeconds: number;
+    answers: QuizAnswerResult[];
+  }>({
+    durationSeconds: 0,
+    answers: [],
+  });
   const [flashcardScore, setFlashcardScore] = useState({ known: 0, total: 0 });
+  const [activeSavedQuizId, setActiveSavedQuizId] = useState<string | null>(null);
+  const [activeSavedFlashcardSettId, setActiveSavedFlashcardSettId] = useState<string | null>(null);
+  const [deletingQuizId, setDeletingQuizId] = useState<string | null>(null);
+  const [deletingFlashcardId, setDeletingFlashcardId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Bakgrunnsjobb fra store — for navigering mens generering pågår
@@ -971,6 +1384,24 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const cancelQuizJob = useKIStore((s) => s.cancelQuizJob);
   const clearQuizJob = useKIStore((s) => s.clearQuizJob);
   const resumeQuizJob = useKIStore((s) => s.resumeQuizJob);
+  const replayQuiz = useKIStore((s) => s.replayQuiz);
+  const replayFlashcardSett = useKIStore((s) => s.replayFlashcardSett);
+  const startReplayQuiz = useKIStore((s) => s.startReplayQuiz);
+  const startReplayFlashcardSett = useKIStore((s) => s.startReplayFlashcardSett);
+  const clearReplay = useKIStore((s) => s.clearReplay);
+
+  const lagredeQuizerQuery = useLagredeQuizer();
+  const lagredeFlashcardsQuery = useLagredeFlashcardSett();
+  const lagreQuizMutation = useLagreQuiz();
+  const lagreFlashcardSettMutation = useLagreFlashcardSett();
+  const slettLagretQuizMutation = useSlettLagretQuiz();
+  const slettLagretFlashcardSettMutation = useSlettLagretFlashcardSett();
+  const registrerQuizForsokMutation = useRegistrerQuizForsok();
+  const registrerFlashcardOktMutation = useRegistrerFlashcardOkt();
+
+  const lagredeQuizCount = lagredeQuizerQuery.data?.length ?? 0;
+  const lagredeFlashcardCount = lagredeFlashcardsQuery.data?.length ?? 0;
+  const lagredeTotalCount = lagredeQuizCount + lagredeFlashcardCount;
 
   // Forhindrer doble kall
   const hasHandledResult = useRef(false);
@@ -1006,7 +1437,8 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       if (parsed.flashcards?.length) setFlashcards(parsed.flashcards);
       // Fall tilbake til setup dersom active/results men data mangler
       if (parsed.phase === "active" || parsed.phase === "results") {
-        const harData = (parsed.quizQuestions?.length ?? 0) > 0 || (parsed.flashcards?.length ?? 0) > 0;
+        const harData =
+          (parsed.quizQuestions?.length ?? 0) > 0 || (parsed.flashcards?.length ?? 0) > 0;
         setPhase(harData ? parsed.phase : "setup");
       } else if (parsed.phase) {
         setPhase(parsed.phase);
@@ -1032,7 +1464,15 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     } catch {
       // Ignorer lagringsfeil
     }
-  }, [phase, selectedCourseId, selectedModules, selectedFiles, questionCount, quizQuestions, flashcards]);
+  }, [
+    phase,
+    selectedCourseId,
+    selectedModules,
+    selectedFiles,
+    questionCount,
+    quizQuestions,
+    flashcards,
+  ]);
 
   // Sørger for at pågående jobber gjenopptas etter navigasjon.
   useEffect(() => {
@@ -1054,6 +1494,33 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
       unsub?.();
     };
   }, [resumeQuizJob]);
+
+  useEffect(() => {
+    if (!replayQuiz) return;
+    setDashboardView("quiz");
+    setSetupTab("ny");
+    setQuizQuestions(replayQuiz.questions);
+    setFlashcards([]);
+    setFinalScore({ score: 0, total: 0 });
+    setQuizResultMeta({ durationSeconds: 0, answers: [] });
+    setActiveSavedQuizId(replayQuiz.id);
+    setActiveSavedFlashcardSettId(null);
+    setPhase("active");
+    clearReplay();
+  }, [replayQuiz, clearReplay, setDashboardView]);
+
+  useEffect(() => {
+    if (!replayFlashcardSett) return;
+    setDashboardView("flashcards");
+    setSetupTab("ny");
+    setFlashcards(replayFlashcardSett.cards);
+    setQuizQuestions([]);
+    setFlashcardScore({ known: 0, total: 0 });
+    setActiveSavedFlashcardSettId(replayFlashcardSett.id);
+    setActiveSavedQuizId(null);
+    setPhase("active");
+    clearReplay();
+  }, [replayFlashcardSett, clearReplay, setDashboardView]);
 
   // Hent ekte Canvas-data
   const { data: coursesData, isLoading: coursesLoading } = useCanvasCourses(harCanvasToken);
@@ -1084,21 +1551,23 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
   // Transformer Canvas-moduler til dropdown-options
   const moduleOptions: ModuleOption[] = useMemo(
-    () => (modulesData?.modules ?? []).map((m) => ({
-      id: String(m.id),
-      name: m.name,
-    })),
+    () =>
+      (modulesData?.modules ?? []).map((m) => ({
+        id: String(m.id),
+        name: m.name,
+      })),
     [modulesData],
   );
 
   // Transformer Canvas-filer til dropdown-options (kun støttede filtyper)
   const fileOptions: ModuleOption[] = useMemo(
-    () => (filesData ?? [])
-      .filter((f) => /\.(pdf|docx?|pptx?|txt|html?)$/i.test(f.display_name))
-      .map((f) => ({
-        id: String(f.id),
-        name: f.display_name,
-      })),
+    () =>
+      (filesData ?? [])
+        .filter((f) => /\.(pdf|docx?|pptx?|txt|html?)$/i.test(f.display_name))
+        .map((f) => ({
+          id: String(f.id),
+          name: f.display_name,
+        })),
     [filesData],
   );
 
@@ -1145,14 +1614,12 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
   const toggleModule = useCallback((id: string) => {
     setSelectedModules((prev) =>
-      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((m) => m !== id) : [...prev, id],
     );
   }, []);
 
   const toggleFile = useCallback((id: string) => {
-    setSelectedFiles((prev) =>
-      prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
-    );
+    setSelectedFiles((prev) => (prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]));
   }, []);
 
   const selectedModuleNames = moduleOptions
@@ -1161,7 +1628,9 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
   const selectedFileNames = fileOptions
     .filter((f) => selectedFiles.includes(f.id))
     .map((f) => f.name);
-  const canGenerate = Boolean(selectedCourse && (selectedModuleNames.length > 0 || selectedFileNames.length > 0));
+  const canGenerate = Boolean(
+    selectedCourse && (selectedModuleNames.length > 0 || selectedFileNames.length > 0),
+  );
 
   // Start generering via store
   const handleGenerate = () => {
@@ -1182,6 +1651,9 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     }
 
     setError(null);
+    setSetupTab("ny");
+    setActiveSavedQuizId(null);
+    setActiveSavedFlashcardSettId(null);
     hasHandledResult.current = false;
     const safeQuestionCount = Math.max(1, Math.min(50, Math.trunc(questionCount)));
     if (safeQuestionCount !== questionCount) {
@@ -1258,13 +1730,43 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
     }
   }, [quizJob, clearQuizJob, t]);
 
-  const handleFinishQuiz = (score: number, total: number) => {
-    setFinalScore({ score, total });
+  const handleFinishQuiz = (result: QuizCompletionResult) => {
+    setFinalScore({ score: result.score, total: result.total });
+    setQuizResultMeta({ durationSeconds: result.durationSeconds, answers: result.answers });
+    if (activeSavedQuizId) {
+      const request: RegistrerQuizForsokRequest = {
+        score: result.score,
+        total: result.total,
+        durationSeconds: result.durationSeconds,
+        answers: result.answers,
+      };
+      registrerQuizForsokMutation.mutate(
+        { id: activeSavedQuizId, data: request },
+        {
+          onSuccess: () => showToast.success("Forsøk lagret i statistikk."),
+          onError: () => showToast.error("Kunne ikke lagre forsøksstatistikk."),
+        },
+      );
+    }
     setPhase("results");
   };
 
-  const handleFinishFlashcards = (known: number, unknown: number) => {
-    setFlashcardScore({ known, total: known + unknown });
+  const handleFinishFlashcards = (result: FlashcardCompletionResult) => {
+    setFlashcardScore({ known: result.known, total: result.known + result.unknown });
+    if (activeSavedFlashcardSettId) {
+      const request: RegistrerFlashcardOktRequest = {
+        totalCards: result.known + result.unknown,
+        knewCount: result.known,
+        didNotKnowCount: result.unknown,
+      };
+      registrerFlashcardOktMutation.mutate(
+        { id: activeSavedFlashcardSettId, data: request },
+        {
+          onSuccess: () => showToast.success("Økt lagret i statistikk."),
+          onError: () => showToast.error("Kunne ikke lagre øktstatistikk."),
+        },
+      );
+    }
     setPhase("results");
   };
 
@@ -1274,21 +1776,168 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
 
   const handleBackToSetup = () => {
     setPhase("setup");
+    setSetupTab("ny");
+    setLagredeFilter("alle");
     setSelectedCourseId(null);
     setSelectedModules([]);
     setSelectedFiles([]);
     setQuestionCount(10);
+    setActiveSavedQuizId(null);
+    setActiveSavedFlashcardSettId(null);
     setError(null);
   };
 
   const handleChangeMode = (m: StudyMode) => {
     setDashboardView(m);
     setPhase("setup");
+    setSetupTab("ny");
+    setLagredeFilter("alle");
     setSelectedCourseId(null);
     setSelectedModules([]);
     setSelectedFiles([]);
     setQuestionCount(10);
+    setActiveSavedQuizId(null);
+    setActiveSavedFlashcardSettId(null);
     setError(null);
+  };
+
+  const handleLagreQuiz = () => {
+    if (quizQuestions.length === 0) return;
+    const topic = selectedCourse?.name ?? "Lagret quiz";
+    const title = `Quiz ${topic} (${quizQuestions.length} spørsmål)`;
+
+    lagreQuizMutation.mutate(
+      {
+        title,
+        topic,
+        questions: quizQuestions,
+      },
+      {
+        onSuccess: (saved) => {
+          setActiveSavedQuizId(saved.id);
+          showToast.success("Quiz lagret.");
+
+          if (finalScore.total > 0 && quizResultMeta.answers.length > 0) {
+            registrerQuizForsokMutation.mutate(
+              {
+                id: saved.id,
+                data: {
+                  score: finalScore.score,
+                  total: finalScore.total,
+                  durationSeconds: quizResultMeta.durationSeconds,
+                  answers: quizResultMeta.answers,
+                },
+              },
+              {
+                onSuccess: () => showToast.success("Forsøk lagret i statistikk."),
+                onError: () => showToast.error("Kunne ikke lagre forsøksstatistikk."),
+              },
+            );
+          }
+        },
+        onError: (err) => {
+          showToast.error(err instanceof Error ? err.message : "Kunne ikke lagre quiz.");
+        },
+      },
+    );
+  };
+
+  const handleLagreFlashcards = () => {
+    if (flashcards.length === 0) return;
+    const topic = selectedCourse?.name ?? "Lagret flashcard-sett";
+    const title = `Flashcards ${topic} (${flashcards.length} kort)`;
+
+    lagreFlashcardSettMutation.mutate(
+      {
+        title,
+        topic,
+        cards: flashcards,
+      },
+      {
+        onSuccess: (saved) => {
+          setActiveSavedFlashcardSettId(saved.id);
+          showToast.success("Flashcards lagret.");
+
+          if (flashcardScore.total > 0) {
+            registrerFlashcardOktMutation.mutate(
+              {
+                id: saved.id,
+                data: {
+                  totalCards: flashcardScore.total,
+                  knewCount: flashcardScore.known,
+                  didNotKnowCount: flashcardScore.total - flashcardScore.known,
+                },
+              },
+              {
+                onSuccess: () => showToast.success("Økt lagret i statistikk."),
+                onError: () => showToast.error("Kunne ikke lagre øktstatistikk."),
+              },
+            );
+          }
+        },
+        onError: (err) => {
+          showToast.error(err instanceof Error ? err.message : "Kunne ikke lagre flashcards.");
+        },
+      },
+    );
+  };
+
+  const handleSlettLagretQuiz = (id: string) => {
+    const bekreft = window.confirm("Er du sikker på at du vil slette denne lagrede quizen?");
+    if (!bekreft) return;
+    setDeletingQuizId(id);
+    slettLagretQuizMutation.mutate(id, {
+      onSuccess: () => {
+        showToast.success("Lagret quiz slettet.");
+      },
+      onError: (err) => {
+        showToast.error(err instanceof Error ? err.message : "Kunne ikke slette lagret quiz.");
+      },
+      onSettled: () => {
+        setDeletingQuizId(null);
+      },
+    });
+  };
+
+  const handleSlettLagretFlashcardSett = (id: string) => {
+    const bekreft = window.confirm(
+      "Er du sikker på at du vil slette dette lagrede flashcard-settet?",
+    );
+    if (!bekreft) return;
+    setDeletingFlashcardId(id);
+    slettLagretFlashcardSettMutation.mutate(id, {
+      onSuccess: () => {
+        showToast.success("Lagret flashcard-sett slettet.");
+      },
+      onError: (err) => {
+        showToast.error(
+          err instanceof Error ? err.message : "Kunne ikke slette lagret flashcard-sett.",
+        );
+      },
+      onSettled: () => {
+        setDeletingFlashcardId(null);
+      },
+    });
+  };
+
+  const handleReplayLagretQuiz = (quiz: LagretQuiz) => {
+    startReplayQuiz({
+      id: quiz.id,
+      title: quiz.title,
+      topic: quiz.topic,
+      questions: quiz.questions,
+    });
+    showToast.success("Starter lagret quiz.");
+  };
+
+  const handleReplayLagretFlashcardSett = (sett: LagretFlashcardSett) => {
+    startReplayFlashcardSett({
+      id: sett.id,
+      title: sett.title,
+      topic: sett.topic,
+      cards: sett.cards,
+    });
+    showToast.success("Starter lagret flashcard-økt.");
   };
 
   return (
@@ -1328,213 +1977,352 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
               >
                 {/* Mode Toggle */}
                 <div className="mb-10">
-                  <ModeToggle mode={studyMode} onChangeMode={handleChangeMode} />
+                  <ModeToggle
+                    mode={studyMode}
+                    setupTab={setupTab}
+                    lagredeCount={lagredeTotalCount}
+                    onChangeMode={handleChangeMode}
+                    onOpenSaved={() => {
+                      setSetupTab("lagrede");
+                      setLagredeFilter("alle");
+                    }}
+                  />
                 </div>
 
-                {!harCanvasToken && (
-                  <div className="mb-8">
-                    <CanvasTokenNotice />
-                  </div>
-                )}
-
-                {/* Step 1: Course — vises kun når Canvas-token er satt */}
-                {harCanvasToken && (
-                  <div className="mb-8">
-                    <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                      {t("quiz.selectCourseLabel")}
-                    </label>
-                    {coursesLoading ? (
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
-                        <LoadingView text={t("quiz.loadingCourses")} fullPage={false} />
+                {setupTab === "ny" ? (
+                  <>
+                    {!harCanvasToken && (
+                      <div className="mb-8">
+                        <CanvasTokenNotice />
                       </div>
-                    ) : courseOptions.length === 0 ? (
-                      <FeilMelding melding={allCoursesHidden ? t("quiz.allCoursesHidden") : t("quiz.noCoursesFound")} />
-                    ) : (
-                      <Dropdown
-                        label={t("quiz.selectCourse")}
-                        value={selectedCourseId}
-                        options={courseOptions.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji }))}
-                        onSelect={(id) => {
-                          setSelectedCourseId(id);
-                          setSelectedModules([]);
-                          setSelectedFiles([]);
-                        }}
-                      />
                     )}
-                  </div>
-                )}
 
-                {/* Step 2: Content (Modules / Files) */}
-                <AnimatePresence>
-                  {selectedCourseId && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
-                      className="mb-8 relative z-30 isolate"
-                    >
-                      <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        {t("quiz.selectModulesLabel")}
-                      </label>
+                    {/* Step 1: Course — vises kun når Canvas-token er satt */}
+                    {harCanvasToken && (
+                      <div className="mb-8">
+                        <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                          {t("quiz.selectCourseLabel")}
+                        </label>
+                        {coursesLoading ? (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                            <LoadingView text={t("quiz.loadingCourses")} fullPage={false} />
+                          </div>
+                        ) : courseOptions.length === 0 ? (
+                          <FeilMelding
+                            melding={
+                              allCoursesHidden
+                                ? t("quiz.allCoursesHidden")
+                                : t("quiz.noCoursesFound")
+                            }
+                          />
+                        ) : (
+                          <Dropdown
+                            label={t("quiz.selectCourse")}
+                            value={selectedCourseId}
+                            options={courseOptions.map((c) => ({
+                              id: c.id,
+                              name: c.name,
+                              emoji: c.emoji,
+                            }))}
+                            onSelect={(id) => {
+                              setSelectedCourseId(id);
+                              setSelectedModules([]);
+                              setSelectedFiles([]);
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
 
-                      {/* Faner for moduler / filer — vises så snart emne er valgt slik at
+                    {/* Step 2: Content (Modules / Files) */}
+                    <AnimatePresence>
+                      {selectedCourseId && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.2 }}
+                          className="mb-8 relative z-30 isolate"
+                        >
+                          <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {t("quiz.selectModulesLabel")}
+                          </label>
+
+                          {/* Faner for moduler / filer — vises så snart emne er valgt slik at
                           brukeren ser at filer lastes parallelt (Canvas /files kan være
                           tregere enn /modules). Tellerene oppdateres når hver query er klar. */}
-                      {(moduleOptions.length > 0 || fileOptions.length > 0 || modulesLoading || filesLoading) && (
-                        <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                          {(moduleOptions.length > 0 ||
+                            fileOptions.length > 0 ||
+                            modulesLoading ||
+                            filesLoading) && (
+                            <div className="mb-3 flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+                              <button
+                                type="button"
+                                onClick={() => setContentTab("modules")}
+                                className={cn(
+                                  "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                  contentTab === "modules"
+                                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                                )}
+                              >
+                                {t("quiz.modulesTab")}{" "}
+                                {modulesLoading
+                                  ? "(…)"
+                                  : moduleOptions.length > 0
+                                    ? `(${moduleOptions.length})`
+                                    : ""}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setContentTab("files")}
+                                className={cn(
+                                  "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                                  contentTab === "files"
+                                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
+                                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                                )}
+                              >
+                                {t("quiz.filesTab")}{" "}
+                                {filesLoading
+                                  ? "(…)"
+                                  : fileOptions.length > 0
+                                    ? `(${fileOptions.length})`
+                                    : ""}
+                              </button>
+                            </div>
+                          )}
+
+                          {contentTab === "modules" ? (
+                            modulesLoading ? (
+                              <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                                <LoadingView text={t("quiz.loadingModules")} fullPage={false} />
+                              </div>
+                            ) : moduleOptions.length === 0 ? (
+                              <FeilMelding melding={t("quiz.noModulesFound")} />
+                            ) : (
+                              <MultiSelectDropdown
+                                label={t("quiz.selectModules")}
+                                selected={selectedModules}
+                                options={moduleOptions}
+                                onToggle={toggleModule}
+                              />
+                            )
+                          ) : filesLoading ? (
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
+                              <LoadingView text={t("quiz.loadingFiles")} fullPage={false} />
+                            </div>
+                          ) : fileOptions.length === 0 ? (
+                            <FeilMelding melding={t("quiz.noFilesFound")} />
+                          ) : (
+                            <MultiSelectDropdown
+                              label={t("quiz.selectFiles")}
+                              selected={selectedFiles}
+                              options={fileOptions}
+                              onToggle={toggleFile}
+                              countLabel={t("quiz.filesSelected", { count: selectedFiles.length })}
+                            />
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Step 3: Question count */}
+                    <AnimatePresence>
+                      {(selectedModules.length > 0 || selectedFiles.length > 0) && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -8 }}
+                          transition={{ duration: 0.2 }}
+                          className="mb-10 relative z-0"
+                        >
+                          <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            {studyMode === "quiz"
+                              ? t("quiz.questionCountLabel")
+                              : t("quiz.cardCountLabel")}
+                          </label>
+                          <QuestionCountSelector
+                            count={questionCount}
+                            onChange={setQuestionCount}
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Error */}
+                    {error && (
+                      <div
+                        role="alert"
+                        className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                      >
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {error}
+                      </div>
+                    )}
+
+                    {/* Generate */}
+                    <AnimatePresence>
+                      {canGenerate && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="relative z-0 space-y-3"
+                        >
                           <button
                             type="button"
-                            onClick={() => setContentTab("modules")}
+                            onClick={handleGenerate}
+                            disabled={isGenerating}
                             className={cn(
-                              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                              contentTab === "modules"
-                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
-                                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                              "flex w-full items-center justify-center gap-3 rounded-xl py-4 text-lg font-semibold transition-all duration-200",
+                              isGenerating
+                                ? "cursor-wait bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
+                                : "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600",
                             )}
                           >
-                            {t("quiz.modulesTab")}{" "}
-                            {modulesLoading ? "(…)" : moduleOptions.length > 0 ? `(${moduleOptions.length})` : ""}
+                            {isGenerating ? (
+                              <>
+                                <motion.div
+                                  animate={{ rotate: 360 }}
+                                  transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                                >
+                                  <Sparkles className="w-5 h-5" />
+                                </motion.div>
+                                {studyMode === "quiz"
+                                  ? t("quiz.generatingQuiz")
+                                  : t("quiz.generatingFlashcards")}
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-5 h-5" />
+                                {studyMode === "quiz"
+                                  ? t("quiz.generateQuiz")
+                                  : t("quiz.generateFlashcards")}
+                              </>
+                            )}
+                          </button>
+                          {isGenerating && (
+                            <>
+                              <RotatingStatusMessage
+                                active={isGenerating}
+                                className="text-center"
+                              />
+                              <button
+                                type="button"
+                                onClick={cancelQuizJob}
+                                className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                                {t("common.actions.cancel")}
+                              </button>
+                            </>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                            Lagret innhold
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            Filtrer mellom quizer og flashcards, eller vis alt samlet.
+                          </p>
+                        </div>
+
+                        <div className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
+                          <button
+                            type="button"
+                            onClick={() => setLagredeFilter("alle")}
+                            className={cn(
+                              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                              lagredeFilter === "alle"
+                                ? "bg-blue-600 text-white dark:bg-blue-500 dark:text-white"
+                                : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white",
+                            )}
+                          >
+                            Alle ({lagredeTotalCount})
                           </button>
                           <button
                             type="button"
-                            onClick={() => setContentTab("files")}
+                            onClick={() => setLagredeFilter("quiz")}
                             className={cn(
-                              "flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                              contentTab === "files"
-                                ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white"
-                                : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200",
+                              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                              lagredeFilter === "quiz"
+                                ? "bg-blue-600 text-white dark:bg-blue-500 dark:text-white"
+                                : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white",
                             )}
                           >
-                            {t("quiz.filesTab")}{" "}
-                            {filesLoading ? "(…)" : fileOptions.length > 0 ? `(${fileOptions.length})` : ""}
+                            Quiz ({lagredeQuizCount})
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setLagredeFilter("flashcards")}
+                            className={cn(
+                              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                              lagredeFilter === "flashcards"
+                                ? "bg-blue-600 text-white dark:bg-blue-500 dark:text-white"
+                                : "text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white",
+                            )}
+                          >
+                            Flashcards ({lagredeFlashcardCount})
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {lagredeFilter === "alle" &&
+                      !lagredeQuizerQuery.isLoading &&
+                      !lagredeFlashcardsQuery.isLoading &&
+                      lagredeTotalCount === 0 && (
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                          Du har ingen lagret quiz eller flashcard-sett ennå.
                         </div>
                       )}
 
-                      {contentTab === "modules" ? (
-                        modulesLoading ? (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
-                            <LoadingView text={t("quiz.loadingModules")} fullPage={false} />
-                          </div>
-                        ) : moduleOptions.length === 0 ? (
-                          <FeilMelding melding={t("quiz.noModulesFound")} />
-                        ) : (
-                          <MultiSelectDropdown
-                            label={t("quiz.selectModules")}
-                            selected={selectedModules}
-                            options={moduleOptions}
-                            onToggle={toggleModule}
-                          />
-                        )
-                      ) : (
-                        filesLoading ? (
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 dark:border-slate-700 dark:bg-slate-800/50">
-                            <LoadingView text={t("quiz.loadingFiles")} fullPage={false} />
-                          </div>
-                        ) : fileOptions.length === 0 ? (
-                          <FeilMelding melding={t("quiz.noFilesFound")} />
-                        ) : (
-                          <MultiSelectDropdown
-                            label={t("quiz.selectFiles")}
-                            selected={selectedFiles}
-                            options={fileOptions}
-                            onToggle={toggleFile}
-                            countLabel={t("quiz.filesSelected", { count: selectedFiles.length })}
-                          />
-                        )
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    {(lagredeFilter === "quiz" ||
+                      (lagredeFilter === "alle" &&
+                        (lagredeQuizerQuery.isLoading || lagredeTotalCount > 0))) && (
+                      <section className="space-y-3">
+                        {lagredeFilter === "alle" && (
+                          <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Quizer
+                          </h4>
+                        )}
+                        <LagredeQuizerPanel
+                          quizer={lagredeQuizerQuery.data ?? []}
+                          isLoading={lagredeQuizerQuery.isLoading}
+                          onReplay={handleReplayLagretQuiz}
+                          onDelete={handleSlettLagretQuiz}
+                          deletingId={deletingQuizId}
+                        />
+                      </section>
+                    )}
 
-                {/* Step 3: Question count */}
-                <AnimatePresence>
-                  {(selectedModules.length > 0 || selectedFiles.length > 0) && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
-                      className="mb-10 relative z-0"
-                    >
-                      <label className="mb-4 block text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        {studyMode === "quiz" ? t("quiz.questionCountLabel") : t("quiz.cardCountLabel")}
-                      </label>
-                      <QuestionCountSelector
-                        count={questionCount}
-                        onChange={setQuestionCount}
-                      />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {/* Error */}
-                {error && (
-                  <div
-                    role="alert"
-                    className="mb-6 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-                  >
-                    <AlertCircle className="w-4 h-4 shrink-0" />
-                    {error}
+                    {(lagredeFilter === "flashcards" ||
+                      (lagredeFilter === "alle" &&
+                        (lagredeFlashcardsQuery.isLoading || lagredeTotalCount > 0))) && (
+                      <section className="space-y-3">
+                        {lagredeFilter === "alle" && (
+                          <h4 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                            Flashcards
+                          </h4>
+                        )}
+                        <LagredeFlashcardsPanel
+                          sett={lagredeFlashcardsQuery.data ?? []}
+                          isLoading={lagredeFlashcardsQuery.isLoading}
+                          onReplay={handleReplayLagretFlashcardSett}
+                          onDelete={handleSlettLagretFlashcardSett}
+                          deletingId={deletingFlashcardId}
+                        />
+                      </section>
+                    )}
                   </div>
                 )}
-
-                {/* Generate */}
-                <AnimatePresence>
-                  {canGenerate && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="relative z-0 space-y-3"
-                    >
-                      <button
-                        type="button"
-                        onClick={handleGenerate}
-                        disabled={isGenerating}
-                        className={cn(
-                          "flex w-full items-center justify-center gap-3 rounded-xl py-4 text-lg font-semibold transition-all duration-200",
-                          isGenerating
-                            ? "cursor-wait bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-400"
-                            : "bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                        )}
-                      >
-                        {isGenerating ? (
-                          <>
-                            <motion.div
-                              animate={{ rotate: 360 }}
-                              transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                            >
-                              <Sparkles className="w-5 h-5" />
-                            </motion.div>
-                            {studyMode === "quiz" ? t("quiz.generatingQuiz") : t("quiz.generatingFlashcards")}
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-5 h-5" />
-                            {studyMode === "quiz" ? t("quiz.generateQuiz") : t("quiz.generateFlashcards")}
-                          </>
-                        )}
-                      </button>
-                      {isGenerating && (
-                        <>
-                          <RotatingStatusMessage
-                            active={isGenerating}
-                            className="text-center"
-                          />
-                          <button
-                            type="button"
-                            onClick={cancelQuizJob}
-                            className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-medium text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                            {t("common.actions.cancel")}
-                          </button>
-                        </>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </motion.div>
             )}
 
@@ -1547,9 +2335,17 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                 exit={{ opacity: 0 }}
               >
                 {studyMode === "quiz" ? (
-                  <QuizActive questions={quizQuestions} onFinish={handleFinishQuiz} onBack={handleBackToSetup} />
+                  <QuizActive
+                    questions={quizQuestions}
+                    onFinish={handleFinishQuiz}
+                    onBack={handleBackToSetup}
+                  />
                 ) : (
-                  <FlashcardActive cards={flashcards} onFinish={handleFinishFlashcards} onBack={handleBackToSetup} />
+                  <FlashcardActive
+                    cards={flashcards}
+                    onFinish={handleFinishFlashcards}
+                    onBack={handleBackToSetup}
+                  />
                 )}
               </motion.div>
             )}
@@ -1568,6 +2364,13 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                     total={finalScore.total}
                     onRestart={handleRestart}
                     onBack={handleBackToSetup}
+                    onSave={activeSavedQuizId ? undefined : handleLagreQuiz}
+                    isSaving={lagreQuizMutation.isPending}
+                    onOpenSaved={() => {
+                      setPhase("setup");
+                      setSetupTab("lagrede");
+                      setLagredeFilter("alle");
+                    }}
                     feedbackContext={buildFeedbackContext(
                       "quiz",
                       selectedCourse?.name,
@@ -1579,6 +2382,13 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                     known={flashcardScore.known}
                     total={flashcardScore.total}
                     onBack={handleBackToSetup}
+                    onSave={activeSavedFlashcardSettId ? undefined : handleLagreFlashcards}
+                    isSaving={lagreFlashcardSettMutation.isPending}
+                    onOpenSaved={() => {
+                      setPhase("setup");
+                      setSetupTab("lagrede");
+                      setLagredeFilter("alle");
+                    }}
                     feedbackContext={buildFeedbackContext(
                       "flashcards",
                       selectedCourse?.name,

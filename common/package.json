@@ -69,6 +69,14 @@
       "types": "./dist/kunnskapsbase.d.ts",
       "import": "./dist/kunnskapsbase.js"
     },
+    "./quizLagret": {
+      "types": "./dist/quizLagret.d.ts",
+      "import": "./dist/quizLagret.js"
+    },
+    "./flashcardsLagret": {
+      "types": "./dist/flashcardsLagret.d.ts",
+      "import": "./dist/flashcardsLagret.js"
+    },
     "./system": {
       "types": "./dist/system.d.ts",
       "import": "./dist/system.js"
