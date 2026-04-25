@@ -19,7 +19,7 @@ const COHERE_RERANK_MODEL = "rerank-v3.5";
 const COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank";
 
 /** Timeout for Cohere API-kall (ms) */
-const COHERE_TIMEOUT_MS = 8_000;
+const COHERE_TIMEOUT_MS = 12_000;
 
 // ─── Circuit breaker ───────────────────────────────────────
 
@@ -218,7 +218,7 @@ export async function cohereRerank(
     return results;
   } catch (error) {
     logger.warn(
-      { err: error },
+      { err: error, inputCount: docsToRerank.length },
       "Cohere rerank feilet — bruker originale scorer",
     );
     return passthrough(documents, topN);
