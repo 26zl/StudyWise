@@ -1818,6 +1818,7 @@ export const enMessages = {
     modelSelectorTooltip: "Choose model for chat responses.",
     modelAuto: "Auto (Haiku 4.5 + Sonnet 4.6)",
     inputHint: "Enter to send · Shift+Enter for new line",
+    aiDisclaimer: "AI can make mistakes. Verify important information.",
     placeholderDefault: "Write a message...",
     inputAriaLabel: "Chat message",
     placeholderAttachment: "Ask a question about the attachment...",
@@ -2390,6 +2391,12 @@ export const enMessages = {
     canvasInstitutionsQ: "Which Canvas institutions are supported?",
     canvasInstitutionsA:
       "StudyWise supports Canvas installations at Norwegian universities and colleges. Select your institution when connecting to Canvas.",
+    vsCanvasQ: "Why use StudyWise when I already have Canvas?",
+    vsCanvasA:
+      "StudyWise doesn't replace Canvas — we're a supplement. Canvas is the learning platform where your school publishes course material, assignments, and deadlines. StudyWise pulls that content in and adds a layer Canvas doesn't have: an AI chat that answers based on your own course material, automatically generated quizzes and flashcards from lecture notes, a weekly study plan that adapts to your deadlines, and task breakdowns that split large assignments into manageable steps. You keep using Canvas as usual — StudyWise just makes it easier to actually work with the content that lives there.",
+    supplementQ: "Does StudyWise replace Canvas?",
+    supplementA:
+      "No. Canvas remains the official channel between you and your school — all submissions, announcements, and grades still go through Canvas. StudyWise reads from Canvas (with your API token) but never writes back. Think of us as the study assistant sitting next to you, helping you make better use of the content already in Canvas.",
     dataSecureQ: "Is my data safe?",
     dataSecureA: "Yes. Sensitive data (such as Canvas tokens and chat history) is encrypted with industry-standard encryption before storage, and all communication between your browser and our servers is encrypted (HTTPS). Read more on our",
     dataSecureLink: "security page",

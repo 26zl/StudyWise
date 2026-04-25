@@ -919,7 +919,7 @@ export const nbMessages = {
       statusSparse: "Sparsom ekstraksjon",
       statusFailed: "Ekstraksjon feilet",
       statusTooLarge: "For stor",
-      statusUnsupported: "Uspøttet format",
+      statusUnsupported: "Ustøttet format",
       deleteAction: "Slett",
       deleteConfirm: "Slette status-raden for \"{fileName}\"? (Blir gjenopprettet neste sync hvis filen fortsatt ikke kan leses.)",
       deleteSuccess: "Status-rad slettet",
@@ -1792,7 +1792,7 @@ export const nbMessages = {
     saveBeforeShare: "Lagre samtalen først for å dele den.",
     shareLinkCopied: "Delingslenke kopiert",
     shareLinkDescription:
-      "Lenken viser hele samtalen slik den ser ut na. Alle med lenken kan lese bruker- og KI-meldinger.",
+      "Lenken viser hele samtalen slik den ser ut nå. Alle med lenken kan lese bruker- og KI-meldinger.",
     couldNotShareChat: "Kunne ikke dele chatten.",
     couldNotShareChatFallback: "Kunne ikke dele chatten",
     answerDownloaded: "Svar lastet ned",
@@ -1816,6 +1816,7 @@ export const nbMessages = {
     modelSelectorTooltip: "Velg modell for chat-svar.",
     modelAuto: "Auto (Haiku 4.5 + Sonnet 4.6)",
     inputHint: "Enter for å sende · Shift+Enter for ny linje",
+    aiDisclaimer: "KI kan gjøre feil. Sjekk viktig informasjon.",
     placeholderDefault: "Skriv en melding...",
     inputAriaLabel: "Chatmelding",
     placeholderAttachment: "Skriv et spørsmål om vedlegget...",
@@ -2227,7 +2228,7 @@ export const nbMessages = {
     encryptionTitle: "Kryptering",
     encryptionBody:
       "Alle sensitive data krypteres med bransjestandard kryptering (samme styrke som banker bruker) før de lagres. Innlogging og passord håndteres av en spesialisert innloggingstjeneste; vi lagrer aldri passordene selv.",
-    tokenTitle: "Sikker tokenhandtering",
+    tokenTitle: "Sikker tokenhåndtering",
     tokenBody:
       "Canvas API-tokens lagres kryptert og brukes kun server-side. De eksponeres aldri til nettleseren eller tredjeparter.",
     twoFactorTitle: "Tofaktor-autentisering (2FA)",
@@ -2388,6 +2389,12 @@ export const nbMessages = {
     canvasInstitutionsQ: "Hvilke Canvas-institusjoner støttes?",
     canvasInstitutionsA:
       "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas.",
+    vsCanvasQ: "Hvorfor bruke StudyWise når jeg allerede har Canvas?",
+    vsCanvasA:
+      "StudyWise erstatter ikke Canvas — vi er et supplement. Canvas er læringsplattformen der skolen din publiserer pensum, oppgaver og frister. StudyWise henter dette innholdet og legger på et lag som Canvas ikke har: KI-chat som svarer basert på ditt eget pensum, automatisk genererte quizer og flashcards fra forelesningsnotater, en ukentlig arbeidsplan som tilpasser seg fristene dine, og oppgavenedbrytning som deler store innleveringer i håndterbare steg. Du fortsetter å bruke Canvas som vanlig — StudyWise gjør det enklere å faktisk jobbe med innholdet som ligger der.",
+    supplementQ: "Erstatter StudyWise Canvas?",
+    supplementA:
+      "Nei. Canvas forblir den offisielle kanalen mellom deg og skolen — alle innleveringer, kunngjøringer og karakterer går fortsatt gjennom Canvas. StudyWise leser fra Canvas (med ditt API-token), men skriver aldri tilbake. Tenk på oss som studieassistenten som sitter ved siden av deg og hjelper deg å bruke Canvas-innholdet bedre.",
     dataSecureQ: "Er dataene mine trygge?",
     dataSecureA: "Ja. Sensitive data (som Canvas-token og chat-historikk) krypteres med bransjestandard kryptering før de lagres, og all kommunikasjon mellom nettleser og servere er kryptert (HTTPS). Les mer på vår",
     dataSecureLink: "sikkerhetsside",

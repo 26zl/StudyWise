@@ -5,7 +5,8 @@
  */
 "use client";
 
-import { Brain, FileText } from "lucide-react";
+import { Brain, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useCourseKnowledge } from "../../ki/ki-api";
 import { useLanguage } from "../../i18n";
 import { LoadingSpinner } from "../ui/Loading";
@@ -16,32 +17,66 @@ interface Props {
   courseId: number | string | null | undefined;
 }
 
+const STORAGE_KEY = "studwise.courseKnowledge.collapsed";
+
 export function CourseKnowledgePanel({ courseId }: Props) {
   const { t } = useLanguage();
   const { data, isLoading, isError } = useCourseKnowledge(courseId ?? null);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setCollapsed(window.localStorage.getItem(STORAGE_KEY) === "1");
+  }, []);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
+      }
+      return next;
+    });
+  };
 
   if (!courseId) return null;
 
   return (
     <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10 p-4">
-      <div className="flex items-center gap-2 mb-2">
-        <Brain className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-          {t("chat.knowledge.title")}
-        </h3>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Brain className="w-4 h-4 shrink-0 text-blue-600 dark:text-blue-400" />
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+            {t("chat.knowledge.title")}
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t("common.actions.show") : t("common.actions.hide")}
+          title={collapsed ? t("common.actions.show") : t("common.actions.hide")}
+          className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-blue-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-blue-900/30 transition-colors"
+        >
+          {collapsed ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronUp className="w-4 h-4" />
+          )}
+        </button>
       </div>
 
-      {isLoading && (
+      {!collapsed && isLoading && (
         <div className="py-2"><LoadingSpinner /></div>
       )}
 
-      {isError && (
+      {!collapsed && isError && (
         <p className="text-xs text-red-600 dark:text-red-400">
           {t("chat.knowledge.error")}
         </p>
       )}
 
-      {data && (
+      {!collapsed && data && (
         <>
           <p className="text-xs text-slate-600 dark:text-slate-400 mb-2">
             {t("chat.knowledge.summary")

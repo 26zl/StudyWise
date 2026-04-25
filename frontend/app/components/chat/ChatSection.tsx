@@ -2217,6 +2217,9 @@ export function ChatSection() {
                             {t("chat.inputHint")}
                         </p>
                     </div>
+                    <p className="mt-1.5 text-center text-[11px] leading-tight text-slate-400 dark:text-slate-500">
+                        {t("chat.aiDisclaimer")}
+                    </p>
                   </div>
                 </div>
             </div>

@@ -68,6 +68,22 @@ export default function FaqPage() {
             t("faq.canvasInstitutionsA"),
           ].join(" "),
         },
+        {
+          q: t("faq.vsCanvasQ"),
+          a: t("faq.vsCanvasA"),
+          searchText: [
+            t("faq.vsCanvasQ"),
+            t("faq.vsCanvasA"),
+          ].join(" "),
+        },
+        {
+          q: t("faq.supplementQ"),
+          a: t("faq.supplementA"),
+          searchText: [
+            t("faq.supplementQ"),
+            t("faq.supplementA"),
+          ].join(" "),
+        },
       ],
     },
     {

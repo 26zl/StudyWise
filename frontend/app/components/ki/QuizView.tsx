@@ -288,7 +288,7 @@ function ModeToggle({
 }) {
   return (
     <div
-      className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800"
+      className="flex w-full items-center gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1 dark:border-slate-700 dark:bg-slate-800 sm:inline-flex sm:w-auto"
       role="tablist"
       aria-label="Velg visning"
     >
@@ -298,13 +298,13 @@ function ModeToggle({
         role="tab"
         aria-selected={mode === "quiz" && setupTab === "ny"}
         className={cn(
-          "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200",
+          "flex flex-1 items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition-all duration-200 sm:flex-none sm:px-4",
           mode === "quiz" && setupTab === "ny"
             ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
             : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
         )}
       >
-        <Brain className="h-4 w-4" />
+        <Brain className="h-4 w-4 shrink-0" />
         Quiz
       </button>
       <button
@@ -313,13 +313,13 @@ function ModeToggle({
         role="tab"
         aria-selected={mode === "flashcards" && setupTab === "ny"}
         className={cn(
-          "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200",
+          "flex flex-1 items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition-all duration-200 sm:flex-none sm:px-4",
           mode === "flashcards" && setupTab === "ny"
             ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
             : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
         )}
       >
-        <Layers className="h-4 w-4" />
+        <Layers className="h-4 w-4 shrink-0" />
         Flashcards
       </button>
       <button
@@ -328,15 +328,15 @@ function ModeToggle({
         role="tab"
         aria-selected={setupTab === "lagrede"}
         className={cn(
-          "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200",
+          "flex flex-1 items-center justify-center gap-2 rounded-lg px-2 py-2.5 text-sm font-medium transition-all duration-200 sm:flex-none sm:px-4",
           setupTab === "lagrede"
             ? "bg-white text-slate-900 shadow-sm dark:bg-slate-900 dark:text-white"
             : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white",
         )}
       >
-        <BookOpen className="h-4 w-4" />
+        <BookOpen className="h-4 w-4 shrink-0" />
         Lagrede
-        <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-slate-200 px-1.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+        <span className="ml-1 inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-slate-200 px-1.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-100">
           {lagredeCount}
         </span>
       </button>

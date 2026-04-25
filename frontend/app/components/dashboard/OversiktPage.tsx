@@ -252,14 +252,15 @@ export function OversiktPage() {
                   {formaterDatoFull(new Date(), language)}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex shrink-0 items-center gap-3">
                 <Link
                   href="/dashboard"
                   prefetch={false}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  aria-label={t("overview.openChat")}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:px-4 sm:py-2"
                 >
                   <MessageSquare size={18} />
-                  <span>{t("overview.openChat")}</span>
+                  <span className="hidden sm:inline">{t("overview.openChat")}</span>
                 </Link>
               </div>
             </div>
