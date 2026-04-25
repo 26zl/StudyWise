@@ -8,9 +8,20 @@
 
 Tusen takk for at du tar deg tid til å hjelpe oss! StudyWise er en KI-basert studieassistent for høyere utdanning som vi utvikler som bacheloroppgave. Vi ønsker å forstå hvordan ekte studenter opplever appen i bruk, slik at vi kan dokumentere styrker og svakheter i oppgaven og forbedre produktet.
 
-**Tidsbruk:** ca. 20–25 minutter totalt
+**Tidsbruk:** ca. 25–30 minutter totalt
+
 - ~15 min: du løser noen oppgaver i StudyWise
-- ~5–10 min: du svarer på dette skjemaet
+- ~10–13 min: du svarer på dette skjemaet (53 spørsmål, men de fleste er raske avkryssninger)
+
+Slik fordeler skjemaet seg:
+
+| Seksjon | Antall spørsmål | Anslått tid |
+| --- | --- | --- |
+| 1 – Bakgrunn | 7 | ~1,5 min |
+| 2 – Oppgavebasert vurdering | 23 | ~3–4 min |
+| 3 – System Usability Scale (SUS) | 10 (samlet rutenett) | ~1,5 min |
+| 4 – Holdninger, læring og anbefaling | 9 | ~1,5 min |
+| 5 – Åpne tilbakemeldinger | 4 (valgfri tekst) | ~2–4 min |
 
 **Anonymitet:** Svarene dine er anonyme. Vi samler ikke inn navn eller e-post, og du kan hoppe over spørsmål du ikke ønsker å svare på. Dataene brukes kun i bacheloroppgaven og slettes etter sensur (juni 2026).
 
@@ -61,6 +72,26 @@ Når du er ferdig, fortsett til skjemaet under.
 - ☐ Laptop / stasjonær PC
 - ☐ Mobil
 - ☐ Nettbrett
+
+**1.5** Hvilken studieretning eller hvilket fagområde studerer du? *(Kort tekst – f.eks. "Informatikk", "Sykepleie", "Økonomi")*
+
+**1.6** Hvor mye tid bruker du på studier per uke i snitt?
+- ◯ Mindre enn 10 timer
+- ◯ 10–20 timer
+- ◯ 20–30 timer
+- ◯ 30–40 timer
+- ◯ Mer enn 40 timer
+
+**1.7** Hvilke andre studieverktøy bruker du i dag? *(Marker alle som passer)*
+- ☐ Notion
+- ☐ OneNote / Microsoft 365
+- ☐ Anki
+- ☐ Quizlet
+- ☐ ChatGPT / Claude / Gemini direkte
+- ☐ Google Docs / Drive
+- ☐ Obsidian / Logseq
+- ☐ Andre
+- ☐ Ingen
 
 ---
 
@@ -193,7 +224,13 @@ Tenk over hele opplevelsen din med StudyWise og angi hvor enig du er i hver pås
 
 **4.5** Det var lett å navigere mellom funksjonene (chat, kunnskapsbase, arbeidsplan, tidligere samtaler osv.).
 
-**4.6** Det var lett å eksportere eller dele en samtale med andre. *(Hopp over hvis du ikke prøvde.)*
+**4.6** Jeg lærte noe nytt under denne testen.
+
+**4.7** Jeg forsto pensumstoffet bedre etter å ha brukt KI-en. *(Likert 1–5, eller "Ikke aktuelt")*
+
+**4.8** Det var lett å eksportere eller dele en samtale med andre. *(Hopp over hvis du ikke prøvde.)*
+
+**4.9** På en skala fra 0 til 10, hvor sannsynlig er det at du anbefaler StudyWise til en venn eller medstudent? *(0 = Veldig usannsynlig, 10 = Veldig sannsynlig)*
 
 ---
 
@@ -275,6 +312,9 @@ Skjemaet er auditert mot faktiske ruter i `backend/src/rutere/` og sider i `fron
 | Samtalehistorikk + bokmerker (`kiHistory`, `SamtalerPage`, `BokmerkerPage`) | Bonusoppgave 8, 4.5 |
 | Eksport av samtaler (`kiExport`, `ChatExportModal`) | Bonusoppgave 8, 4.6 |
 | Deling av samtaler (`kiShare`, `ChatShareModal`, `share/[shareId]`) | Bonusoppgave 8, 4.6 |
-| Helhetsopplevelse og holdninger | SUS, 4.3, 4.4, 5.1–5.4 |
+| Demografi / segmentering | 1.5, 1.6, 1.7 |
+| Pedagogisk effekt / læringsutbytte | 4.6, 4.7 |
+| NPS (industristandard anbefalingsscore) | 4.9 |
+| Helhetsopplevelse og holdninger | SUS, 4.3, 4.4, 4.9, 5.1–5.4 |
 
 **Bevisst utelatt** (ikke kjernefunksjonalitet eller administrative): FAQ-side, kontaktskjema, status-side, om-oss-side, vilkår, sikkerhetsside, samt admin-paneler (`admin/`). Også sub-detaljer som `SmartSuggestions`, `AttachmentStrip` og `ChatExportModal`-knapper er ikke testet eksplisitt – de fanges opp av åpne tilbakemeldinger (5.1–5.4) hvis de skaper friksjon.

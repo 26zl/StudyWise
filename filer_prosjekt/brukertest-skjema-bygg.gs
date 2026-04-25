@@ -18,7 +18,7 @@ function byggBrukertestSkjema() {
     'Tusen takk for at du tar deg tid til å hjelpe oss! StudyWise er en KI-basert ' +
     'studieassistent for høyere utdanning som vi utvikler som bacheloroppgave. Vi ' +
     'ønsker å forstå hvordan ekte studenter opplever appen i bruk.\n\n' +
-    'Tidsbruk: ca. 20–25 minutter totalt (~15 min hands-on i appen + ~5–10 min på dette skjemaet).\n\n' +
+    'Tidsbruk: ca. 25–30 minutter totalt (~15 min hands-on i appen + ~10–13 min på dette skjemaet, 53 spørsmål – de fleste raske avkryssninger).\n\n' +
     'Anonymitet: Svarene dine er anonyme. Vi samler ikke inn navn eller e-post. ' +
     'Dataene brukes kun i bacheloroppgaven og slettes etter sensur (juni 2026).\n\n' +
     'Samtykke: Ved å sende inn skjemaet bekrefter du at du har lest informasjonen ' +
@@ -65,6 +65,38 @@ function byggBrukertestSkjema() {
   form.addCheckboxItem()
     .setTitle('1.4 På hvilken enhet testet du StudyWise?')
     .setChoiceValues(['Laptop / stasjonær PC', 'Mobil', 'Nettbrett'])
+    .setRequired(true);
+
+  form.addTextItem()
+    .setTitle('1.5 Hvilken studieretning eller hvilket fagområde studerer du?')
+    .setHelpText('F.eks. "Informatikk", "Sykepleie", "Økonomi"')
+    .setRequired(true);
+
+  form.addMultipleChoiceItem()
+    .setTitle('1.6 Hvor mye tid bruker du på studier per uke i snitt?')
+    .setChoiceValues([
+      'Mindre enn 10 timer',
+      '10–20 timer',
+      '20–30 timer',
+      '30–40 timer',
+      'Mer enn 40 timer'
+    ])
+    .setRequired(true);
+
+  form.addCheckboxItem()
+    .setTitle('1.7 Hvilke andre studieverktøy bruker du i dag?')
+    .setHelpText('Marker alle som passer.')
+    .setChoiceValues([
+      'Notion',
+      'OneNote / Microsoft 365',
+      'Anki',
+      'Quizlet',
+      'ChatGPT / Claude / Gemini direkte',
+      'Google Docs / Drive',
+      'Obsidian / Logseq',
+      'Andre',
+      'Ingen'
+    ])
     .setRequired(true);
 
   // ----------------------------------------------------------------
@@ -201,7 +233,8 @@ function byggBrukertestSkjema() {
     '4.2 Jeg forstår hva som skjer med dataene mine hvis jeg sletter kontoen min.',
     '4.3 Jeg ville anbefalt StudyWise til en medstudent.',
     '4.4 Jeg ville valgt StudyWise fremfor å bruke ChatGPT/Claude direkte til studier.',
-    '4.5 Det var lett å navigere mellom funksjonene (chat, kunnskapsbase, arbeidsplan, tidligere samtaler osv.).'
+    '4.5 Det var lett å navigere mellom funksjonene (chat, kunnskapsbase, arbeidsplan, tidligere samtaler osv.).',
+    '4.6 Jeg lærte noe nytt under denne testen.'
   ];
 
   form.addGridItem()
@@ -211,7 +244,14 @@ function byggBrukertestSkjema() {
     .setColumns(['1', '2', '3', '4', '5'])
     .setRequired(true);
 
-  leggTilLikertEnig('4.6 Det var lett å eksportere eller dele en samtale med andre. Hopp over hvis du ikke prøvde.', false);
+  leggTilLikertEnig('4.7 Jeg forsto pensumstoffet bedre etter å ha brukt KI-en. Hopp over hvis ikke aktuelt.', false);
+  leggTilLikertEnig('4.8 Det var lett å eksportere eller dele en samtale med andre. Hopp over hvis du ikke prøvde.', false);
+
+  form.addScaleItem()
+    .setTitle('4.9 På en skala fra 0 til 10, hvor sannsynlig er det at du anbefaler StudyWise til en venn eller medstudent?')
+    .setBounds(0, 10)
+    .setLabels('Veldig usannsynlig', 'Veldig sannsynlig')
+    .setRequired(true);
 
   // ----------------------------------------------------------------
   // SEKSJON 5 – Åpne tilbakemeldinger
