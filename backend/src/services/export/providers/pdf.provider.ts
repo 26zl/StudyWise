@@ -120,6 +120,10 @@ export class PdfExportProvider implements ExportProvider {
   }
 
   private renderBlock(doc: PDFKit.PDFDocument, block: ExportBlock): void {
+    // Tabeller bruker absolutt posisjonering og kan etterlate doc.x i
+    // høyre kolonne. Reset venstre marg før hvert nytt blokk slik at
+    // overskrifter og avsnitt ikke wrappes i en smal kolonne.
+    doc.x = doc.page?.margins.left ?? 50;
     switch (block.type) {
       case "heading":
         this.renderHeading(doc, block.level, block.segments);
@@ -161,8 +165,13 @@ export class PdfExportProvider implements ExportProvider {
   ): void {
     const fontSize = level === 1 ? FONT_SIZES.h1 : level === 2 ? FONT_SIZES.h2 : FONT_SIZES.h3;
     doc.moveDown(level === 1 ? 1 : 0.5);
-    doc.fontSize(fontSize).fillColor(COLORS.heading);
+    // Sørg for at overskriften alltid starter på venstre marg med full
+    // bredde, ellers kan pdfkit wrappe overskriften midt i et ord når
+    // tidligere innhold (typisk tabell) har etterlatt doc.x langt til høyre.
+    doc.x = doc.page?.margins.left ?? 50;
+    doc.fontSize(fontSize).fillColor(COLORS.heading).font("Helvetica-Bold");
     this.renderSegments(doc, segments);
+    doc.font("Helvetica");
     doc.moveDown(0.3);
   }
 
@@ -286,11 +295,15 @@ export class PdfExportProvider implements ExportProvider {
     if (allRows.length === 0) return;
 
     const colCount = Math.max(...allRows.map((r) => r.length));
-    const pageWidth = (doc.page?.width ?? 595) - 100; // A4 minus marginer
+    const marginLeft = doc.page?.margins.left ?? 50;
+    const marginRight = doc.page?.margins.right ?? 50;
+    const pageWidth = (doc.page?.width ?? 595) - marginLeft - marginRight;
     const cellPadding = 6;
-    const colWidth = Math.floor(pageWidth / colCount);
+    // Fordel kolonnene jevnt og bruk eksakt bredde (ikke floor) slik at
+    // siste kolonne ikke kollapser til 2–3 tegn pga. avrundingsfeil.
+    const colWidth = pageWidth / colCount;
     const rowHeight = 24;
-    const startX = 50;
+    const startX = marginLeft;
 
     doc.fontSize(FONT_SIZES.body - 1);
 
@@ -304,8 +317,15 @@ export class PdfExportProvider implements ExportProvider {
       const cellTexts = Array.from({ length: colCount }, (_, c) =>
         c < row.length ? stripEmoji(row[c].segments.map((s) => s.text).join("")) : "",
       );
+      // Sett font/størrelse FØR høydeberegning slik at heightOfString
+      // bruker samme metrikk som faktisk rendering.
+      doc.fontSize(FONT_SIZES.body - 1).font(isHeader ? "Helvetica-Bold" : "Helvetica");
       for (const text of cellTexts) {
-        const h = doc.heightOfString(text, { width: colWidth - cellPadding * 2 }) + cellPadding * 2;
+        const h =
+          doc.heightOfString(text, {
+            width: colWidth - cellPadding * 2,
+            lineBreak: true,
+          }) + cellPadding * 2;
         if (h > maxCellHeight) maxCellHeight = h;
       }
 
@@ -335,17 +355,31 @@ export class PdfExportProvider implements ExportProvider {
         doc.text(text, cellX + cellPadding, cellY + cellPadding, {
           width: colWidth - cellPadding * 2,
           height: maxCellHeight - cellPadding * 2,
+          lineBreak: true,
         });
       }
 
-      // Horisontal linje under raden
+      // Vertikale linjer for kolonner og horisontal linje under raden
       doc.strokeColor("#CBD5E1").lineWidth(0.5);
-      doc.moveTo(startX, cellY + maxCellHeight).lineTo(startX + pageWidth, cellY + maxCellHeight).stroke();
+      for (let c = 0; c <= colCount; c++) {
+        const x = startX + c * colWidth;
+        doc.moveTo(x, cellY).lineTo(x, cellY + maxCellHeight).stroke();
+      }
+      doc.moveTo(startX, cellY + maxCellHeight)
+        .lineTo(startX + pageWidth, cellY + maxCellHeight)
+        .stroke();
+      if (r === 0) {
+        // Topplinje på første rad
+        doc.moveTo(startX, cellY).lineTo(startX + pageWidth, cellY).stroke();
+      }
 
       // Flytt doc.y manuelt fordi vi bruker absolutt posisjonering
       doc.y = cellY + maxCellHeight;
     }
 
+    // Reset doc.x til venstre marg slik at neste blokk (overskrift,
+    // avsnitt) ikke fortsetter inne i siste kolonne og wrappes smalt.
+    doc.x = startX;
     doc.y += 4; // Litt luft etter tabell
     doc.moveDown(0.3);
   }

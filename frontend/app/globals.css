@@ -328,3 +328,66 @@ body {
         font-size: 0.875rem;
     }
 }
+
+/* --- Print / PDF eksport ----------------------------------------------
+ * Brukes når brukeren skriver ut chat-visningen eller eksporterer den
+ * via window.print(). Server-genererte PDF-er (pdfkit) påvirkes ikke,
+ * men disse reglene sikrer at HTML-print-stien ser ren ut: tabeller
+ * fordeles jevnt, overskrifter brytes ikke midt i ord, og chat-bobler
+ * splittes ikke over to sider.
+ */
+@media print {
+    body {
+        font-size: 11pt;
+        background: white !important;
+        color: #111;
+    }
+
+    table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
+        page-break-inside: auto;
+    }
+    th,
+    td {
+        word-break: break-word;
+        overflow-wrap: break-word;
+        padding: 6px 8px;
+        border: 1px solid #ddd;
+        vertical-align: top;
+    }
+    thead {
+        display: table-header-group;
+    }
+    tr {
+        page-break-inside: avoid;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        word-break: keep-all;
+        white-space: normal;
+        break-inside: avoid;
+        page-break-after: avoid;
+    }
+
+    .chat-message,
+    .message-bubble {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: white !important;
+        border-bottom: 1px solid #eee;
+    }
+
+    .sources-list {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}

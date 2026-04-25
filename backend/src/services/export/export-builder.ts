@@ -14,6 +14,18 @@ import type {
   TableCell,
 } from "common/export";
 
+// --- Rensing av interne XML-tagger ---
+
+/**
+ * AI-svar kan inneholde interne wrapper-tagger som <svar>...</svar> eller
+ * <answer>...</answer>. Disse er kun ment for intern parsing og skal aldri
+ * vises til brukeren — verken i UI eller i eksport. Funksjonen fjerner alle
+ * enkle XML-lignende tagger (åpning og lukking) fra teksten.
+ */
+export function stripInternalTags(text: string): string {
+  return text.replace(/<\/?[a-z_][a-z0-9_-]*>/gi, "").trim();
+}
+
 // --- Inline-parsing ---
 
 /**
@@ -257,8 +269,8 @@ export function buildExportDocument(
   metadata?: Record<string, unknown>,
 ): ExportDocument {
   return {
-    title,
+    title: stripInternalTags(title),
     metadata,
-    blocks: parseMarkdownToBlocks(markdownContent),
+    blocks: parseMarkdownToBlocks(stripInternalTags(markdownContent)),
   };
 }

@@ -76,11 +76,19 @@ const sanitizeSchema = {
 };
 
 
+/**
+ * Fjerner interne wrapper-tagger (<svar>, </svar>, <answer>, ...) som
+ * AI-modellen bruker internt. Disse skal aldri synes for brukeren.
+ */
+function stripInternalTags(text: string): string {
+  return text.replace(/<\/?[a-z_][a-z0-9_-]*>/gi, "").trim();
+}
+
 function AssistantMarkdown({ innhold }: { innhold: string }) {
   // useDeferredValue lar React hoppe over mellomliggende render-stadier under
   // rask streaming — markdown-parsingen (remark+rehype+KaTeX+sanitize) er
   // tung, så deferred rendering holder UI-tråden responsiv.
-  const deferred = useDeferredValue(innhold);
+  const deferred = useDeferredValue(stripInternalTags(innhold));
   return (
     <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
       <ReactMarkdown
