@@ -85,14 +85,14 @@
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "kill-port": "^2.0.1",
-    "knip": "^6.6.1",
+    "knip": "^6.6.3",
     "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "remark-cli": "^12.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
     "syncpack": "^14.3.0",
     "wait-on": "^9.0.5",
-    "wrangler": "^4.84.1"
+    "wrangler": "^4.85.0"
   },
   "pnpm": {
     "overrides": {
@@ -108,7 +108,8 @@
       "markdown-it": ">=14.1.1",
       "qs": ">=6.14.2",
       "minimatch": ">=10.2.1",
-      "uuid": ">=14.0.0"
+      "uuid": ">=14.0.0",
+      "postcss": ">=8.5.10"
     },
     "onlyBuiltDependencies": [
       "@clerk/shared",
