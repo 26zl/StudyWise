@@ -291,7 +291,7 @@ const COURSE_MATCH_STOPWORDS = new Set([
   "fall", "spring", "semester", "group", "study", "introduction",
 ]);
 
-const FULL_DOCUMENT_TRIGGER_WORDS = [
+export const FULL_DOCUMENT_TRIGGER_WORDS = [
   // Norsk — oppsummering/gjennomgang
   "oppsummere",
   "oppsummer",
@@ -354,6 +354,16 @@ const FULL_DOCUMENT_TRIGGER_WORDS = [
   "tell me about chapter",
   "tell me about module",
 ];
+
+/**
+ * Sjekker om en brukermelding inneholder et full-dokument-trigger-ord
+ * (oppsummering/fordypning/gjennomgang). Brukes også av kunnskapsbase for å
+ * aktivere full-dokument-modus på KB-innhold.
+ */
+export function isFullDocumentTrigger(message: string): string | null {
+  const rawLower = message.toLowerCase();
+  return FULL_DOCUMENT_TRIGGER_WORDS.find((word) => rawLower.includes(word)) ?? null;
+}
 
 /** Prefiksord som indikerer at et påfølgende tall refererer til en kapittel/modul/seksjon. */
 const NUMERIC_REFERENCE_PREFIXES =

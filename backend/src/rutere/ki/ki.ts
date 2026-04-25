@@ -10,7 +10,7 @@ import net from "net";
 import { logger } from "../../utils/logger.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import { getCache, setCache } from "../../cache/redis.js";
+import { getCache, setCache, deleteCacheKeys } from "../../cache/redis.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
     KIChatRequestSchema,
@@ -43,6 +43,7 @@ import {
   ContextResultSchema,
   type IntentType,
   type ContextResult,
+  isFullDocumentTrigger,
 } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { isStructuredCanvasQuery } from "../../services/canvasStructuredQueries.js";
@@ -51,7 +52,11 @@ import { knyttCanvasTokenValgfritt } from "../../middleware/auth.js";
 import { User } from "../../database/models/User.js";
 import { ChatHistory } from "../../database/models/ChatHistory.js";
 import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
-import { searchKBContent, buildKBContext } from "../../services/kunnskapsbase-indeksering.service.js";
+import {
+  searchKBContent,
+  buildKBContext,
+  loadFullKBContext,
+} from "../../services/kunnskapsbase-indeksering.service.js";
 import { createDefaultCanvasContextPreferences } from "common/auth";
 import {
   KB_CRAWL_MAX_DEPTH,
@@ -688,17 +693,33 @@ function kbSessionKey(userId: string, chatLockId: string): string {
   return chatScopedKey(userId, chatLockId, "active-kb");
 }
 
+// User-scoped fallback: lar oppfølgingsmeldinger finne aktiv KB selv om
+// chatLockId endrer seg (f.eks. ny hash når ny chatId-strategi brukes,
+// eller når frontend sender melding uten full historikk).
+function kbUserSessionKey(userId: string): string {
+  return `ki:user:${userId}:active-kb`;
+}
+
 function extractSlashKBBaseName(message: string): string | null {
   const trimmed = message.trim();
   // /skolebasen
   // /my base
-  // ignorerer /help, /? og URL-er
+  // ignorerer /help, /?, /av, /deaktiver og URL-er
   const slashMatch = trimmed.match(/^\/([^\s/][^\n]*)$/);
   if (!slashMatch?.[1]) return null;
   const candidate = slashMatch[1].trim();
   if (!candidate || candidate === "?" || candidate.toLowerCase() === "help") return null;
+  // /av og /deaktiver er reservert til deaktivering av aktiv KB
+  const lowered = candidate.toLowerCase();
+  if (lowered === "av" || lowered === "deaktiver") return null;
   if (candidate.startsWith("http://") || candidate.startsWith("https://")) return null;
   return candidate;
+}
+
+/** True hvis bruker sendte /av eller /deaktiver for å deaktivere aktiv KB. */
+function isKBDeactivateCommand(message: string): boolean {
+  const trimmed = message.trim().toLowerCase();
+  return trimmed === "/av" || trimmed === "/deaktiver";
 }
 
 function extractFirstHttpUrl(message: string): string | null {
@@ -2223,7 +2244,9 @@ Never guess or invent a name from email, username, or other profile fields.
 
     let hasActiveKnowledgeBaseSession = false;
     if (req.user?.id) {
-      const activeKbRawForIntent = await getCache(kbSessionKey(req.user.id, chatLockId));
+      const activeKbRawForIntent =
+        (await getCache(kbSessionKey(req.user.id, chatLockId)))
+        ?? (await getCache(kbUserSessionKey(req.user.id)));
       if (activeKbRawForIntent) {
         try {
           const parsed = JSON.parse(activeKbRawForIntent) as { id?: string; navn?: string };
@@ -2251,6 +2274,42 @@ Never guess or invent a name from email, username, or other profile fields.
         "KB-kontekst prioriteres over Canvas-intent når Canvas-token mangler",
       );
       intent = "general_chat";
+    }
+
+    // Når en KB-sesjon er aktiv (brukeren aktiverte basen eksplisitt med /)
+    // og meldingen IKKE refererer til noe Canvas-spesifikt (kurs/modul/fil),
+    // skal KB være primærkilde — speiler oppførselen brukeren forventer etter
+    // /basenavn: "oppsummer basen" skal ta utgangspunkt i den aktive basen,
+    // ikke i Canvas-pensum. Demoterer intent til general_chat så Canvas-
+    // kontekst ikke lastes og overskygger KB-innholdet i prompten.
+    if (
+      intent !== "general_chat" &&
+      (hasActiveKnowledgeBaseSession || mentionsKnowledgeBase) &&
+      !hasSlashKbCommandInLastMessage &&
+      !shouldPrioritizeDirectUrl
+    ) {
+      const kbScopeTarget = extractQueryTarget(lastUserMessage);
+      const kbScopeHasExplicitCourseSwitch = hasExplicitCourseOverride(lastUserMessage);
+      const kbScopeHasCanvasSignal =
+        kbScopeHasExplicitCourseSwitch
+        || !!kbScopeTarget.courseHint
+        || kbScopeTarget.courseIdHint !== null
+        || !!kbScopeTarget.moduleHint
+        || !!kbScopeTarget.fileHint;
+
+      if (!kbScopeHasCanvasSignal) {
+        logger.info(
+          {
+            previousIntent: intent,
+            overriddenIntent: "general_chat",
+            reason: "activeKnowledgeBaseSessionWithoutCanvasSignal",
+            hasActiveKnowledgeBaseSession,
+            messagePreview: lastUserMessage.substring(0, 120),
+          },
+          "Aktiv KB-sesjon prioriteres over Canvas når meldingen ikke har Canvas-signal",
+        );
+        intent = "general_chat";
+      }
     }
 
     if (intent === "general_chat" && req.user?.id) {
@@ -3253,11 +3312,45 @@ chapters/topics in this course material.
       enhancedSystemPrompt += studyContext;
     }
 
-    // ——— Kunnskapsbase via slash-kommando (/basenavn) + automatisk alias-match ———
+    // ——— Kunnskapsbase via slash-kommando (/basenavn), /av (deaktivering)
+    // + automatisk alias-match ———
     let kbKontekst = "";
     let liveUrlKontekst = "";
+    let kbFullDocumentMode = false;
+    let kbFullDocTriggerWord: string | null = null;
     const lastUserMessageForKB = trimmedMessages.filter((m) => m.role === "user").at(-1)?.content ?? "";
     const slashBaseName = extractSlashKBBaseName(lastUserMessageForKB);
+
+    // /av og /deaktiver deaktiverer aktiv KB for gjeldende chat.
+    if (isKBDeactivateCommand(lastUserMessageForKB)) {
+      const key = kbSessionKey(req.user!.id, chatLockId);
+      const userKey = kbUserSessionKey(req.user!.id);
+      const existingRaw = (await getCache(key)) ?? (await getCache(userKey));
+      let previousName: string | null = null;
+      if (existingRaw) {
+        try {
+          const parsed = JSON.parse(existingRaw) as { navn?: string };
+          previousName = parsed.navn ?? null;
+        } catch {
+          // ignorer ugyldig cacheverdi
+        }
+      }
+      await deleteCacheKeys([key, userKey]);
+      const responseText = previousName
+        ? `Kunnskapsbasen "${previousName}" er deaktivert. Videre meldinger bruker ikke denne basen.`
+        : "Ingen kunnskapsbase var aktivert. Bruk /basenavn for å aktivere en.";
+      logger.info(
+        { userId: req.user!.id, baseName: previousName, activation: "deactivated" },
+        "KB deaktivert via /av",
+      );
+      const payload = KIChatResponseSchema.parse({
+        suksess: true,
+        response: responseText,
+        model: resolvedRequestedModel,
+      });
+      if (writeSSE(res, payload)) res.end();
+      return;
+    }
 
     if (slashBaseName) {
       const escaped = escapeRegex(slashBaseName);
@@ -3285,13 +3378,11 @@ chapters/topics in this course material.
         return;
       }
 
-      await setCache(
-        kbSessionKey(req.user!.id, chatLockId),
-        JSON.stringify({ id: String(base._id), navn: base.navn }),
-        KB_SESSION_TTL,
-      );
+      const sessionPayload = JSON.stringify({ id: String(base._id), navn: base.navn });
+      await setCache(kbSessionKey(req.user!.id, chatLockId), sessionPayload, KB_SESSION_TTL);
+      await setCache(kbUserSessionKey(req.user!.id), sessionPayload, KB_SESSION_TTL);
 
-      const responseText = `Kunnskapsbasen "${base.navn}" er nå aktivert med /. Still et spørsmål om innholdet.`;
+      const responseText = `Kunnskapsbasen "${base.navn}" er nå aktivert. Still et spørsmål om innholdet — alle videre meldinger i denne samtalen bruker basen automatisk. Skriv /av for å deaktivere.`;
       const payload = KIChatResponseSchema.parse({
         suksess: true,
         response: responseText,
@@ -3301,43 +3392,98 @@ chapters/topics in this course material.
       return;
     }
 
-    const activeKbRaw = await getCache(kbSessionKey(req.user!.id, chatLockId));
+    const activeKbRaw =
+      (await getCache(kbSessionKey(req.user!.id, chatLockId)))
+      ?? (await getCache(kbUserSessionKey(req.user!.id)));
     if (activeKbRaw) {
+      // Re-prim chat-scoped key så senere lookups i samme samtale er raske.
+      await setCache(
+        kbSessionKey(req.user!.id, chatLockId),
+        activeKbRaw,
+        KB_SESSION_TTL,
+      );
       try {
         const parsed = JSON.parse(activeKbRaw) as { id?: string; navn?: string };
         if (parsed.id && parsed.navn) {
-          const kbResults = await searchKBContent(req.user!.id, parsed.id, lastUserMessageForKB, 8);
-          if (kbResults.length > 0) {
-            kbKontekst = buildKBContext(kbResults, parsed.navn);
-            kbKilder = mapKBResultsToChatSources(kbResults, parsed.navn, parsed.id);
-            enhancedSystemPrompt += `
+          // Full-dokument-modus når brukeren ber om oppsummering/fordypning —
+          // speiler Canvas-flytens fullDocumentMode slik at KB-oppsummeringer
+          // dekker HELE basen i dokumentrekkefølge i stedet for kun top-K.
+          const triggerWord = isFullDocumentTrigger(lastUserMessageForKB);
+          if (triggerWord) {
+            const fullDoc = await loadFullKBContext(req.user!.id, parsed.id, parsed.navn);
+            if (fullDoc.hasContent) {
+              kbKontekst = fullDoc.context;
+              kbKilder = mapKBResultsToChatSources(fullDoc.sources, parsed.navn, parsed.id);
+              kbFullDocumentMode = true;
+              kbFullDocTriggerWord = triggerWord;
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: parsed.id,
+                  baseName: parsed.navn,
+                  activation: "session",
+                  mode: "full_document",
+                  triggerWord,
+                  sourceCount: fullDoc.sources.length,
+                  truncated: fullDoc.truncated,
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB full-dokument-kontekst lagt til i prompt",
+              );
+            }
+          }
 
-## Kunnskapsbase (aktiv via /)
-
-Bruk innholdet i <kunnskapsbase>-taggene som primærkilde når det er relevant.
-Referer til kilde (fil/lenke) i svaret.
-`;
-            logger.info(
-              {
-                userId: req.user!.id,
-                baseId: parsed.id,
-                baseName: parsed.navn,
-                resultCount: kbResults.length,
-                activation: "session",
-                kbContextLength: kbKontekst.length,
-              },
-              "KB-kontekst lagt til i prompt (sesjonsaktiv base)",
-            );
-          } else {
-            logger.warn(
-              {
-                userId: req.user!.id,
-                baseId: parsed.id,
-                baseName: parsed.navn,
-                activation: "session",
-              },
-              "KB aktiv via sesjon, men søk ga ingen treff — KB-kontekst utelatt",
-            );
+          if (!kbKontekst) {
+            const kbResults = await searchKBContent(req.user!.id, parsed.id, lastUserMessageForKB, 12);
+            if (kbResults.length > 0) {
+              kbKontekst = buildKBContext(kbResults, parsed.navn);
+              kbKilder = mapKBResultsToChatSources(kbResults, parsed.navn, parsed.id);
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: parsed.id,
+                  baseName: parsed.navn,
+                  resultCount: kbResults.length,
+                  activation: "session",
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB-kontekst lagt til i prompt (sesjonsaktiv base)",
+              );
+            } else {
+              // Sesjonen er aktiv, men semantisk søk ga 0 treff (typisk når
+              // basen er liten eller spørringen er bred). Last hele basen
+              // slik at KI har faktisk innhold å svare fra i stedet for å
+              // hallusinere "har ikke tilgang".
+              const fullDoc = await loadFullKBContext(req.user!.id, parsed.id, parsed.navn);
+              if (fullDoc.hasContent) {
+                kbKontekst = fullDoc.context;
+                kbKilder = mapKBResultsToChatSources(fullDoc.sources, parsed.navn, parsed.id);
+                kbFullDocumentMode = true;
+                logger.info(
+                  {
+                    userId: req.user!.id,
+                    baseId: parsed.id,
+                    baseName: parsed.navn,
+                    activation: "session",
+                    mode: "full_document_fallback",
+                    sourceCount: fullDoc.sources.length,
+                    truncated: fullDoc.truncated,
+                    kbContextLength: kbKontekst.length,
+                  },
+                  "KB sesjonsaktiv: 0 søketreff — fallback til full-dokument-kontekst",
+                );
+              } else {
+                logger.warn(
+                  {
+                    userId: req.user!.id,
+                    baseId: parsed.id,
+                    baseName: parsed.navn,
+                    activation: "session",
+                  },
+                  "KB aktiv via sesjon, men ingen indeksert innhold — KB-kontekst utelatt",
+                );
+              }
+            }
           }
         }
       } catch {
@@ -3372,49 +3518,278 @@ Referer til kilde (fil/lenke) i svaret.
         const match = scored[0]?.base;
         if (match) {
           const matchId = String(match._id);
-          const kbResults = await searchKBContent(req.user!.id, matchId, lastUserMessageForKB, 8);
-          if (kbResults.length > 0) {
-            kbKontekst = buildKBContext(kbResults, match.navn);
-            kbKilder = mapKBResultsToChatSources(kbResults, match.navn, matchId);
-            await setCache(
-              kbSessionKey(req.user!.id, chatLockId),
-              JSON.stringify({ id: matchId, navn: match.navn }),
-              KB_SESSION_TTL,
-            );
+          const triggerWord = isFullDocumentTrigger(lastUserMessageForKB);
+          if (triggerWord) {
+            const fullDoc = await loadFullKBContext(req.user!.id, matchId, match.navn);
+            if (fullDoc.hasContent) {
+              kbKontekst = fullDoc.context;
+              kbKilder = mapKBResultsToChatSources(fullDoc.sources, match.navn, matchId);
+              kbFullDocumentMode = true;
+              kbFullDocTriggerWord = triggerWord;
+              await setCache(
+                kbSessionKey(req.user!.id, chatLockId),
+                JSON.stringify({ id: matchId, navn: match.navn }),
+                KB_SESSION_TTL,
+              );
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: matchId,
+                  baseName: match.navn,
+                  activation: "auto_match",
+                  mode: "full_document",
+                  triggerWord,
+                  sourceCount: fullDoc.sources.length,
+                  truncated: fullDoc.truncated,
+                  aliases,
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB full-dokument-kontekst lagt til i prompt (auto-matchet)",
+              );
+            }
+          }
 
-            enhancedSystemPrompt += `
-
-## Kunnskapsbase (automatisk matchet)
-
-Bruk innholdet i <kunnskapsbase>-taggene som primærkilde når det er relevant.
-Referer til kilde (fil/lenke) i svaret.
-`;
-            logger.info(
-              {
-                userId: req.user!.id,
-                baseId: matchId,
-                baseName: match.navn,
-                resultCount: kbResults.length,
-                activation: "auto_match",
-                aliases,
-                kbContextLength: kbKontekst.length,
-              },
-              "KB-kontekst lagt til i prompt (auto-matchet fra spørsmål)",
-            );
-          } else {
-            logger.warn(
-              {
-                userId: req.user!.id,
-                baseId: matchId,
-                baseName: match.navn,
-                activation: "auto_match",
-                aliases,
-              },
-              "KB auto-matchet fra spørsmål, men søk ga ingen treff — KB-kontekst utelatt",
-            );
+          if (!kbKontekst) {
+            const kbResults = await searchKBContent(req.user!.id, matchId, lastUserMessageForKB, 12);
+            if (kbResults.length > 0) {
+              kbKontekst = buildKBContext(kbResults, match.navn);
+              kbKilder = mapKBResultsToChatSources(kbResults, match.navn, matchId);
+              await setCache(
+                kbSessionKey(req.user!.id, chatLockId),
+                JSON.stringify({ id: matchId, navn: match.navn }),
+                KB_SESSION_TTL,
+              );
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: matchId,
+                  baseName: match.navn,
+                  resultCount: kbResults.length,
+                  activation: "auto_match",
+                  aliases,
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB-kontekst lagt til i prompt (auto-matchet fra spørsmål)",
+              );
+            } else {
+              logger.warn(
+                {
+                  userId: req.user!.id,
+                  baseId: matchId,
+                  baseName: match.navn,
+                  activation: "auto_match",
+                  aliases,
+                },
+                "KB auto-matchet fra spørsmål, men søk ga ingen treff — KB-kontekst utelatt",
+              );
+            }
           }
         }
       }
+    }
+
+    // Fallback: når brukeren refererer til "basen"/"kunnskapsbase" men
+    // verken Redis-sesjon (kan ha utløpt eller chatLockId-mismatch) eller
+    // alias-match traff, skann samtalehistorikken etter en tidligere
+    // /basenavn-aktivering. Sikrer at oppfølgingsspørsmål som "oppsummer
+    // linken i basen" finner riktig base selv om sesjonsnøkkelen er borte.
+    if (!kbKontekst && mentionsKnowledgeBase) {
+      const userMessages = trimmedMessages.filter((m) => m.role === "user");
+      let priorSlashName: string | null = null;
+      for (let i = userMessages.length - 2; i >= 0; i--) {
+        const candidate = extractSlashKBBaseName(userMessages[i]?.content ?? "");
+        if (candidate) {
+          priorSlashName = candidate;
+          break;
+        }
+      }
+      if (priorSlashName) {
+        const escaped = escapeRegex(priorSlashName);
+        const priorBase = await KnowledgeBase.findOne({
+          userId: req.user!.id,
+          // eslint-disable-next-line security/detect-non-literal-regexp -- escaped via escapeRegex()
+          navn: { $regex: new RegExp(`^${escaped}$`, "i") },
+        })
+          .select("_id navn")
+          .lean();
+        if (priorBase) {
+          const priorBaseId = String(priorBase._id);
+          const triggerWord = isFullDocumentTrigger(lastUserMessageForKB);
+          if (triggerWord) {
+            const fullDoc = await loadFullKBContext(req.user!.id, priorBaseId, priorBase.navn);
+            if (fullDoc.hasContent) {
+              kbKontekst = fullDoc.context;
+              kbKilder = mapKBResultsToChatSources(fullDoc.sources, priorBase.navn, priorBaseId);
+              kbFullDocumentMode = true;
+              kbFullDocTriggerWord = triggerWord;
+              await setCache(
+                kbSessionKey(req.user!.id, chatLockId),
+                JSON.stringify({ id: priorBaseId, navn: priorBase.navn }),
+                KB_SESSION_TTL,
+              );
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: priorBaseId,
+                  baseName: priorBase.navn,
+                  activation: "history_scan",
+                  mode: "full_document",
+                  triggerWord,
+                  sourceCount: fullDoc.sources.length,
+                  truncated: fullDoc.truncated,
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB full-dokument-kontekst lagt til i prompt (historikk-scan)",
+              );
+            }
+          }
+          if (!kbKontekst) {
+            const kbResults = await searchKBContent(
+              req.user!.id,
+              priorBaseId,
+              lastUserMessageForKB,
+              12,
+            );
+            if (kbResults.length > 0) {
+              kbKontekst = buildKBContext(kbResults, priorBase.navn);
+              kbKilder = mapKBResultsToChatSources(kbResults, priorBase.navn, priorBaseId);
+              await setCache(
+                kbSessionKey(req.user!.id, chatLockId),
+                JSON.stringify({ id: priorBaseId, navn: priorBase.navn }),
+                KB_SESSION_TTL,
+              );
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: priorBaseId,
+                  baseName: priorBase.navn,
+                  resultCount: kbResults.length,
+                  activation: "history_scan",
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB-kontekst lagt til i prompt (historikk-scan)",
+              );
+            }
+          }
+        }
+      }
+
+      // Andre fallback: hvis brukeren har nøyaktig én kunnskapsbase totalt
+      // og refererer til "basen", er intensjonen utvetydig.
+      if (!kbKontekst) {
+        const baser = await KnowledgeBase.find({ userId: req.user!.id })
+          .select("_id navn")
+          .lean();
+        if (baser.length === 1) {
+          const only = baser[0]!;
+          const onlyId = String(only._id);
+          const triggerWord = isFullDocumentTrigger(lastUserMessageForKB);
+          if (triggerWord) {
+            const fullDoc = await loadFullKBContext(req.user!.id, onlyId, only.navn);
+            if (fullDoc.hasContent) {
+              kbKontekst = fullDoc.context;
+              kbKilder = mapKBResultsToChatSources(fullDoc.sources, only.navn, onlyId);
+              kbFullDocumentMode = true;
+              kbFullDocTriggerWord = triggerWord;
+              await setCache(
+                kbSessionKey(req.user!.id, chatLockId),
+                JSON.stringify({ id: onlyId, navn: only.navn }),
+                KB_SESSION_TTL,
+              );
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: onlyId,
+                  baseName: only.navn,
+                  activation: "single_base_fallback",
+                  mode: "full_document",
+                  triggerWord,
+                  sourceCount: fullDoc.sources.length,
+                  truncated: fullDoc.truncated,
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB full-dokument-kontekst lagt til i prompt (eneste base)",
+              );
+            }
+          }
+          if (!kbKontekst) {
+            const kbResults = await searchKBContent(req.user!.id, onlyId, lastUserMessageForKB, 12);
+            if (kbResults.length > 0) {
+              kbKontekst = buildKBContext(kbResults, only.navn);
+              kbKilder = mapKBResultsToChatSources(kbResults, only.navn, onlyId);
+              await setCache(
+                kbSessionKey(req.user!.id, chatLockId),
+                JSON.stringify({ id: onlyId, navn: only.navn }),
+                KB_SESSION_TTL,
+              );
+              logger.info(
+                {
+                  userId: req.user!.id,
+                  baseId: onlyId,
+                  baseName: only.navn,
+                  resultCount: kbResults.length,
+                  activation: "single_base_fallback",
+                  kbContextLength: kbKontekst.length,
+                },
+                "KB-kontekst lagt til i prompt (eneste base)",
+              );
+            }
+          }
+        }
+      }
+    }
+
+    // Førsterangs system-prompt-blokk for aktiv KB — speiler Canvas' anti-
+    // hallusinasjons-guard så kunnskapsbasen behandles som en primærkilde.
+    // Blokken legges til ETTER at kbKontekst faktisk er lastet (inneholder
+    // innhold — tom-kontekst-tag har eget fallback-budskap inne i taggen).
+    if (kbKontekst) {
+      enhancedSystemPrompt += `
+
+## ANTI-HALLUSINASJON — KUNNSKAPSBASE AKTIV
+
+Kunnskapsbase-kontekst er allerede lastet inn i meldingen over (markert
+<kunnskapsbase>). Innholdet kommer fra brukerens egne indekserte filer og
+lenker. Behandle dette som en primærkilde på linje med Canvas-pensum.
+
+**Du skal ALDRI si** (med mindre <kunnskapsbase> er tom):
+- "Jeg har ikke tilgang til innholdet"
+- "Du må laste opp filen på nytt"
+- "Kopier og lim inn teksten"
+- "Jeg kan ikke lese filene dine"
+- "Innholdet i kunnskapsbasen er ikke tilgjengelig"
+
+**Hovedregel**: Hvis brukeren spør om et tema basen dekker, skal du svare
+direkte fra <kunnskapsbase>. Nevn kort hvilken fil/lenke svaret bygger på
+("Basert på [kildenavn] i kunnskapsbasen..."). Ikke be om opplasting og
+ikke diskutér hvorfor et eksakt nøkkelord ikke finnes — bruk det nærmeste
+relevante innholdet og vær ærlig hvis et detaljspørsmål ikke er dekket.
+
+Tilgangen er allerede håndtert. Hvis det står innhold i <kunnskapsbase>, er
+det ditt å bruke — svar brukeren direkte.
+`;
+    }
+
+    if (kbFullDocumentMode) {
+      enhancedSystemPrompt += `
+
+## Full Document Mode — Kunnskapsbase
+
+Du har fått HELE innholdet i den aktive kunnskapsbasen nedenfor, i
+dokumentrekkefølge per kilde (${kbFullDocTriggerWord ? `trigger: "${kbFullDocTriggerWord}"` : "oppsummering"}).
+Svaret ditt må bygge EKSKLUSIVT på dette innholdet.
+
+- Dekk alle hovedtemaer som faktisk står i <kunnskapsbase>
+- Grupper etter kilde (fil/lenke) når det hjelper leseren
+- Ikke finn på seksjoner, eksempler eller tall som ikke finnes i kilden
+- Hvis en kilde bare dekker deler av temaet, si det eksplisitt i stedet
+  for å fylle inn fra allmennkunnskap
+- Hvis konteksten er markert \`truncated="true"\`, oppsummer det som
+  faktisk er lastet og nevn kort at mer innhold finnes i basen
+
+Gi en pedagogisk, fyldig gjennomgang — ikke bare en overskrifts-liste.
+Referer til kildenavnet (fil/lenke) når du siterer konkrete poeng.
+`;
     }
 
     // Direkte URL i melding (pdf/nettside) prioriteres alltid når bruker faktisk sendte URL.
@@ -3534,12 +3909,20 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       kbKontekst.length >= 12000 ||
       shouldEscalateGeneralChatToSonnet
     );
+    // Når KB er i full-dokument-modus trenger svaret samme budsjett som
+    // Canvas' fullDocumentMode så oppsummeringer ikke blir kuttet. Deep-
+    // triggere (utdyp/mer om) får 10k, standard oppsummering får 7k.
+    const kbDeepTrigger = kbFullDocTriggerWord
+      ? classifyTriggerWord(kbFullDocTriggerWord) === "deep"
+      : false;
+    const kbFullDocMaxTokens = kbFullDocumentMode ? (kbDeepTrigger ? 10000 : 7000) : 0;
+    const kbFullDocTimeoutMs = kbFullDocumentMode ? (kbDeepTrigger ? 240000 : 200000) : 0;
     const maxTokens = heavyGeneralChat
-      ? Math.max(baseMaxTokens, 2200)
-      : baseMaxTokens;
+      ? Math.max(baseMaxTokens, 2200, kbFullDocMaxTokens)
+      : Math.max(baseMaxTokens, kbFullDocMaxTokens);
     const TIMEOUT_MS = heavyGeneralChat
-      ? Math.max(baseTimeoutMs, 60000)
-      : baseTimeoutMs;
+      ? Math.max(baseTimeoutMs, 60000, kbFullDocTimeoutMs)
+      : Math.max(baseTimeoutMs, kbFullDocTimeoutMs);
     logger.info(
       {
         intent,

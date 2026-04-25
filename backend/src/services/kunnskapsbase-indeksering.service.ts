@@ -579,6 +579,115 @@ function sanitizeKBBodyText(text: string): string {
 }
 
 /**
+ * Laster alt lagret innhold for en aktiv kunnskapsbase i dokumentrekkefølge
+ * (per kilde, sortert etter chunkIndex) og pakker det inn i en
+ * <kunnskapsbase>-kontekst. Brukes ved oppsummerings-/fordypnings-spørsmål der
+ * semantisk top-K-søk ikke er tilstrekkelig — speiler Canvas-flytens
+ * `fullDocumentMode` hvor hele dokumentet injiseres i stedet for rangerte
+ * chunks.
+ *
+ * Pakker inn chunks opp til `maxTokens` (default 60k) for å beskytte
+ * kontekstvinduet; resten markeres som trunkert slik at modellen kan være
+ * ærlig om manglende innhold.
+ */
+export async function loadFullKBContext(
+  userId: string,
+  baseId: string,
+  baseName: string,
+  maxTokens = 60000,
+): Promise<{ context: string; sources: KBSearchResult[]; truncated: boolean; hasContent: boolean }> {
+  const ownsBase = await KnowledgeBase.exists({ _id: baseId, userId });
+  if (!ownsBase) {
+    logger.warn({ userId, baseId }, "KB full-doc last avvist: base tilhører ikke bruker");
+    return {
+      context: buildKBContext([], baseName),
+      sources: [],
+      truncated: false,
+      hasContent: false,
+    };
+  }
+
+  const chunks = await KBContentChunk.find({ userId, baseId })
+    .sort({ sourceName: 1, sourceId: 1, chunkIndex: 1 })
+    .lean();
+
+  if (chunks.length === 0) {
+    return {
+      context: buildKBContext([], baseName),
+      sources: [],
+      truncated: false,
+      hasContent: false,
+    };
+  }
+
+  const safeBaseName = sanitizeForPromptTag(baseName);
+  const sections: string[] = [];
+  const sources: KBSearchResult[] = [];
+  let tokensUsed = 0;
+  let truncated = false;
+  let currentSourceId: string | null = null;
+  let currentBuffer: string[] = [];
+  let currentMeta: { sourceName: string; sourceType: "link" | "file"; sourceUrl?: string } | null =
+    null;
+
+  const flushCurrent = () => {
+    if (!currentMeta || currentBuffer.length === 0) return;
+    const kildetype = currentMeta.sourceType === "file" ? "Fil" : "Lenke";
+    const safeName = sanitizeForPromptTag(currentMeta.sourceName);
+    const body = sanitizeKBBodyText(currentBuffer.join("\n\n"));
+    sections.push(`--- ${kildetype}: ${safeName} ---\n${body}\n--- SLUTT ---`);
+    sources.push({
+      text: body,
+      sourceId: currentSourceId ?? undefined,
+      sourceName: currentMeta.sourceName,
+      sourceType: currentMeta.sourceType,
+      sourceUrl: currentMeta.sourceUrl,
+    });
+    currentBuffer = [];
+    currentMeta = null;
+  };
+
+  for (const chunk of chunks) {
+    if (tokensUsed + chunk.tokenCount > maxTokens) {
+      truncated = true;
+      break;
+    }
+    if (chunk.sourceId !== currentSourceId) {
+      flushCurrent();
+      currentSourceId = chunk.sourceId;
+      currentMeta = {
+        sourceName: chunk.sourceName,
+        sourceType: chunk.sourceType,
+        sourceUrl: chunk.sourceUrl,
+      };
+    }
+    currentBuffer.push(chunk.text);
+    tokensUsed += chunk.tokenCount;
+  }
+  flushCurrent();
+
+  const header = truncated
+    ? `<kunnskapsbase name="${safeBaseName}" status="aktiv" mode="full" truncated="true">`
+    : `<kunnskapsbase name="${safeBaseName}" status="aktiv" mode="full">`;
+  const context = `${header}\n${sections.join("\n\n")}\n</kunnskapsbase>`;
+
+  logger.info(
+    {
+      userId,
+      baseId,
+      baseName,
+      sourceCount: sources.length,
+      chunkCount: chunks.length,
+      tokensUsed,
+      truncated,
+    },
+    "KB full-doc-kontekst bygget",
+  );
+
+  return { context, sources, truncated, hasContent: sources.length > 0 };
+}
+
+/**
  * Bygger kontekststreng for KI-chatten fra KB-søkeresultater.
  * Returnerer alltid en kontekst når baseName er oppgitt, selv uten resultater,
  * slik at KI-en vet at basen er aktiv.
