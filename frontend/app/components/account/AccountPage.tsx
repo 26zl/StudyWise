@@ -24,6 +24,7 @@ import { UsernameConflictError } from "@/app/lib/errors";
 import { useLanguage } from "@/app/i18n";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
 import { useUIStore } from "@/app/store/uiStore";
+import { isValidUsernameFormat } from "common/auth";
 
 function normalizeName(value: string | null | undefined): string {
   return (value ?? "").trim();
@@ -197,7 +198,13 @@ export function AccountPage() {
     const profileUpdate: ProfileUpdateWithUsername = {};
     if (clerkFirstName !== localFirstName) profileUpdate.firstName = clerkFirstName;
     if (clerkLastName !== localLastName) profileUpdate.lastName = clerkLastName;
-    if (clerkUsername !== localUsername && clerkUsername.length > 0) {
+    // Clerk kan auto-sette SSO-brukernavn fra e-post/provider-data.
+    // Ikke autosynk verdier StudyWise uansett vil avvise som ugyldig brukernavn.
+    if (
+      clerkUsername !== localUsername &&
+      clerkUsername.length > 0 &&
+      isValidUsernameFormat(clerkUsername)
+    ) {
       profileUpdate.username = clerkUsername;
     }
 
