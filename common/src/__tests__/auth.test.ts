@@ -180,16 +180,12 @@ describe("normalizeCanvasBaseUrl", () => {
 // ─── isValidFirstName / isValidLastName ─────────────────────────────────────
 
 describe("isValidFirstName", () => {
-  it("godtar navn med minst 2 tegn", () => {
+  it("godtar navn med flere tegn", () => {
     expect(isValidFirstName("Ola")).toBe(true);
   });
 
-  it("godtar navn med nøyaktig 2 tegn", () => {
-    expect(isValidFirstName("Li")).toBe(true);
-  });
-
-  it("avviser enkelt tegn (initial)", () => {
-    expect(isValidFirstName("O")).toBe(false);
+  it("godtar enkelt tegn (initial)", () => {
+    expect(isValidFirstName("O")).toBe(true);
   });
 
   it("avviser tom streng", () => {
@@ -205,17 +201,17 @@ describe("isValidFirstName", () => {
   });
 
   it("trimmer mellomrom (kun mellomrom avvises)", () => {
-    expect(isValidFirstName("  O  ")).toBe(false);
+    expect(isValidFirstName("     ")).toBe(false);
   });
 });
 
 describe("isValidLastName", () => {
-  it("godtar etternavn med minst 2 tegn", () => {
+  it("godtar etternavn med flere tegn", () => {
     expect(isValidLastName("Nordmann")).toBe(true);
   });
 
-  it("avviser enkelt tegn", () => {
-    expect(isValidLastName("N")).toBe(false);
+  it("godtar enkelt tegn", () => {
+    expect(isValidLastName("N")).toBe(true);
   });
 
   it("avviser null", () => {
@@ -238,16 +234,16 @@ describe("isProfileIncomplete", () => {
     expect(isProfileIncomplete({ lastName: "Nordmann" })).toBe(true);
   });
 
-  it("returnerer true når etternavn er for kort", () => {
-    expect(isProfileIncomplete({ firstName: "Ola", lastName: "N" })).toBe(true);
+  it("returnerer false når etternavn er én bokstav", () => {
+    expect(isProfileIncomplete({ firstName: "Ola", lastName: "N" })).toBe(false);
   });
 
   it("returnerer false for komplett profil", () => {
     expect(isProfileIncomplete({ firstName: "Ola", lastName: "Nordmann" })).toBe(false);
   });
 
-  it("returnerer true når begge er for korte", () => {
-    expect(isProfileIncomplete({ firstName: "O", lastName: "N" })).toBe(true);
+  it("returnerer false når begge er enkeltbokstaver", () => {
+    expect(isProfileIncomplete({ firstName: "O", lastName: "N" })).toBe(false);
   });
 });
 
@@ -448,13 +444,13 @@ describe("PreferencesUpdateSchema", () => {
 // ─── ProfileUpdateSchema ────────────────────────────────────────────────────
 
 describe("ProfileUpdateSchema", () => {
-  it("godtar fornavn med minst 2 tegn", () => {
+  it("godtar fornavn med flere tegn", () => {
     const resultat = ProfileUpdateSchema.safeParse({ firstName: "Ola" });
     expect(resultat.success).toBe(true);
   });
 
-  it("avviser fornavn under 2 tegn", () => {
-    expect(ProfileUpdateSchema.safeParse({ firstName: "O" }).success).toBe(false);
+  it("godtar enkeltbokstavs fornavn (initial fra OAuth)", () => {
+    expect(ProfileUpdateSchema.safeParse({ firstName: "O" }).success).toBe(true);
   });
 
   it("krever minst ett felt", () => {
@@ -491,8 +487,8 @@ describe("Konstanter", () => {
     expect(VARSLER_MAX_IDS).toBe(500);
   });
 
-  it("MIN_NAME_LENGTH er 2", () => {
-    expect(MIN_NAME_LENGTH).toBe(2);
+  it("MIN_NAME_LENGTH er 1", () => {
+    expect(MIN_NAME_LENGTH).toBe(1);
   });
 
   it("USERNAME_MIN_LENGTH er 4", () => {

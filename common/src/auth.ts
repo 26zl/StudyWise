@@ -281,8 +281,8 @@ export const PreferencesUpdateSchema = z
     }
   });
 
-/** Minimumslengde for for-/etternavn for å regnes som komplett (unngår enkle initialer fra OAuth). */
-export const MIN_NAME_LENGTH = 2;
+/** Minimumslengde for for-/etternavn. Tillater initialer (f.eks. "L"/"Z") fra OAuth-providere. */
+export const MIN_NAME_LENGTH = 1;
 export const MAX_NAME_LENGTH = 256;
 
 /** Sjekker om fornavn er gyldig (ikke bare en initial). */

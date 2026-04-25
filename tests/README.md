@@ -11,7 +11,7 @@ pnpm test:auth         # Kun auth-tester
 pnpm test:ki           # Kun KI-tester
 pnpm test:canvas       # Kun Canvas-tester
 
-# Auth Matrix (120 scenarier definert, ~36 executable)
+# Auth Matrix (54 scenarier definert i scenario-definitions.ts)
 pnpm test:auth:matrix         # Kjør alle executable scenarier
 pnpm test:auth:matrix:basic   # Gruppe A: Basic signup uniqueness
 pnpm test:auth:matrix:oauth   # OAuth-scenarier
@@ -47,6 +47,8 @@ tests/
   helpers/
     env.ts                # Felles env-lasting (backend/.env + frontend/.env)
     log.ts                # Felles logg-hjelpere
+    a11y.ts               # Tilgjengelighets-hjelpere for axe-core
+    verbose-logger.ts     # Detaljert logg-utdata for diagnostiske kjøringer
   auth/
     smoke.ts              # Auth-ruter (public + guard) smoke
     smoke-e2e.spec.ts     # Stabil Playwright smoke for auth-sider (CI-gate)
