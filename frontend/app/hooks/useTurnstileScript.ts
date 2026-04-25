@@ -150,13 +150,15 @@ export function useTurnstileScript({
   // Rydd opp widget ved unmount
   useEffect(() => {
     return () => {
-      if (widgetIdRef.current) {
-        const turnstile = getTurnstile();
-        try {
-          turnstile?.remove(widgetIdRef.current);
-        } catch { /* ignorer */ }
-        widgetIdRef.current = null;
-      }
+      const id = widgetIdRef.current;
+      if (!id) return;
+      // Nullstill ref FØR remove for å hindre at React 19 Strict Mode-dobbel-mount
+      // eller hot-reload trigger remove() to ganger på samme widgetId.
+      widgetIdRef.current = null;
+      const turnstile = getTurnstile();
+      try {
+        turnstile?.remove(id);
+      } catch { /* widgeten kan allerede være fjernet av React */ }
     };
   }, []);
 

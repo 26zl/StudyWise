@@ -1459,14 +1459,17 @@ router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response
     if (!userId) return;
 
     const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
     const { ChatHistory } = await import("../../database/models/ChatHistory.js");
     const { Arbeidsplan } = await import("../../database/models/arbeidsplan.js");
     const { TaskBreakdown } = await import("../../database/models/TaskBreakdown.js");
     const { StudyContext } = await import("../../database/models/StudyContext.js");
     const { ActivityLog } = await import("../../database/models/ActivityLog.js");
-    const { getIsoWeekInfo } = await import("common/dateUtils");
+    const { getIsoWeekInfo, startOfTodayInOslo } = await import("common/dateUtils");
+
+    // Bruk Oslo-tidssone for "i dag"-grensen (Heroku kjører UTC; norske brukere
+    // er i CET/CEST). Uten dette ville statistikken inkludert sen-kvelds-aktivitet
+    // fra forrige norske dag og utelatt aktivitet før kl 02:00 norsk tid i dag.
+    const todayStart = startOfTodayInOslo(now);
 
     // Kjør alle queries parallelt for best ytelse
     const [chatCount, chatActivityTimestamps, taskResult, studyContextResult, arbeidsplan, activityIntervals] = await Promise.all([

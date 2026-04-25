@@ -6,6 +6,7 @@ import { getClerkAuthHeaders } from "./clerkTokenForApi";
 import { withCsrfProtection } from "./csrf";
 
 /** sessionStorage-nøkkel for sist observerte X-Request-ID fra en feilet API-respons. */
+// deepcode ignore HardcodedNonCryptoSecret: ikke en hemmelighet — kun en sessionStorage-nøkkel for klient-state.
 const LAST_API_ERROR_REQUEST_ID_KEY = "studywise:lastApiErrorRequestId";
 
 /**
@@ -170,6 +171,7 @@ export async function downloadAuthedFile(
       a.target = "_blank";
     }
     a.rel = "noopener noreferrer";
+    // deepcode ignore DOMXSS: href er en lokal blob:-URL validert via URL-konstruktør, filnavn sanitert mot path-traversal/kontrolltegn.
     document.body.appendChild(a);
     a.click();
     a.remove();

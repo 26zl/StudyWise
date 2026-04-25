@@ -2,7 +2,7 @@
  * LagretFlashcardSett – lagret flashcard-sett per bruker, med historikk over øvelsesøkter.
  * Økter er capped til LAGRET_FLASHCARD_MAX_OKTER (eldste droppes).
  */
-import mongoose, { Schema, type HydratedDocument } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import type { Flashcard } from "common/ki";
 import type { FlashcardOkt } from "common/flashcardsLagret";
 
@@ -36,8 +36,6 @@ export interface LagretFlashcardSettDocument {
   createdAt: Date;
   updatedAt: Date;
 }
-
-export type LagretFlashcardSettHydratedDocument = HydratedDocument<LagretFlashcardSettDocument>;
 
 const LagretFlashcardSettSchema = new Schema<LagretFlashcardSettDocument>(
   {

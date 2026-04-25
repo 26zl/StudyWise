@@ -936,6 +936,7 @@ async function submitAndPollJob<T>(
       throw new DOMException("Forespørselen ble avbrutt.", "AbortError");
     }
 
+    // deepcode ignore DOMXSS: jobId er validert som z.uuid() via AsyncJobAcceptedSchema; statusPathPrefix er hardkodet kallerstreng. Ingen DOM-skriving.
     const statusRes = await fetchApi(`${statusPathPrefix}/${jobId}`, { signal });
     if (!statusRes.ok) continue;
 

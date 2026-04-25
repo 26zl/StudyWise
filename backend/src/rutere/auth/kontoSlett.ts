@@ -30,6 +30,7 @@ import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { deleteAllKBContentForUser } from "../../services/kunnskapsbase-indeksering.service.js";
 import { SystemAnnouncement } from "../../database/models/SystemAnnouncement.js";
+import { FileExtractionStatus } from "../../database/models/FileExtractionStatus.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -119,6 +120,7 @@ export async function deleteAccountData(
         KnowledgeBase.deleteMany({ userId }, { session }),
         KBContentChunk.deleteMany({ userId }, { session }),
         ActivityLog.deleteMany({ user: id }, { session }),
+        FileExtractionStatus.deleteMany({ userId }, { session }),
         // Anonymiser publishedBy på systemmeldinger denne brukeren har publisert
         // (kun relevant hvis en admin sletter kontoen sin). $unset fjerner referansen
         // uten å påvirke meldingens innhold eller aktive status.

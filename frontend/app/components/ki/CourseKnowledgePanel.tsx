@@ -71,6 +71,7 @@ export function CourseKnowledgePanel({ courseId }: Props) {
                         showToast.error(t("errors.generic.download"));
                         return;
                       }
+                      // deepcode ignore DOMXSS: trygFileId er heltall-validert; downloadAuthedFile kontrollerer at URL starter med /api/.
                       void downloadAuthedFile(
                         `/api/canvas/filer/${trygFileId}/download`,
                         f.fileName,

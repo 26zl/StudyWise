@@ -26,15 +26,6 @@ async function hentLagredeQuizer(): Promise<LagretQuiz[]> {
   return data.quizer;
 }
 
-async function hentLagretQuiz(id: string): Promise<LagretQuiz> {
-  const res = await fetchApi(`/api/quiz/lagrede/${encodeURIComponent(id)}`, { method: "GET" });
-  if (!res.ok) {
-    throw new Error(await parseApiError(res, "Kunne ikke hente lagret quiz"));
-  }
-  const data = LagretQuizResponseSchema.parse(await res.json());
-  return data.quiz;
-}
-
 async function lagreQuiz(request: LagreQuizRequest): Promise<LagretQuiz> {
   const parsed = LagreQuizRequestSchema.parse(request);
   const res = await fetchApi("/api/quiz/lagrede", {
@@ -79,15 +70,6 @@ export function useLagredeQuizer() {
   return useQuery({
     queryKey: QUIZ_LAGRET_QUERY_KEY,
     queryFn: hentLagredeQuizer,
-    staleTime: 1000 * 30,
-  });
-}
-
-export function useLagretQuiz(id: string | null | undefined) {
-  return useQuery({
-    queryKey: [...QUIZ_LAGRET_QUERY_KEY, id ?? ""],
-    queryFn: () => hentLagretQuiz(id as string),
-    enabled: Boolean(id),
     staleTime: 1000 * 30,
   });
 }

@@ -511,13 +511,7 @@ export async function searchKBContent(
         .lean();
     }
 
-    const mapped = chunks.map((c) => ({
-      text: c.text,
-      sourceId: c.sourceId,
-      sourceName: c.sourceName,
-      sourceType: c.sourceType,
-      sourceUrl: c.sourceUrl,
-    }));
+    const mapped = chunks.map(toKBSearchResult);
     await logOutcome("mongodb_recent", mapped.length, pineconeFailed);
     return mapped;
   }
@@ -535,16 +529,27 @@ export async function searchKBContent(
     .limit(preferLinkResults ? topK * 3 : topK)
     .lean();
 
-  const mapped = chunks.map((c) => ({
-    text: c.text,
-    sourceId: c.sourceId,
-    sourceName: c.sourceName,
-    sourceType: c.sourceType,
-    sourceUrl: c.sourceUrl,
-  }));
+  const mapped = chunks.map(toKBSearchResult);
   const prioritized = prioritizeKBResults(mapped, topK, preferLinkResults);
   await logOutcome("mongodb_regex", prioritized.length, pineconeFailed);
   return prioritized;
+}
+
+/** Mapper en MongoDB-chunk til KBSearchResult-format. Brukes av begge MongoDB-fallback-stier. */
+function toKBSearchResult(chunk: {
+  text: string;
+  sourceId?: string;
+  sourceName: string;
+  sourceType: "link" | "file";
+  sourceUrl?: string;
+}): KBSearchResult {
+  return {
+    text: chunk.text,
+    sourceId: chunk.sourceId,
+    sourceName: chunk.sourceName,
+    sourceType: chunk.sourceType,
+    sourceUrl: chunk.sourceUrl,
+  };
 }
 
 /**
@@ -590,6 +595,13 @@ function sanitizeKBBodyText(text: string): string {
  * kontekstvinduet; resten markeres som trunkert slik at modellen kan være
  * ærlig om manglende innhold.
  */
+/**
+ * Hard øvre grense på antall chunks som lastes i full-dokument-modus.
+ * Beskytter mot baser med patologisk mange små chunks. Token-budsjettet
+ * (`maxTokens`) er primær mekanisme; dette er backup mot worst-case.
+ */
+const MAX_FULL_KB_CHUNKS = 800;
+
 export async function loadFullKBContext(
   userId: string,
   baseId: string,
@@ -607,9 +619,17 @@ export async function loadFullKBContext(
     };
   }
 
+  const totalChunks = await KBContentChunk.countDocuments({ userId, baseId });
   const chunks = await KBContentChunk.find({ userId, baseId })
     .sort({ sourceName: 1, sourceId: 1, chunkIndex: 1 })
+    .limit(MAX_FULL_KB_CHUNKS)
     .lean();
+  if (totalChunks > MAX_FULL_KB_CHUNKS) {
+    logger.warn(
+      { userId, baseId, totalChunks, maxFullKbChunks: MAX_FULL_KB_CHUNKS },
+      "KB full-doc: antall chunks overskrider tak — kun de første lastes",
+    );
+  }
 
   if (chunks.length === 0) {
     return {
@@ -624,7 +644,7 @@ export async function loadFullKBContext(
   const sections: string[] = [];
   const sources: KBSearchResult[] = [];
   let tokensUsed = 0;
-  let truncated = false;
+  let truncated = totalChunks > MAX_FULL_KB_CHUNKS;
   let currentSourceId: string | null = null;
   let currentBuffer: string[] = [];
   let currentMeta: { sourceName: string; sourceType: "link" | "file"; sourceUrl?: string } | null =

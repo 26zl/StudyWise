@@ -1050,13 +1050,13 @@ function QuizResults({
         </div>
       </div>
 
-      <div className="flex items-center justify-center gap-4">
+      <div className="flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+          className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
         >
-          <ArrowLeft className="w-5 h-5" />
+          <ArrowLeft className="h-5 w-5" />
           {t("quiz.newQuiz")}
         </button>
         <button
@@ -1064,7 +1064,7 @@ function QuizResults({
           onClick={onRestart}
           className="flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-base font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
-          <RotateCcw className="w-5 h-5" />
+          <RotateCcw className="h-5 w-5" />
           {t("chat.retryButton")}
         </button>
         {onSave && (
@@ -1072,9 +1072,9 @@ function QuizResults({
             type="button"
             onClick={onSave}
             disabled={isSaving}
-            className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+            className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
           >
-            <Save className="w-5 h-5" />
+            <Save className="h-5 w-5" />
             {isSaving ? "Lagrer..." : "Lagre quiz"}
           </button>
         )}
@@ -1082,9 +1082,9 @@ function QuizResults({
           <button
             type="button"
             onClick={onOpenSaved}
-            className="flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 text-base font-medium text-slate-600 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
+            className="flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3 text-base font-medium text-slate-700 transition-all hover:border-slate-400 hover:text-slate-900 dark:border-slate-600 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-white"
           >
-            <BookMarked className="w-5 h-5" />
+            <BookMarked className="h-5 w-5" />
             Se lagrede quizer
           </button>
         )}

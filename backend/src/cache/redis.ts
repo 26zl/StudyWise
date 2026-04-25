@@ -5,10 +5,20 @@
  * - allkeys-lru / volatile-lru: Redis evicter eldre nøkler; anbefalt for å unngå "nesten full"-varsler.
  */
 import { createClient } from "redis";
+import { brotliCompressSync, brotliDecompressSync, constants as zlibConstants } from "node:zlib";
 import { logger } from "../utils/logger.js";
 import { configureRedisLogBuffer } from "../utils/logBuffer.js";
 
 import { isProd } from "../utils/env.js";
+
+/**
+ * Marker-prefiks for brotli-komprimerte cache-verdier. Kontrolltegn (0x01) som
+ * IKKE kan forekomme i gyldig JSON-strenginnhold uten escape — så vi unngår
+ * kollisjon med ekte data. Verdier større enn `COMPRESS_THRESHOLD` lagres
+ * komprimert (typisk 70–80 % reduksjon på JSON-respons fra Canvas).
+ */
+const COMPRESSED_VALUE_PREFIX = "\x01BR1:";
+const COMPRESS_THRESHOLD = 100 * 1024; // 100 KB
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 const redisUrl = process.env.REDIS_URL!;
 
@@ -112,7 +122,22 @@ export const getCache = async (key: string): Promise<string | null> => {
     return null;
   }
   try {
-    return await client.get(keyToUse);
+    const raw = await client.get(keyToUse);
+    if (raw === null) return null;
+    if (raw.startsWith(COMPRESSED_VALUE_PREFIX)) {
+      try {
+        const base64 = raw.slice(COMPRESSED_VALUE_PREFIX.length);
+        const compressed = Buffer.from(base64, "base64");
+        return brotliDecompressSync(compressed).toString("utf8");
+      } catch (decompressErr) {
+        logger.warn(
+          { err: decompressErr, key: keyToUse.slice(0, 80) },
+          "Redis getCache: brotli-dekomprimering feilet — returnerer null",
+        );
+        return null;
+      }
+    }
+    return raw;
   } catch (error) {
     logger.warn({ err: error }, "Redis error");
     return null;
@@ -131,15 +156,42 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
     return;
   }
   try {
-    const valueSize = Buffer.byteLength(value, "utf8");
-    // Redis maks value størrelse er 512MB, men vi advarer ved 1MB
-    if (valueSize > 1024 * 1024) {
-      logger.warn({ key, valueSize }, "Redis setCache: stor verdi (> 1MB)");
+    const originalSize = Buffer.byteLength(value, "utf8");
+    let payload = value;
+    let compressed = false;
+    let storedSize = originalSize;
+    if (originalSize > COMPRESS_THRESHOLD) {
+      try {
+        const compressedBuf = brotliCompressSync(Buffer.from(value, "utf8"), {
+          params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 4 },
+        });
+        const base64 = compressedBuf.toString("base64");
+        const candidate = COMPRESSED_VALUE_PREFIX + base64;
+        const candidateSize = Buffer.byteLength(candidate, "utf8");
+        // Bruk komprimert kun hvis det faktisk reduserer størrelsen.
+        if (candidateSize < originalSize) {
+          payload = candidate;
+          compressed = true;
+          storedSize = candidateSize;
+        }
+      } catch (compressErr) {
+        logger.warn(
+          { err: compressErr, key, originalSize },
+          "Redis setCache: brotli-komprimering feilet — lagrer ukomprimert",
+        );
+      }
     }
-    await client.set(keyToUse, value, {
+    // Redis maks value størrelse er 512MB, men vi advarer ved 1MB lagret.
+    if (storedSize > 1024 * 1024) {
+      logger.warn({ key, storedSize, originalSize, compressed }, "Redis setCache: stor verdi (> 1MB)");
+    }
+    await client.set(keyToUse, payload, {
       EX: ttlSeconds,
     });
-    logger.debug({ key, ttlSeconds, valueSize }, "Redis cache SET");
+    logger.debug(
+      { key, ttlSeconds, originalSize, storedSize, compressed },
+      "Redis cache SET",
+    );
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     const likelyFull = /OOM|maxmemory|command not allowed when used memory/i.test(msg);

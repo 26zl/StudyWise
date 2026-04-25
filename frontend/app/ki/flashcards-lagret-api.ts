@@ -26,17 +26,6 @@ async function hentLagredeSett(): Promise<LagretFlashcardSett[]> {
   return data.sett;
 }
 
-async function hentLagretSett(id: string): Promise<LagretFlashcardSett> {
-  const res = await fetchApi(`/api/flashcards/lagrede/${encodeURIComponent(id)}`, {
-    method: "GET",
-  });
-  if (!res.ok) {
-    throw new Error(await parseApiError(res, "Kunne ikke hente lagret flashcard-sett"));
-  }
-  const data = LagretFlashcardSettResponseSchema.parse(await res.json());
-  return data.sett;
-}
-
 async function lagreSett(request: LagreFlashcardSettRequest): Promise<LagretFlashcardSett> {
   const parsed = LagreFlashcardSettRequestSchema.parse(request);
   const res = await fetchApi("/api/flashcards/lagrede", {
@@ -83,15 +72,6 @@ export function useLagredeFlashcardSett() {
   return useQuery({
     queryKey: FLASHCARDS_LAGRET_QUERY_KEY,
     queryFn: hentLagredeSett,
-    staleTime: 1000 * 30,
-  });
-}
-
-export function useLagretFlashcardSett(id: string | null | undefined) {
-  return useQuery({
-    queryKey: [...FLASHCARDS_LAGRET_QUERY_KEY, id ?? ""],
-    queryFn: () => hentLagretSett(id as string),
-    enabled: Boolean(id),
     staleTime: 1000 * 30,
   });
 }

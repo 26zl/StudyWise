@@ -85,6 +85,11 @@ vi.mock("../../../database/models/KBContentChunk.js", () => ({
 vi.mock("../../../database/models/ActivityLog.js", () => ({
   ActivityLog: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
 }));
+vi.mock("../../../database/models/FileExtractionStatus.js", () => ({
+  FileExtractionStatus: {
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }),
+  },
+}));
 vi.mock("../../../database/models/DeletedUserTombstone.js", () => ({
   DeletedUserTombstone: {
     exists: vi.fn().mockResolvedValue(null),
@@ -160,6 +165,7 @@ import { ChatFeedback } from "../../../database/models/ChatFeedback.js";
 import { KnowledgeBase } from "../../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../../database/models/KBContentChunk.js";
 import { ActivityLog } from "../../../database/models/ActivityLog.js";
+import { FileExtractionStatus } from "../../../database/models/FileExtractionStatus.js";
 import { DeletedUserTombstone } from "../../../database/models/DeletedUserTombstone.js";
 import { deleteClerkUserById } from "../../../rutere/auth/clerkAuth.js";
 import { enqueueClerkDeletionRetry } from "../../../queues/clerkDeletion.queue.js";
@@ -240,6 +246,7 @@ describe("deleteAccountData", () => {
       expect(KnowledgeBase.deleteMany).toHaveBeenCalled();
       expect(KBContentChunk.deleteMany).toHaveBeenCalled();
       expect(ActivityLog.deleteMany).toHaveBeenCalled();
+      expect(FileExtractionStatus.deleteMany).toHaveBeenCalled();
       expect(deleteStoredUserMongoContent).toHaveBeenCalledWith(
         TEST_USER_ID,
         expect.anything(),

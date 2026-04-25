@@ -143,6 +143,18 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
     queryKey: KB_QUERY_KEYS.base(baseId),
     queryFn: () => hentKBBase(baseId),
     staleTime: 1000 * 60,
+    // Poll mens noe fortsatt er under indeksering — crawl/embedding skjer i
+    // bakgrunnen og frontend må re-hente for å se status gå fra
+    // "venter"/"crawling" → "fullført". Stopper polling når alt er ferdig.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      const harVentendeLenke = data.lenker?.some(
+        (l) => l.crawlStatus === "pending" || l.crawlStatus === "crawling",
+      );
+      const harUindeksertFil = data.filer?.some((f) => f.indexed === false);
+      return harVentendeLenke || harUindeksertFil ? 2000 : false;
+    },
   });
 
   // ─── Lenke-mutasjoner ──────────────────────────────────

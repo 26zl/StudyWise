@@ -713,6 +713,26 @@ export function pickRicherPrimaryCandidate<Candidate extends { charCount: number
  * `broaderPool` (typisk pre-rerank hybrid-resultater). Kap 1-filen kan
  * ligge der selv om den falt ut av top-6 etter Cohere-rerank.
  */
+/**
+ * Sjekker om filnavnet starter med et tall som matcher ett av hints.
+ * Eksempel: "2. Lage databasetabeller.html" + hint "2" → true.
+ *           "3. Likekoblinger ... leksjon 2" + hint "2" → false (starter med 3).
+ *           "Forelesning226.pdf" + hint "2" → false (starter med "Forelesning").
+ *           "F2 - Internett.pptx" + hint "2" → false (starter med bokstav).
+ *
+ * Brukes til å foretrekke filer som har tall-prefiks-konvensjon (f.eks.
+ * `"N. Tittel"`) over filer som tilfeldigvis nevner samme tall et annet sted
+ * i filnavnet, når flere kandidater matcher det samme numeriske hint.
+ */
+function fileNameStartsWithAnyNumericHint(fileName: string, hints: string[]): boolean {
+  if (hints.length === 0) return false;
+  const cleaned = cleanUrlEncodedFileName(fileName).trim();
+  const match = cleaned.match(/^0*(\d+)\b/);
+  if (!match) return false;
+  const leadingNumber = match[1];
+  return hints.includes(leadingNumber);
+}
+
 function velgPrimaerFilForFullDocument(
   message: string,
   filteredResults: HybridSearchResult[],
@@ -730,8 +750,32 @@ function velgPrimaerFilForFullDocument(
     return { primary: rerankedTop, overridden: false, numericHints };
   }
 
-  // Hvis top-resultatet allerede matcher filnavnet → ingen override
+  // Hvis top-resultatet allerede matcher filnavnet → vurder om en annen
+  // kandidat har tallet som filnavn-prefiks (f.eks. "2. Lage databasetabeller").
+  // Cohere-rerank kan plukke en fil som tilfeldigvis NEVNER tallet — observert
+  // i DAT1000 leksjon 2 hvor "3. Likekoblinger ... leksjon 2" vant over
+  // "2. Lage databasetabeller". Begge filnavn matcher hint "2", men kun den
+  // siste har "2." som prefiks, og er derfor mest sannsynlig brukerens intensjon.
   if (fileNameMatchesNumericHints(rerankedTop.source.fileName, numericHints)) {
+    const topStartsWithHint = fileNameStartsWithAnyNumericHint(
+      rerankedTop.source.fileName,
+      numericHints,
+    );
+    if (!topStartsWithHint) {
+      const startsWithMatch = filteredResults.find(
+        (r) =>
+          r.source.fileId !== rerankedTop.source.fileId
+          && fileNameStartsWithAnyNumericHint(r.source.fileName, numericHints),
+      );
+      if (startsWithMatch) {
+        return {
+          primary: startsWithMatch,
+          overridden: true,
+          numericHints,
+          originalPrimaryFile: rerankedTop.source.fileName,
+        };
+      }
+    }
     return { primary: rerankedTop, overridden: false, numericHints };
   }
 
@@ -2621,16 +2665,108 @@ async function byggKontekstFraHybridSearch(
             },
           };
         } else if (catalogMatch && !catalogHasRichContent) {
-          logger.info(
-            {
-              catalogMatchFile: catalogMatch.fileName,
-              catalogMatchFileId: catalogMatch.fileId,
-              catalogMatchChars: catalogMatch.charCount,
-              threshold: CATALOG_MATCH_MIN_CHARS,
-              keptPrimary: primary.source.fileName,
-            },
-            "Hopper over katalog-override: match er en tom wrapper/metadata-fil",
+          // Tom wrapper hoppet over — men la oss IKKE blindt falle tilbake
+          // til opprinnelig primary, som ofte er en eksamensfil eller
+          // urelatert innhold (rerank velger semantisk likhet, ikke
+          // kapittel-match).
+          //
+          // Steg A: rikere kandidat i samme numeric-match-pool (f.eks. en
+          // annen "Kapittel 3"-fil i kurset).
+          //
+          // Steg B: hvis primary er en eksamensfil og brukeren ikke spurte
+          // om eksamen, prøv å finne en pensum-/forelesningsfil i hybrid-
+          // søk-resultatene (de er allerede semantisk relevante for
+          // spørringen). Eksempel observert (2026-04-25): "WEB1100 leksjon 3"
+          // → wrapper "F5 - Kapittel 3.pptx" (331 tegn) hoppet over →
+          // primary fra rerank = "Eksamen WEB1100 2024 Høst Kont.docx" →
+          // svaret handlet om eksamensoppgaver, ikke leksjonsinnhold.
+          // Fix: promoter "Introduksjon til HTML og CSS.pptx" (også fra
+          // hybrid-treff, men ikke eksamensmodul).
+          const richerCandidate = candidates.find(
+            (f) =>
+              f.fileId !== catalogMatch!.fileId
+              && f.fileId !== primary.source.fileId
+              && f.charCount >= CATALOG_MATCH_MIN_CHARS,
           );
+
+          let nonExamHit: HybridSearchResult | null = null;
+          if (!richerCandidate) {
+            const moduleHintLower = (target?.moduleHint ?? "").toLowerCase();
+            const userAskedForExam = /\b(eksamen|exam|kont|prøvee|provee)/.test(moduleHintLower);
+            const looksLikeExam = (s: string) =>
+              /\b(eksamen|exam|kont|prøvee|provee|tidligere)\b/i.test(s);
+            const primaryLooksLikeExam =
+              looksLikeExam(primary.source.fileName ?? "")
+              || looksLikeExam(primary.source.moduleTitle ?? "");
+            if (primaryLooksLikeExam && !userAskedForExam) {
+              const charCountByFileId = new Map(
+                allCourseFiles.map((f) => [f.fileId, f.charCount] as const),
+              );
+              nonExamHit = filteredResults.find((r) => {
+                if (r.source.fileId === primary.source.fileId) return false;
+                if (looksLikeExam(r.source.fileName)) return false;
+                if (looksLikeExam(r.source.moduleTitle)) return false;
+                const chars = charCountByFileId.get(r.source.fileId) ?? 0;
+                return chars >= CATALOG_MATCH_MIN_CHARS;
+              }) ?? null;
+            }
+          }
+
+          if (richerCandidate) {
+            logger.info(
+              {
+                skippedThinFile: catalogMatch.fileName,
+                skippedFileChars: catalogMatch.charCount,
+                promotedFile: richerCandidate.fileName,
+                promotedFileChars: richerCandidate.charCount,
+                threshold: CATALOG_MATCH_MIN_CHARS,
+                originalPrimary: primary.source.fileName,
+              },
+              "Katalog-promotering: tom wrapper hoppet over til fordel for rikere kandidat med samme nummer-match",
+            );
+            primary = {
+              ...primary,
+              source: {
+                ...primary.source,
+                fileId: richerCandidate.fileId,
+                fileName: richerCandidate.fileName,
+                moduleTitle: richerCandidate.moduleTitle,
+              },
+            };
+          } else if (nonExamHit) {
+            logger.info(
+              {
+                skippedThinFile: catalogMatch.fileName,
+                skippedFileChars: catalogMatch.charCount,
+                originalPrimary: primary.source.fileName,
+                originalPrimaryModule: primary.source.moduleTitle,
+                promotedFile: nonExamHit.source.fileName,
+                promotedFileModule: nonExamHit.source.moduleTitle,
+                reason: "primary_was_exam_user_asked_for_lesson",
+              },
+              "Hybrid-søk-promotering: eksamensfil byttet ut med ikke-eksamen-treff fra rerank",
+            );
+            primary = {
+              ...primary,
+              source: {
+                ...primary.source,
+                fileId: nonExamHit.source.fileId,
+                fileName: nonExamHit.source.fileName,
+                moduleTitle: nonExamHit.source.moduleTitle,
+              },
+            };
+          } else {
+            logger.info(
+              {
+                catalogMatchFile: catalogMatch.fileName,
+                catalogMatchFileId: catalogMatch.fileId,
+                catalogMatchChars: catalogMatch.charCount,
+                threshold: CATALOG_MATCH_MIN_CHARS,
+                keptPrimary: primary.source.fileName,
+              },
+              "Hopper over katalog-override: match er en tom wrapper/metadata-fil og ingen rikere kandidat funnet",
+            );
+          }
         }
       }
 
@@ -2727,7 +2863,11 @@ async function byggKontekstFraHybridSearch(
       }
 
       if (fullDocument) {
-        const maxTokens = 20000;
+        // 22 000 tokens = ~88 000 tegn injection-budsjett. Dekker det aller meste
+        // av lange forelesningsnotater (~80 000–86 000 tegn) uten å ofre Claude-
+        // responstid eller kostnad nevneverdig. Hardt tak holder oss innenfor
+        // model-kontekstvinduet selv med full system prompt + chat-historikk.
+        const maxTokens = 22000;
         const estimatedChars = maxTokens * 4;
         const truncatedFullText = fullDocument.fullText.slice(0, estimatedChars);
         // Med chunked fullText-lagring kan ikke storage-truncation skje i
@@ -3486,6 +3626,7 @@ function byggEkstraksjonsFeilNotat(failures: IFileExtractionStatus[]): string {
         "- Fortell brukeren konkret at filen(e) finnes i Canvas, men at innholdet ikke kunne indekseres automatisk (typisk fordi slidene er bilder istedenfor tekst).",
         "- Anbefal brukeren å laste filen(e) opp manuelt i Kunnskapsbasen (Dashboard → Kunnskapsbase) for å aktivere KI-støtte på innholdet.",
         "- Hvis du har støttemateriell fra samme kurs (andre leksjoner, eksamener, sensorveiledning), kan du fortsatt bruke det — men vær tydelig på at det ikke erstatter selve filen.",
+        "- VIKTIG: IKKE lag tabell eller liste over hvilke ANDRE filer/kapitler som er 'tilgjengelige' eller 'ikke tilgjengelige'. Du har kun ekstraksjonsstatus for filen(e) over — alle andre filer i kurset er UKJENT for deg på det punktet. Si heller 'Du kan spørre om andre kapitler/leksjoner i samme emne, så sjekker jeg om jeg har innhold for dem' istedenfor å gjette.",
         "</system-notat-filer-uten-innhold>",
         "",
       ].join("\n"),
@@ -3510,6 +3651,7 @@ function byggEkstraksjonsFeilNotat(failures: IFileExtractionStatus[]): string {
         "- Fortell brukeren at filen er delvis indeksert, men at mye av det faglige innholdet (hoved-poenger på slidene) sannsynligvis bare finnes som bilder og derfor ikke er tilgjengelig som tekst.",
         "- Anbefal brukeren å laste filen opp manuelt i Kunnskapsbasen (Dashboard → Kunnskapsbase) for fullstendig KI-dekning av innholdet.",
         "- Støttemateriell fra samme kurs (andre leksjoner, eksamener, sensorveiledning) kan brukes som supplement.",
+        "- VIKTIG: IKKE lag tabell eller liste over hvilke ANDRE filer/kapitler i kurset som er 'tilgjengelige' eller 'ikke tilgjengelige'. Du kjenner kun status for filen(e) over. Si heller 'Spør gjerne om andre kapitler/leksjoner i samme emne, så sjekker jeg' istedenfor å gjette.",
         "</system-notat-filer-med-partielt-innhold>",
         "",
       ].join("\n"),

@@ -18,11 +18,15 @@
  * - Feilede eller korte "beklager"-svar
  *
  * Nøkkelstruktur:
- *   chat-response:v1:{primaryCourseId}:{primaryFileId}:{triggerClass}:{moduleHint}
+ *   chat-response:v3:{tenantPrefix}:{primaryCourseId}:{primaryFileId}:{triggerClass}:{moduleHint}
+ *
+ * tenantPrefix er en sha256-kort-hash av Canvas-baseUrl (samme funksjon som
+ * canvasUtils.getCanvasTenantCachePrefix). Dette hindrer at to ulike Canvas-
+ * institusjoner som tilfeldigvis bruker samme courseId-tall får krysslekkasje.
  *
  * Brukeren er ikke del av nøkkelen fordi innholdet er deterministisk på
- * (courseId, fileId, trigger-klasse). To studenter som begge har tilgang til
- * samme kurs og spør samme spørsmål skal få samme svar.
+ * (tenant, courseId, fileId, trigger-klasse). Studenter på samme tenant som
+ * begge har tilgang til samme kurs og spør samme spørsmål skal få samme svar.
  *
  * Autoriserings-sjekk må fortsatt kjøres separat — caller er ansvarlig for
  * å verifisere at brukeren har courseId i sin Canvas-katalog før getCachedResponse
@@ -55,16 +59,17 @@ export type CachedChatResponse = z.infer<typeof CachedChatResponseSchema>;
  * deler cache (identisk intent), men "utdyp" får egen cache (annet intent →
  * annet svar-format).
  *
- * "deep" dekker både eksplisitt fordypning ("utdyp", "mer om") og full-
- * gjennomgang-triggere ("gå igjennom", "ta denne"). Begge krever høyere
- * max_tokens (8000) for å unngå truncation av 20k+ tegn PDF-er.
+ * "deep" dekker både eksplisitt fordypning ("utdyp", "mer om", "dypere",
+ * "detaljert", "fortsett") og full-gjennomgang-triggere ("gå igjennom",
+ * "ta denne"). Begge krever høyere max_tokens (8000) for å unngå
+ * truncation av 20k+ tegn PDF-er.
  *
  * Eksporteres slik at ki.ts kan bruke samme klassifikasjon til å velge
  * max_tokens — enkeltsannhetskilde forhindrer drift mellom cache-nøkkel
  * og token-allokering.
  */
 export function classifyTriggerWord(triggerWord: string): "deep" | "standard" {
-  return /\b(utdyp|utdype|mer om|fortell mer|forklar mer|gå igjennom|gjennomgå|gi gjennomgang|ta denne)/i.test(
+  return /\b(utdyp|utdype|mer om|fortell mer|forklar mer|forklar nærmere|forklar grundig|forklar bedre|forklar dypere|forklar i detalj|gå igjennom|gjennomgå|gi gjennomgang|ta denne|dypere|dyptgående|i detalj|detaljert|mer detaljert|mer utfyllende|utfyllende|fyldig|fyldigere|fortsett|nærmere|grundig|grundigere|omfattende|uttømmende|lengre svar|mer informasjon|med eksempler|gi eksempler|gi noen eksempler|konkrete eksempler|praktiske eksempler|flere eksempler|illustrer|illustrere|vis hvordan|case-studie|scenario|fortell meg mer|si mer|kom med eksempler|komme med eksempler)/i.test(
     triggerWord,
   )
     ? "deep"
@@ -81,6 +86,7 @@ function normalizeModuleHint(moduleHint: string): string {
 }
 
 export interface ChatResponseCacheKeyInput {
+  tenantPrefix: string;
   primaryCourseId: string;
   primaryFileId: number;
   triggerWord: string | null;
@@ -95,6 +101,7 @@ export interface ChatResponseCacheKeyInput {
 export function buildChatResponseCacheKey(
   input: ChatResponseCacheKeyInput,
 ): string | null {
+  if (!input.tenantPrefix) return null;
   if (!input.primaryCourseId || !input.primaryFileId) return null;
   if (!input.moduleHint && !input.fileHint) return null;
   const triggerClass = input.triggerWord
@@ -103,13 +110,12 @@ export function buildChatResponseCacheKey(
   const hintPart = input.moduleHint
     ? normalizeModuleHint(input.moduleHint)
     : `file-${input.fileHint?.slice(0, 40) ?? "unknown"}`;
-  // Versjonsnummer oppdateres når system-prompten endrer vesentlig oppførsel.
-  // v1 → v2 (2026-04-23): la til anti-hallusinasjons-guard og proaktiv-bruk-
-  // regel som hindrer AI i å si "last opp filen" når Canvas-kontekst faktisk
-  // finnes. Gamle v1-svar inneholder forbudte formuleringer og må ikke
-  // lenger serveres — bumpen gjør alle eksisterende v1-nøkler utilgjengelige
-  // (de utløper naturlig via 24t TTL).
-  return `chat-response:v2:${input.primaryCourseId}:${input.primaryFileId}:${triggerClass}:${hintPart}`;
+  // Versjonsnummer oppdateres når system-prompten endrer vesentlig oppførsel
+  // eller cache-nøkkel-strukturen endres.
+  // v2 → v3 (2026-04-25): la til tenantPrefix som første komponent for å
+  // hindre krysslekkasje mellom Canvas-tenants som deler courseId-tall.
+  // Gamle v2-nøkler er utilgjengelige etter bumpen og utløper via 24t TTL.
+  return `chat-response:v3:${input.tenantPrefix}:${input.primaryCourseId}:${input.primaryFileId}:${triggerClass}:${hintPart}`;
 }
 
 export async function getCachedChatResponse(

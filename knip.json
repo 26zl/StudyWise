@@ -2,8 +2,13 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.mjs"],
-      "ignoreDependencies": ["@rolldown/binding-win32-x64-msvc", "remark-preset-lint-recommended"]
+      "entry": ["scripts/*.mjs", "cloudflare/worker.js"],
+      "ignoreDependencies": [
+        "@rolldown/binding-win32-x64-msvc",
+        "remark-preset-lint-recommended",
+        "lint-staged",
+        "wrangler"
+      ]
     },
     "common": {
       "entry": ["src/**/*.ts"],

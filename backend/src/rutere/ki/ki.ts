@@ -33,6 +33,7 @@ import {
   getCachedChatResponse,
   setCachedChatResponse,
 } from "../../services/chat-response-cache.service.js";
+import { getCanvasTenantCachePrefix } from "../canvas/canvasUtils.js";
 import { chatCompletion } from "./aiClient.js";
 import { handleAIError, checkAIClientUnavailable, classifyAIError } from "./handleAIError.js";
 import {
@@ -675,8 +676,6 @@ function capHistoryMessageSizes<T extends { role: string; content: string }>(
     return { ...msg, content: `${head}${SEPARATOR}${tail}` };
   });
 }
-
-const KB_SESSION_TTL = 3600;
 
 /**
  * Bygger Redis-nøkkel for chat-scoped state. Alt som hører til en samtale
@@ -1929,7 +1928,7 @@ router.use(kiFeedbackRouter);
 // Dokumentanalyse ruter
 router.use(kiAnalyseRouter);
 
-import { KI_TIMEOUT_MS, SESSION_CONTEXT_TTL } from "./kiConstants.js";
+import { KI_TIMEOUT_MS, SESSION_CONTEXT_TTL, KB_SESSION_TTL } from "./kiConstants.js";
 
 /** Maks ventetid på Canvas-sync før vi fortsetter med API/vector — kortere = raskere første svar, sync fortsetter i bakgrunn */
 const SYNC_WAIT_MAX_MS = 1_500;
@@ -3268,12 +3267,21 @@ chapters/topics in this course material.
       && Array.isArray(contextKilder)
       && contextKilder.length >= 2;
     const useDeepBudget = isDeepTriggerWord || multiFileFullDoc;
+    // Deep-trigger i siste brukermelding ("forklar mer detaljert", "utdyp",
+    // "mer om", ...) bumper canvas_light/canvas_full-cap selv når
+    // full-dokument-mode ikke er aktiv. Observert truncation (finishReason
+    // "length", outputTokens=2000) på 6105N "kan du forklare dette mer
+    // detaljert?" der canvas_light bare hadde 2000 tokens — utdypings-
+    // oppfølginger trenger 2-3x mer plass enn vanlige metadata-svar.
+    const lastMessageHasDeepTrigger =
+      !fullDocumentModeActive
+      && classifyTriggerWord(lastUserMessage) === "deep";
     const baseMaxTokens = fullDocumentModeActive
       ? (useDeepBudget ? 10000 : 7000)
       : intent === "canvas_full"
-        ? 6000
+        ? (lastMessageHasDeepTrigger ? 8000 : 6000)
         : intent === "canvas_light"
-          ? 2000
+          ? (lastMessageHasDeepTrigger ? 4500 : 2000)
           : 1400;
     // Full dokument-mode timeout: deep-cap 10000 tokens kan ta ~180-210 s
     // på Sonnet 4.6 (lineær med output). 240 s gir buffer uten å risikere
@@ -3281,9 +3289,9 @@ chapters/topics in this course material.
     const baseTimeoutMs = fullDocumentModeActive
       ? (useDeepBudget ? 240000 : 200000)
       : intent === "canvas_full"
-        ? 120000
+        ? (lastMessageHasDeepTrigger ? 150000 : 120000)
         : intent === "canvas_light"
-          ? 60000
+          ? (lastMessageHasDeepTrigger ? 90000 : 60000)
           : 30000;
 
     // Token-basert trimming av samtalehistorikk.
@@ -3331,8 +3339,11 @@ chapters/topics in this course material.
         try {
           const parsed = JSON.parse(existingRaw) as { navn?: string };
           previousName = parsed.navn ?? null;
-        } catch {
-          // ignorer ugyldig cacheverdi
+        } catch (err) {
+          logger.warn(
+            { err, userId: req.user!.id, key },
+            "Ugyldig KB-session cacheverdi ved /av",
+          );
         }
       }
       await deleteCacheKeys([key, userKey]);
@@ -3392,9 +3403,23 @@ chapters/topics in this course material.
       return;
     }
 
+    // Bruker-scope-fallback skal IKKE blande KB inn i en chat som tydelig
+    // handler om et annet Canvas-kurs/modul/fil — observert at "Algoritmer"-KB
+    // aktivert i én OBJ2000-samtale lekket inn i en ny 6105N-samtale og dukket
+    // opp som kilder i svar om Modul I. Bare chat-scope brukes når meldingen
+    // har eksplisitt Canvas-signal; user-scope er fortsatt nyttig for
+    // oppfølgingsmeldinger som ikke har Canvas-referanser.
+    const kbFallbackTarget = extractQueryTarget(lastUserMessageForKB);
+    const messageHasCanvasSignal =
+      !!kbFallbackTarget.courseHint
+      || kbFallbackTarget.courseIdHint !== null
+      || !!kbFallbackTarget.moduleHint
+      || !!kbFallbackTarget.fileHint
+      || hasExplicitCourseOverride(lastUserMessageForKB);
+    const chatScopedKbRaw = await getCache(kbSessionKey(req.user!.id, chatLockId));
     const activeKbRaw =
-      (await getCache(kbSessionKey(req.user!.id, chatLockId)))
-      ?? (await getCache(kbUserSessionKey(req.user!.id)));
+      chatScopedKbRaw
+      ?? (messageHasCanvasSignal ? null : await getCache(kbUserSessionKey(req.user!.id)));
     if (activeKbRaw) {
       // Re-prim chat-scoped key så senere lookups i samme samtale er raske.
       await setCache(
@@ -3486,8 +3511,11 @@ chapters/topics in this course material.
             }
           }
         }
-      } catch {
-        // ignorer ugyldig cacheverdi
+      } catch (err) {
+        logger.warn(
+          { err, userId: req.user!.id },
+          "KB-sesjon: feilet under parsing eller kontekstlasting — fortsetter uten KB",
+        );
       }
     }
 
@@ -3967,8 +3995,12 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // fra Redis på ~2 sek i stedet for 60-140 sek. Cachen bygges først når
     // vi har sett et vellykket Claude-svar, så første spørring om en leksjon
     // tar normal tid — påfølgende er instant.
-    const cacheInput = fullDocumentModeActive && !crossCourseGuardTriggered && !referentialFollowUpInherited
+    const cacheInput = fullDocumentModeActive
+      && !crossCourseGuardTriggered
+      && !referentialFollowUpInherited
+      && req.canvasBaseUrl
       ? {
+          tenantPrefix: getCanvasTenantCachePrefix(req.canvasBaseUrl),
           primaryCourseId:
             tracePersistentPrimaryCourseId ??
             (traceCourseIdHint != null ? String(traceCourseIdHint) : ""),

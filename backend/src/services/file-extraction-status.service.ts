@@ -92,7 +92,7 @@ export async function markExtractionFailure(
         },
         $inc: { attemptCount: 1 },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true },
+      { upsert: true, returnDocument: "after", setDefaultsOnInsert: true },
     );
   } catch (err) {
     logger.warn(
@@ -141,20 +141,6 @@ export async function getExtractionFailuresForCourses(
       "Klarte ikke å hente FileExtractionStatus — returnerer tom liste",
     );
     return [];
-  }
-}
-
-/**
- * Sletter alle status-rader for en bruker — speiler deleteStoredUserContent
- * i embedding.service.ts. Brukes ved GDPR-sletting og full bruker-cleanup.
- */
-export async function clearAllExtractionFailuresForUser(
-  userId: string,
-): Promise<void> {
-  try {
-    await FileExtractionStatus.deleteMany({ userId });
-  } catch (err) {
-    logger.warn({ err, userId }, "Klarte ikke å slette FileExtractionStatus for bruker");
   }
 }
 

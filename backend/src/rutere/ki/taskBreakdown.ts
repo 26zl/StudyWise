@@ -17,7 +17,6 @@ import {
   TaskBreakdown,
   type TaskBreakdownHydratedDocument,
 } from "../../database/models/TaskBreakdown.js";
-import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
   SubTaskSchema,
   GeneratedSubTaskSchema,
@@ -35,7 +34,8 @@ import {
 } from "../../services/webPush.service.js";
 
 const router = Router();
-router.use(rateLimitKi);
+// rateLimitKi anvendes globalt på `/api/ki/*` via kiRuter — duplisering
+// her ville telt KI-bruk to ganger og senket den effektive grensen.
 
 /** Dedikert systemprompt for task breakdown — mye mindre enn full StudyWise-prompt. */
 const TASK_BREAKDOWN_SYSTEM_PROMPT = `Du er en ekspert studieveileder som bryter ned oppgaver i konkrete deloppgaver for studenter.

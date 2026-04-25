@@ -164,26 +164,25 @@ router.patch("/:id/okt", rateLimitKi, async (req: Request, res: Response) => {
     return;
   }
 
+  const okt = {
+    sessionId: randomUUID(),
+    date: new Date(),
+    totalCards: body.totalCards,
+    knewCount: body.knewCount,
+    didNotKnowCount: body.didNotKnowCount,
+  };
+
   try {
-    const doc = await LagretFlashcardSett.findOne({ _id: id, userId });
+    // Atomær push + slice — unngår race condition ved samtidige økter
+    const doc = await LagretFlashcardSett.findOneAndUpdate(
+      { _id: id, userId },
+      { $push: { sessions: { $each: [okt], $slice: -LAGRET_FLASHCARD_MAX_OKTER } } },
+      { returnDocument: "after" },
+    );
     if (!doc) {
       apiError.notFound(res, "Lagret flashcard-sett");
       return;
     }
-
-    const okt = {
-      sessionId: randomUUID(),
-      date: new Date(),
-      totalCards: body.totalCards,
-      knewCount: body.knewCount,
-      didNotKnowCount: body.didNotKnowCount,
-    };
-
-    doc.sessions.push(okt);
-    if (doc.sessions.length > LAGRET_FLASHCARD_MAX_OKTER) {
-      doc.sessions = doc.sessions.slice(-LAGRET_FLASHCARD_MAX_OKTER);
-    }
-    await doc.save();
 
     logger.info(
       { userId, settId: id, knewCount: okt.knewCount, totalCards: okt.totalCards },

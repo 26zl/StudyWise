@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   BookOpen,
   ChevronDown,
@@ -17,7 +18,7 @@ import { useLanguage } from "@/app/i18n";
 import { Footer } from "@/app/components/layout/footer";
 import { INFO_PAGE_INLINE_LINK_CLASSNAME } from "@/app/components/layout/InfoPageLayout";
 
-type FaqCategoryId = "canvas" | "security" | "account" | "features";
+type FaqCategoryId = "canvas" | "security" | "account" | "features" | "limitations";
 
 interface FaqItem {
   q: string;
@@ -235,6 +236,54 @@ export default function FaqPage() {
           q: t("faq.sharedChatsQ"),
           a: t("faq.sharedChatsA"),
           searchText: [t("faq.sharedChatsQ"), t("faq.sharedChatsA")].join(" "),
+        },
+      ],
+    },
+    {
+      id: "limitations",
+      kategori: t("faq.categoryKnownLimitations"),
+      icon: AlertTriangle,
+      iconClassName: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300",
+      items: [
+        {
+          q: t("faq.parallelChatsQ"),
+          a: t("faq.parallelChatsA"),
+          searchText: [t("faq.parallelChatsQ"), t("faq.parallelChatsA")].join(" "),
+        },
+        {
+          q: t("faq.imageHeavyPptxQ"),
+          a: t("faq.imageHeavyPptxA"),
+          searchText: [t("faq.imageHeavyPptxQ"), t("faq.imageHeavyPptxA")].join(" "),
+        },
+        {
+          q: t("faq.largeFilesQ"),
+          a: t("faq.largeFilesA"),
+          searchText: [t("faq.largeFilesQ"), t("faq.largeFilesA")].join(" "),
+        },
+        {
+          q: t("faq.canvasPermissionsQ"),
+          a: t("faq.canvasPermissionsA"),
+          searchText: [t("faq.canvasPermissionsQ"), t("faq.canvasPermissionsA")].join(" "),
+        },
+        {
+          q: t("faq.cacheBehaviourQ"),
+          a: t("faq.cacheBehaviourA"),
+          searchText: [t("faq.cacheBehaviourQ"), t("faq.cacheBehaviourA")].join(" "),
+        },
+        {
+          q: t("faq.coldStartQ"),
+          a: t("faq.coldStartA"),
+          searchText: [t("faq.coldStartQ"), t("faq.coldStartA")].join(" "),
+        },
+        {
+          q: t("faq.sourcePanelQ"),
+          a: t("faq.sourcePanelA"),
+          searchText: [t("faq.sourcePanelQ"), t("faq.sourcePanelA")].join(" "),
+        },
+        {
+          q: t("faq.moduleHintQ"),
+          a: t("faq.moduleHintA"),
+          searchText: [t("faq.moduleHintQ"), t("faq.moduleHintA")].join(" "),
         },
       ],
     },

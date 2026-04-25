@@ -2,7 +2,7 @@
  * LagretQuiz – lagret quiz per bruker, med historikk over forsøk.
  * Forsøk er capped til LAGRET_QUIZ_MAX_FORSOK (eldste droppes).
  */
-import mongoose, { Schema, type HydratedDocument } from "mongoose";
+import mongoose, { Schema } from "mongoose";
 import type { QuizQuestion } from "common/ki";
 import type { QuizForsok } from "common/quizLagret";
 
@@ -48,8 +48,6 @@ export interface LagretQuizDocument {
   createdAt: Date;
   updatedAt: Date;
 }
-
-export type LagretQuizHydratedDocument = HydratedDocument<LagretQuizDocument>;
 
 const LagretQuizSchema = new Schema<LagretQuizDocument>(
   {

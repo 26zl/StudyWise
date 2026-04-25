@@ -512,17 +512,21 @@ export function Sidebar({
                             />
                         </div>
 
-                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-5 pb-2" : "pt-3 pb-1"}`}>
+                        <div className={`flex items-center justify-between px-2 ${erBookmarksUtvidet ? "pt-5 pb-2" : "pt-3 pb-1"}`}>
                             <Link
                                 href="/dashboard/bokmerker"
                                 prefetch={false}
                                 onClick={() => {
                                     lukkVenstreMenyHvisMobil();
                                 }}
-                                className="group flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
+                                className="group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-400"
                             >
                                 {t("dashboard.sidebar.bookmarks")}
-                                <ArrowRight size={11} className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                                <ArrowRight
+                                    size={14}
+                                    className="opacity-60 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                                    aria-hidden="true"
+                                />
                             </Link>
                             <button
                                 type="button"
@@ -541,17 +545,21 @@ export function Sidebar({
                             bookmarkedChats.map((chat) => renderChatRad(chat, "bookmarks"))
                         )}
 
-                        <div className={`flex items-center justify-between px-5 ${erBookmarksUtvidet ? "pt-6 pb-2" : "pt-3 pb-1"}`}>
+                        <div className={`flex items-center justify-between px-2 ${erBookmarksUtvidet ? "pt-6 pb-2" : "pt-3 pb-1"}`}>
                             <Link
                                 href="/dashboard/samtalehistorikk"
                                 prefetch={false}
                                 onClick={() => {
                                     lukkVenstreMenyHvisMobil();
                                 }}
-                                className="group flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-blue-500 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
+                                className="group flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-400"
                             >
                                 {t("dashboard.sidebar.chatHistory")}
-                                <ArrowRight size={11} className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                                <ArrowRight
+                                    size={14}
+                                    className="opacity-60 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+                                    aria-hidden="true"
+                                />
                             </Link>
                             <button
                                 type="button"
@@ -583,22 +591,25 @@ export function Sidebar({
                         )}
                     </div>
 
-                    {/* Canvas-seksjon */}
+                    {/* Canvas-seksjon — matcher visuell stil med BIBLIOTEK / SAMTALER,
+                        men er en ren expand/collapse-knapp (ikke lenke til egen side). */}
                     <div className="border-t border-slate-200 dark:border-slate-800 pt-10">
-                        <button
-                            type="button"
-                            onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
-                            aria-expanded={erCanvasUtvidet}
-                            aria-controls="sidebar-canvas-menu"
-                            className="w-full flex items-center justify-between px-5 py-3.5 text-xs font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wider hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                        >
-                            <span>{t("dashboard.sidebar.canvas")}</span>
-                            {erCanvasUtvidet ? (
-                                <ChevronDown size={14} />
-                            ) : (
-                                <ChevronRight size={14} />
-                            )}
-                        </button>
+                        <div className="flex items-center justify-between px-2 pb-1">
+                            <button
+                                type="button"
+                                onClick={() => settErCanvasUtvidet(!erCanvasUtvidet)}
+                                aria-expanded={erCanvasUtvidet}
+                                aria-controls="sidebar-canvas-menu"
+                                className="flex flex-1 items-center justify-between rounded-md px-3 py-2 text-sm font-semibold uppercase tracking-wider text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-blue-400"
+                            >
+                                <span>{t("dashboard.sidebar.canvas")}</span>
+                                {erCanvasUtvidet ? (
+                                    <ChevronDown size={14} aria-hidden="true" />
+                                ) : (
+                                    <ChevronRight size={14} aria-hidden="true" />
+                                )}
+                            </button>
+                        </div>
 
                         {erCanvasUtvidet && (
                             <div id="sidebar-canvas-menu" className="mt-2 space-y-1">

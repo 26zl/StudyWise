@@ -17,6 +17,17 @@ import { useLanguage } from "@/app/i18n";
 // Canvas-innhold (kunngjøringer, moduler osv.) kan endre seg — TTL sikrer fersk data.
 const OPPSUMMERING_TTL_MS = 2 * 24 * 60 * 60 * 1000;
 
+// Render `**bold**` segmenter som <strong> uten å dra inn full markdown-parser.
+// Claude bruker av og til markdown-fet skrift på titler/nøkkelord, og uten dette
+// vises stjernene rått i UI-en (observert i USN-stillingsannonsen).
+function renderInlineBold(text: string): React.ReactNode {
+    const parts = text.split(/(\*\*[^*]+\*\*)/g);
+    return parts.map((part, i) => {
+        const match = part.match(/^\*\*([^*]+)\*\*$/);
+        return match ? <strong key={i}>{match[1]}</strong> : <span key={i}>{part}</span>;
+    });
+}
+
 // Størrelseskonfigurasjoner
 const storrelser = {
     sm: {
@@ -225,7 +236,7 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                                 {labels.summaryHeading}
                             </h4>
                             <p className={`${s.tekst} text-slate-700 dark:text-slate-300 leading-snug`}>
-                                {resultat.oppsummering}
+                                {renderInlineBold(resultat.oppsummering)}
                             </p>
                         </div>
                     )}
@@ -243,10 +254,10 @@ export function KIOppsummering({ tekst, storrelse, variant = "default" }: KIOpps
                                         <li key={i} className={`flex items-start gap-1.5 sm:gap-2 ${s.tekst} text-slate-700 dark:text-slate-300`}>
                                             {renderSjekkIkon()}
                                             <span>
-                                                {hoveddel}
+                                                {renderInlineBold(hoveddel)}
                                                 {forklaring && (
                                                     <span className="block text-slate-600 dark:text-slate-400 mt-0.5 pl-5 sm:pl-6 text-[0.9em]">
-                                                        {forklaring}
+                                                        {renderInlineBold(forklaring)}
                                                     </span>
                                                 )}
                                             </span>

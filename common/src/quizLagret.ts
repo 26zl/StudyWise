@@ -17,6 +17,9 @@ export const LAGRET_QUIZ_MAX_TITTEL_LENGTH = 200;
 /** Maks lengde på emne */
 export const LAGRET_QUIZ_MAX_EMNE_LENGTH = 200;
 
+/** Maks varighet for ett quiz-forsøk (24 timer) */
+export const LAGRET_QUIZ_MAX_VARIGHET_SEKUNDER = 86400;
+
 /**
  * Fargeterskler for score-visning (prosent).
  * Brukes av badge, trend-diagram og legende slik at alle tre er synkronisert.
@@ -43,7 +46,7 @@ export const QuizForsokSchema = z.object({
   date: z.coerce.date(),
   score: z.number().int().min(0),
   total: z.number().int().min(1),
-  durationSeconds: z.number().int().min(0),
+  durationSeconds: z.number().int().min(0).max(LAGRET_QUIZ_MAX_VARIGHET_SEKUNDER),
   answers: z.array(QuizForsokSvarSchema).min(1),
 });
 
@@ -81,7 +84,7 @@ export const LagretQuizResponseSchema = z.object({
 export const RegistrerQuizForsokRequestSchema = z.object({
   score: z.number().int().min(0),
   total: z.number().int().min(1),
-  durationSeconds: z.number().int().min(0),
+  durationSeconds: z.number().int().min(0).max(LAGRET_QUIZ_MAX_VARIGHET_SEKUNDER),
   answers: z.array(QuizForsokSvarSchema).min(1),
 });
 

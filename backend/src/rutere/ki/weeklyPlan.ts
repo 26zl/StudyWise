@@ -15,11 +15,11 @@ import {
   WeeklyPlanSuggestionDraftSchema,
   WeeklyPlanSuggestionResponseSchema,
   AsyncJobAcceptedSchema,
+  AsyncJobStatusSchema,
   type WeeklyPlanAssignment,
   type WeeklyPlanSuggestionBlock,
 } from "common/ki";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
-import { rateLimitKi } from "../../middleware/rate-limit.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
   apiError,
@@ -38,13 +38,34 @@ import {
 import { getCache, setCache } from "../../cache/redis.js";
 
 const router = Router();
-router.use(rateLimitKi);
+// rateLimitKi anvendes globalt på `/api/ki/*` via kiRuter — duplisering
+// her ville telt KI-bruk to ganger og senket den effektive grensen.
 
 /** TTL for jobb-resultat i Redis (10 minutter) */
 const JOB_TTL_SECONDS = 600;
 
 /** Redis-nøkkelprefix for ukeplan-jobber */
 const JOB_KEY_PREFIX = "weekly-plan-job:";
+
+/** Wrapper-skjema som binder en lagret jobb-state til eieren. */
+const JobWrapperSchema = z.object({
+  ownerUserId: z.string().min(1),
+  state: AsyncJobStatusSchema,
+});
+
+/** Lagrer jobb-state innpakket med eier-ID slik at status-endepunktet
+ *  kan validere at kun eieren får lese status og resultat. */
+async function setJobState(
+  jobId: string,
+  ownerUserId: string,
+  state: import("common/ki").AsyncJobStatus,
+): Promise<void> {
+  await setCache(
+    `${JOB_KEY_PREFIX}${jobId}`,
+    JSON.stringify({ ownerUserId, state }),
+    JOB_TTL_SECONDS,
+  );
+}
 
 /** Dedikert systemprompt for ukeplangenerering — mye mindre enn full StudyWise-prompt. */
 const WEEKLY_PLAN_SYSTEM_PROMPT = `Du er en strukturert studieveileder som lager realistiske ukeplaner for studenter.
@@ -286,11 +307,7 @@ async function processWeeklyPlanJob(
       logger.warn({ err, userId }, "Audit-feil for weekly-plan");
     });
 
-    await setCache(
-      `${JOB_KEY_PREFIX}${jobId}`,
-      JSON.stringify({ status: "completed", result: payload }),
-      JOB_TTL_SECONDS,
-    );
+    await setJobState(jobId, userId, { status: "completed", result: payload });
 
     const generationDurationMs = Date.now() - generationStartedAt;
     if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
@@ -309,11 +326,10 @@ async function processWeeklyPlanJob(
     }
   } catch (error) {
     logger.error({ err: error, jobId, userId }, "Weekly-plan-jobb feilet");
-    await setCache(
-      `${JOB_KEY_PREFIX}${jobId}`,
-      JSON.stringify({ status: "failed", error: "Kunne ikke generere ukeplan. Prøv igjen." }),
-      JOB_TTL_SECONDS,
-    ).catch((err) => {
+    await setJobState(jobId, userId, {
+      status: "failed",
+      error: "Kunne ikke generere ukeplan. Prøv igjen.",
+    }).catch((err) => {
       logger.warn({ err, jobId, userId }, "Kunne ikke skrive failed-status til cache (weekly-plan)");
     });
   }
@@ -342,11 +358,8 @@ router.post("/generate", async (req, res) => {
 
     const jobId = randomUUID();
 
-    await setCache(
-      `${JOB_KEY_PREFIX}${jobId}`,
-      JSON.stringify({ status: "pending" }),
-      JOB_TTL_SECONDS,
-    );
+    // Innpakket med eier-ID for status-autorisasjon
+    await setJobState(jobId, userId, { status: "pending" });
 
     void processWeeklyPlanJob(jobId, userId, oppgaver);
 
@@ -360,9 +373,12 @@ router.post("/generate", async (req, res) => {
   }
 });
 
-// GET /api/ki/weekly-plan/status/:jobId — sjekker jobb-status
+// GET /api/ki/weekly-plan/status/:jobId — sjekker jobb-status (kun for eier)
 router.get("/status/:jobId", async (req, res) => {
   try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { jobId } = req.params;
 
     if (!jobId || !z.uuid().safeParse(jobId).success) {
@@ -374,8 +390,15 @@ router.get("/status/:jobId", async (req, res) => {
       return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
     }
 
-    const jobState = JSON.parse(cached) as { status: string; result?: unknown; error?: string };
-    return res.json(jobState);
+    const wrapper = JobWrapperSchema.safeParse(JSON.parse(cached));
+    if (!wrapper.success) {
+      return apiError.serverError(res);
+    }
+    if (wrapper.data.ownerUserId !== userId) {
+      // Skjul eksistens av andres jobber bak en 404 for å unngå enumeration.
+      return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
+    }
+    return res.json(wrapper.data.state);
   } catch (error) {
     if (res.headersSent) return;
     return sendUnknownError(res, error, {

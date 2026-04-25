@@ -7,6 +7,7 @@ import {
   getWeekNumber,
   getIsoWeekInfo,
   parseTimerStreng,
+  startOfTodayInOslo,
   TWO_WEEKS_MS,
 } from "../dateUtils.js";
 
@@ -130,5 +131,38 @@ describe("parseTimerStreng", () => {
 describe("TWO_WEEKS_MS", () => {
   it("er 14 dager i millisekunder", () => {
     expect(TWO_WEEKS_MS).toBe(14 * 24 * 60 * 60 * 1000);
+  });
+});
+
+// ─── startOfTodayInOslo ─────────────────────────────────────────────────────
+
+describe("startOfTodayInOslo", () => {
+  it("returnerer 00:00 Europe/Oslo som UTC for sommertid (CEST, +02:00)", () => {
+    // 2026-07-15 er sommertid i Oslo (UTC+2). 00:00 Oslo = 22:00 UTC dagen før.
+    const sommerNå = new Date("2026-07-15T08:30:00Z");
+    const start = startOfTodayInOslo(sommerNå);
+    expect(start.toISOString()).toBe("2026-07-14T22:00:00.000Z");
+  });
+
+  it("returnerer 00:00 Europe/Oslo som UTC for vintertid (CET, +01:00)", () => {
+    // 2026-01-15 er vintertid i Oslo (UTC+1). 00:00 Oslo = 23:00 UTC dagen før.
+    const vinterNå = new Date("2026-01-15T08:30:00Z");
+    const start = startOfTodayInOslo(vinterNå);
+    expect(start.toISOString()).toBe("2026-01-14T23:00:00.000Z");
+  });
+
+  it("velger riktig Oslo-dato når UTC-tid er sen kveld norsk tid", () => {
+    // 2026-07-14T23:30:00Z er 2026-07-15 01:30 Oslo (CEST). "I dag" Oslo er 15. juli.
+    const senKveldUtc = new Date("2026-07-14T23:30:00Z");
+    const start = startOfTodayInOslo(senKveldUtc);
+    expect(start.toISOString()).toBe("2026-07-14T22:00:00.000Z");
+  });
+
+  it("velger forrige Oslo-dato når UTC-tid er tidlig morgen før Oslo-midnatt", () => {
+    // 2026-07-14T22:30:00Z er 2026-07-15 00:30 Oslo (CEST), så Oslo-dag er 15.
+    // Men 2026-07-14T21:30:00Z er 2026-07-14 23:30 Oslo, så Oslo-dag er 14.
+    const førMidnattOslo = new Date("2026-07-14T21:30:00Z");
+    const start = startOfTodayInOslo(førMidnattOslo);
+    expect(start.toISOString()).toBe("2026-07-13T22:00:00.000Z");
   });
 });

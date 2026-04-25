@@ -397,7 +397,7 @@ export const nbMessages = {
     features: {
       aiPartner: {
         description:
-          "Få hjelp, forklaringer, quizer, flashcards og oppgavenedbrytning basert på faktisk kursmateriale. Last opp egne dokumenter — PDF, Word, Excel eller bilder av tavlenotater — og la KI-en lese dem som om det var pensum.",
+          "Få hjelp, forklaringer, quizer, flashcards og oppgavenedbrytning basert på faktisk kursmateriale. Lagre quizene og flashcard-settene dine, se statistikk over forsøk og spill samme sett om igjen før eksamen. Last opp egne dokumenter — PDF, Word, Excel eller bilder av tavlenotater — og la KI-en lese dem som om det var pensum.",
         title: "KI-Studiepartner som kjenner pensum",
       },
       canvasIntegration: {
@@ -2446,6 +2446,31 @@ export const nbMessages = {
     statusASuffix: "hvis du opplever problemer — eller les der først før du rapporterer en feil.",
     notFound: "Fant du ikke svaret?",
     contactUs: "Kontakt oss",
+    categoryKnownLimitations: "Kjente begrensninger",
+    parallelChatsQ: "Kan jeg ha to KI-samtaler samtidig i forskjellige faner?",
+    parallelChatsA:
+      "Ikke anbefalt. StudyWise er bygget rundt at én bruker har én aktiv chat-økt om gangen. Hvis du åpner samme konto i to faner og chatter parallelt, kan emnekontekst og aktiv kunnskapsbase fra én fane lekke inn i den andre, og chat-historikken kan overskrive hverandre. Bruk én fane om gangen — eller vent til ett svar er ferdig før du starter neste i en ny fane.",
+    imageHeavyPptxQ: "Hvorfor sier KI-en at den ikke kan lese noen PowerPoint-filer?",
+    imageHeavyPptxA:
+      "Noen forelesere lager slides der teksten er lagt inn som bilder (skjermbilder eller designede grafikk-elementer). Vi leser kun faktisk tekst i filene — vi gjør ikke OCR (bilde-til-tekst) på slides. Når dette skjer, sier KI-en det ærlig og foreslår at du laster filen opp manuelt i kunnskapsbasen eller direkte i chatten, slik at innholdet kan brukes likevel.",
+    largeFilesQ: "Er det grenser for hvor store filer jeg kan laste opp?",
+    largeFilesA:
+      "Ja. Maks filstørrelse for ekstraksjon er 10 MB per fil. Filer over dette markeres som «for store» og innholdet hoppes over. For lange dokumenter (over ~88 000 tegn ≈ 30 sider tett tekst) leser KI-en kun de første sidene per spørring og forteller deg hvis noe ble kuttet.",
+    canvasPermissionsQ: "Hvorfor mangler noen kurs filer i KI-svaret?",
+    canvasPermissionsA:
+      "Canvas-instituttene styrer hvilke endepunkter studenter får tilgang til. På noen kurs (typisk fellesrom og diskusjonsrom) kan vi ikke hente filer direkte — bare via moduler. Da kan KI-en miste innhold for de filene, men resten av kurset fungerer normalt.",
+    cacheBehaviourQ: "Hvorfor får jeg samme svar når jeg spør om samme leksjon flere ganger?",
+    cacheBehaviourA:
+      "For at KI-svar skal være raske og forutsigbare, lagrer vi svar på pensum-spørsmål i 24 timer per kurs og leksjon. Stiller du samme spørsmål igjen innenfor det vinduet, får du det cachede svaret på ~2 sekunder i stedet for å vente 1–2 minutter på et nytt. Hvis du vil ha et oppdatert svar, omformuler spørsmålet litt eller vent til cachen utløper.",
+    coldStartQ: "Hvorfor tar første svar så mye lengre enn senere?",
+    coldStartA:
+      "Første gang du spør om en konkret leksjon eller fil, må KI-en lese hele dokumentet, søke i pensum og komponere et detaljert svar — det tar typisk 60–120 sekunder. Etter det er svaret cachet, og påfølgende spørsmål om samme tema svarer på cirka 2 sekunder.",
+    sourcePanelQ: "Hvorfor viser «Kilder»-panelet av og til en annen fil enn jeg spurte om?",
+    sourcePanelA:
+      "Hvis filen du spør om har lite ekstraherbart innhold (for eksempel en tom Canvas-side eller bildetung PowerPoint), kan systemet promotere en annen relevant fil fra samme kurs som primærkilde for å gi deg et nyttig svar. KI-en bruker fortsatt det riktige fagstoffet, men kilde-panelet vil reflektere hvilken fil teksten faktisk kom fra.",
+    moduleHintQ: "Hvorfor blander KI-en av og til opp leksjon-numre?",
+    moduleHintA:
+      "Når flere filer i samme kurs nevner samme tall (for eksempel «3. Likekoblinger» og «Ekstraoppgave G i leksjon 2»), kan systemet noen ganger plukke en annen fil enn du forventer. KI-en bruker fortsatt riktig pensum-innhold, men du kan få mer presist svar ved å skrive eksakt filnavn eller spørre om innholdet med stikkord (f.eks. «forklar INNER JOIN i DAT1000») i stedet for «leksjon X».",
   },
   errorPages: {
     notFound: {
@@ -2722,7 +2747,7 @@ export const nbMessages = {
         "Alle frister og hendelser fra Canvas i én visuell kalender. Filtrer per emne, velg uke- eller månedsvisning, og bli varslet når fristen nærmer seg.",
       quiz: "Quiz og flashcards",
       quizDescription:
-        "Velg et emne og en modul fra Canvas, så lager KI-en quiz eller flashcards basert på pensum. Du velger antall spørsmål og vanskelighetsgrad — nyttig som selvtest før eksamen.",
+        "Velg et emne og en modul fra Canvas, så lager KI-en quiz eller flashcards basert på pensum. Du velger antall spørsmål og vanskelighetsgrad. Nytt: lagre quizene og flashcard-settene dine, se statistikk over forsøk og spill samme sett om igjen før eksamen.",
       knowledgeBase: "Kunnskapsbase",
       knowledgeBaseDescription:
         "Lag egne samlinger av lenker og dokumenter som KI-chatten kan bruke som kilder. Opprett en base under «Kunnskapsbase» og last opp filer eller lim inn URL-er — hver fil får en statusindikator så du ser når den er klar.",

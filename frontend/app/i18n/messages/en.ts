@@ -398,7 +398,7 @@ export const enMessages = {
     features: {
       aiPartner: {
         description:
-          "Get help, explanations, quizzes, flashcards, and task breakdowns grounded in your actual course material. Upload your own documents — PDFs, Word, Excel, or even photos of whiteboard notes — and let AI read them as if they were required reading.",
+          "Get help, explanations, quizzes, flashcards, and task breakdowns grounded in your actual course material. Save your quizzes and flashcard sets, view stats on past attempts, and replay the same set before exams. Upload your own documents — PDFs, Word, Excel, or even photos of whiteboard notes — and let AI read them as if they were required reading.",
         title: "AI study partner that knows your syllabus",
       },
       canvasIntegration: {
@@ -2448,6 +2448,31 @@ export const enMessages = {
     statusASuffix: "if you're experiencing issues — or check it first before reporting a bug.",
     notFound: "Didn't find the answer?",
     contactUs: "Contact us",
+    categoryKnownLimitations: "Known limitations",
+    parallelChatsQ: "Can I have two AI conversations simultaneously in different tabs?",
+    parallelChatsA:
+      "Not recommended. StudyWise is built around one user having one active chat session at a time. If you open the same account in two tabs and chat in parallel, course context and active knowledge base from one tab can leak into the other, and chat history can overwrite each other. Use one tab at a time — or wait for one response to finish before starting the next in a new tab.",
+    imageHeavyPptxQ: "Why does the AI say it can't read some PowerPoint files?",
+    imageHeavyPptxA:
+      "Some lecturers create slides where text is embedded as images (screenshots or designed graphics). We only read actual text in files — we don't do OCR (image-to-text) on slides. When this happens, the AI says so honestly and suggests you upload the file manually to the knowledge base or directly in chat so the content can still be used.",
+    largeFilesQ: "Are there limits on how large files I can upload?",
+    largeFilesA:
+      "Yes. Maximum file size for extraction is 10 MB per file. Files larger than this are marked as 'too large' and skipped. For long documents (over ~88,000 characters ≈ 30 pages of dense text), the AI reads only the first part per query and tells you if anything was truncated.",
+    canvasPermissionsQ: "Why are files missing from some courses in the AI's answer?",
+    canvasPermissionsA:
+      "Canvas institutions control which endpoints students can access. For some courses (typically common rooms and discussion rooms) we can't fetch files directly — only via modules. Then the AI may lose content for those files, but the rest of the course works normally.",
+    cacheBehaviourQ: "Why do I get the same answer when I ask about the same lesson multiple times?",
+    cacheBehaviourA:
+      "To keep AI responses fast and predictable, we cache curriculum answers for 24 hours per course and lesson. Asking the same question again within that window returns the cached answer in ~2 seconds instead of waiting 1–2 minutes for a new one. If you want an updated answer, rephrase the question slightly or wait for the cache to expire.",
+    coldStartQ: "Why does the first answer take so much longer than later ones?",
+    coldStartA:
+      "The first time you ask about a specific lesson or file, the AI must read the entire document, search the curriculum, and compose a detailed answer — typically 60–120 seconds. After that the answer is cached, and follow-up questions on the same topic respond in about 2 seconds.",
+    sourcePanelQ: "Why does the 'Sources' panel sometimes show a different file than I asked about?",
+    sourcePanelA:
+      "If the file you asked about has little extractable content (for example an empty Canvas page or an image-heavy PowerPoint), the system may promote another relevant file from the same course as the primary source to give you a useful answer. The AI still uses the correct subject matter, but the source panel reflects which file the text actually came from.",
+    moduleHintQ: "Why does the AI sometimes mix up lesson numbers?",
+    moduleHintA:
+      "When several files in the same course mention the same number (for example '3. Joins' and 'Extra exercise G in lesson 2'), the system can sometimes pick a different file than you expect. The AI still uses the correct curriculum content, but you can get a more precise answer by writing the exact filename or asking about the content with keywords (e.g. 'explain INNER JOIN in DAT1000') instead of 'lesson X'.",
   },
   errorPages: {
     notFound: {
@@ -2725,7 +2750,7 @@ export const enMessages = {
         "All Canvas deadlines and events in one visual calendar. Filter by course, switch between week and month view, and get reminders as due dates approach.",
       quiz: "Quiz & Flashcards",
       quizDescription:
-        "Pick a course and a module from Canvas, and the AI will generate a quiz or flashcards based on your reading material. You control the question count and difficulty — useful for self-testing before exams.",
+        "Pick a course and a module from Canvas, and the AI will generate a quiz or flashcards based on your reading material. You control the question count and difficulty. New: save your quizzes and flashcard sets, view stats on past attempts, and replay the same set before exams.",
       knowledgeBase: "Knowledge Base",
       knowledgeBaseDescription:
         "Build your own collections of links and documents that the AI chat can use as sources. Create a base under \"Knowledge Base\" and upload files or paste URLs — each file shows a status indicator so you know when it's ready.",

@@ -5,6 +5,38 @@
 /** Millisekunder for 14 dager (brukes f.eks. for «neste 14 dager»-vinduer). */
 export const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
+/** Default IANA-tidssone for daglig statistikk. StudyWise målgruppe er norske
+ *  universitetsstudenter, så «i dag» tolkes alltid som Oslo-dag. Heroku-dynoer
+ *  kjører i UTC, så uten dette ville midnatt-grensen fra UTC fanget med
+ *  aktivitet fra forrige norske dag (kveld) og kuttet av dagens tidlig morgen. */
+export const STUDYWISE_TIMEZONE = "Europe/Oslo";
+
+/**
+ * Returnerer starten av "i dag" i Oslo-tidssonen som et UTC Date-objekt.
+ * Håndterer DST korrekt (CET/CEST). Brukes til å filtrere "i dag"-spørringer
+ * mot Mongo-felt som lagrer UTC-tidsstempler.
+ */
+export function startOfTodayInOslo(now: Date = new Date()): Date {
+    const dateParts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: STUDYWISE_TIMEZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(now);
+    const [year, month, day] = dateParts.split("-").map(Number);
+    // Beregn Oslo-offset for noon på Oslo-datoen (DST-trygt: alltid samme dag globalt).
+    const utcNoon = Date.UTC(year, month - 1, day, 12, 0, 0);
+    const osloHourAtNoon = Number(
+        new Intl.DateTimeFormat("en-GB", {
+            timeZone: STUDYWISE_TIMEZONE,
+            hour: "2-digit",
+            hour12: false,
+        }).format(new Date(utcNoon)),
+    );
+    const osloOffsetHours = osloHourAtNoon - 12; // 1 (CET) eller 2 (CEST)
+    return new Date(Date.UTC(year, month - 1, day, -osloOffsetHours, 0, 0));
+}
+
 function getIsoWeekDate(date: Date): Date {
     const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
     const dayNum = d.getUTCDay() || 7;

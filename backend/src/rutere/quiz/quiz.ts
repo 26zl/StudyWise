@@ -48,6 +48,26 @@ const JOB_TTL_SECONDS = 600;
 /** Redis-nøkkelprefix for quiz-jobber */
 const JOB_KEY_PREFIX = "quiz-job:";
 
+/** Wrapper-skjema som binder en lagret jobb-state til eieren. */
+const JobWrapperSchema = z.object({
+  ownerUserId: z.string().min(1),
+  state: AsyncJobStatusSchema,
+});
+
+/** Lagrer jobb-state innpakket med eier-ID slik at status-endepunktet
+ *  kan validere at kun eieren får lese status og resultat. */
+async function setJobState(
+  jobId: string,
+  ownerUserId: string,
+  state: import("common/ki").AsyncJobStatus,
+): Promise<void> {
+  await setCache(
+    `${JOB_KEY_PREFIX}${jobId}`,
+    JSON.stringify({ ownerUserId, state }),
+    JOB_TTL_SECONDS,
+  );
+}
+
 const router = Router();
 router.use(rateLimitKi);
 
@@ -321,11 +341,10 @@ async function processQuizJob(
         },
         "Quiz-generering avbrutt: ingen Canvas-data for valgte moduler/filer",
       );
-      await setCache(
-        `${JOB_KEY_PREFIX}${jobId}`,
-        JSON.stringify({ status: "failed", error: "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres." }),
-        JOB_TTL_SECONDS,
-      );
+      await setJobState(jobId, userId, {
+        status: "failed",
+        error: "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.",
+      });
       return;
     }
 
@@ -462,11 +481,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
 
     // Lagre ferdig resultat i Redis
     const responsePayload = QuizGenerateResponseSchema.parse({ questions });
-    await setCache(
-      `${JOB_KEY_PREFIX}${jobId}`,
-      JSON.stringify({ status: "completed", result: responsePayload }),
-      JOB_TTL_SECONDS,
-    );
+    await setJobState(jobId, userId, { status: "completed", result: responsePayload });
 
     const generationDurationMs = Date.now() - generationStartedAt;
     if (generationDurationMs >= AI_COMPLETION_PUSH_MIN_DURATION_MS) {
@@ -485,18 +500,19 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
     }
   } catch (error) {
     logger.error({ err: error, jobId, userId, courseId }, "Quiz-jobb feilet");
-    await setCache(
-      `${JOB_KEY_PREFIX}${jobId}`,
-      JSON.stringify({ status: "failed", error: "Kunne ikke generere quiz. Prøv igjen." }),
-      JOB_TTL_SECONDS,
-    ).catch((err) => {
+    await setJobState(jobId, userId, {
+      status: "failed",
+      error: "Kunne ikke generere quiz. Prøv igjen.",
+    }).catch((err) => {
       logger.warn({ err, jobId, userId }, "Kunne ikke skrive failed-status til cache (quiz)");
     });
   }
 }
 
 // POST /api/quiz/generate — returnerer jobId umiddelbart (202 Accepted)
-router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
+// rateLimitKi er allerede anvendt på router-nivå (router.use(rateLimitKi) over);
+// route-level her ville dobbelttelle.
+router.post("/generate", knyttCanvasToken, async (req, res) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;
@@ -517,12 +533,8 @@ router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
     const { courseId, courseName, moduleNames, fileNames, questionCount } = parsed.data;
     const jobId = randomUUID();
 
-    // Sett initial status i Redis
-    await setCache(
-      `${JOB_KEY_PREFIX}${jobId}`,
-      JSON.stringify({ status: "pending" }),
-      JOB_TTL_SECONDS,
-    );
+    // Sett initial status i Redis (innpakket med eier-ID for status-autorisasjon)
+    await setJobState(jobId, userId, { status: "pending" });
 
     // Start bakgrunnsjobben — ikke await
     void processQuizJob(
@@ -547,9 +559,12 @@ router.post("/generate", rateLimitKi, knyttCanvasToken, async (req, res) => {
   }
 });
 
-// GET /api/quiz/status/:jobId — sjekker jobb-status
+// GET /api/quiz/status/:jobId — sjekker jobb-status (kun for eier)
 router.get("/status/:jobId", async (req, res) => {
   try {
+    const userId = requireUserId(req, res);
+    if (!userId) return;
+
     const { jobId } = req.params;
 
     if (!jobId || !z.uuid().safeParse(jobId).success) {
@@ -561,11 +576,15 @@ router.get("/status/:jobId", async (req, res) => {
       return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
     }
 
-    const parsed = AsyncJobStatusSchema.safeParse(JSON.parse(cached));
-    if (!parsed.success) {
+    const wrapper = JobWrapperSchema.safeParse(JSON.parse(cached));
+    if (!wrapper.success) {
       return apiError.serverError(res);
     }
-    return res.json(parsed.data);
+    if (wrapper.data.ownerUserId !== userId) {
+      // Skjul eksistens av andres jobber bak en 404 for å unngå enumeration.
+      return apiError.notFound(res, "Jobben finnes ikke eller har utløpt");
+    }
+    return res.json(wrapper.data.state);
   } catch (error) {
     if (res.headersSent) return;
     return sendUnknownError(res, error, {

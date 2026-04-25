@@ -161,14 +161,14 @@ router.patch("/:id/forsok", rateLimitKi, async (req: Request, res: Response) => 
   }
 
   try {
-    const doc = await LagretQuiz.findOne({ _id: id, userId });
-    if (!doc) {
+    // Hent kun spørsmåls-IDer for å validere svar uten å laste hele dokumentet
+    const idDoc = await LagretQuiz.findOne({ _id: id, userId }, { "questions.id": 1 }).lean();
+    if (!idDoc) {
       apiError.notFound(res, "Lagret quiz");
       return;
     }
 
-    // Valider at hvert svar peker på et spørsmål som eksisterer i quizen
-    const questionIds = new Set(doc.questions.map((q) => q.id));
+    const questionIds = new Set(idDoc.questions.map((q) => q.id));
     const ukjenteSpm = body.answers.filter((a) => !questionIds.has(a.questionId));
     if (ukjenteSpm.length > 0) {
       apiError.badRequest(res, "Ett eller flere svar peker på ukjente spørsmål");
@@ -184,12 +184,16 @@ router.patch("/:id/forsok", rateLimitKi, async (req: Request, res: Response) => 
       answers: body.answers,
     };
 
-    doc.attempts.push(forsok);
-    // Behold kun de siste N forsøkene — eldste droppes
-    if (doc.attempts.length > LAGRET_QUIZ_MAX_FORSOK) {
-      doc.attempts = doc.attempts.slice(-LAGRET_QUIZ_MAX_FORSOK);
+    // Atomær push + slice — unngår race condition ved samtidige forsøk
+    const doc = await LagretQuiz.findOneAndUpdate(
+      { _id: id, userId },
+      { $push: { attempts: { $each: [forsok], $slice: -LAGRET_QUIZ_MAX_FORSOK } } },
+      { returnDocument: "after" },
+    );
+    if (!doc) {
+      apiError.notFound(res, "Lagret quiz");
+      return;
     }
-    await doc.save();
 
     logger.info(
       { userId, quizId: id, score: forsok.score, total: forsok.total },
