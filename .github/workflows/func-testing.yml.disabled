@@ -1,9 +1,11 @@
 name: Functional Testing
 
 on:
-  # Auto-trigging deaktivert pga. GitHub Actions billing-grense.
-  # Re-aktiver ved å legge tilbake workflow_run-blokken.
   workflow_dispatch:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: ["main"]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
