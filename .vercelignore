@@ -13,11 +13,13 @@ filer_prosjekt/
 prompts/
 
 # ── Andre workspace-pakker frontend ikke trenger ─────────────────────────
+# Leading slash på /scripts/ matcher KUN root-nivå (ikke frontend/scripts/)
+# — sistnevnte inneholder validate-env.ts som prebuild trenger.
 backend/
 cloudflare/
 docs/
 grafana/
-scripts/
+/scripts/
 tests/
 
 # ── Lokal utvikling og tooling ───────────────────────────────────────────
