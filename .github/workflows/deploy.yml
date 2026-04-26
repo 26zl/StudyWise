@@ -1,8 +1,12 @@
 name: Deploy
 
 on:
+  # Trigges på CI-suksess (ikke Functional Testing) fordi E2E-workflowen er
+  # midlertidig deaktivert pga. GitHub Actions billing. CI gater fortsatt på
+  # typecheck + lint + unit-tester + build. Re-koble til "Functional Testing"
+  # når billing er løst og func-testing.yml er reaktivert.
   workflow_run:
-    workflows: ["Functional Testing"]
+    workflows: ["CI"]
     types: [completed]
     branches: ["main"]
 
