@@ -132,7 +132,9 @@ function buildCspValue(nonce) {
     "font-src 'self' https://*.clerk.com",
     `connect-src ${[...new Set(connectSrc)].join(" ")}`,
     `frame-src ${[...new Set(frameSrc)].join(" ")}`,
-    "worker-src 'self' blob:",
+    // Cloudflare Turnstile bruker Web Workers internt — uten dette får widgeten
+    // 600010 i nettlesere som strengt enforcer worker-src.
+    "worker-src 'self' blob: https://challenges.cloudflare.com",
     "frame-ancestors 'none'",
     "base-uri 'self'",
     `form-action 'self' https://*.clerk.com https://*.clerk.accounts.dev ${CLERK_CUSTOM_ORIGINS.join(" ")}${clerkFrontendApiOrigin ? ` ${clerkFrontendApiOrigin}` : ""}`,

@@ -301,6 +301,36 @@ export const nbMessages = {
       verifying: "Verifiserer...",
       widgetError:
         "Vi klarte ikke å laste sikkerhetsverifiseringen. Last siden på nytt og prøv igjen.",
+      retry: "Prøv på nytt",
+      showDetails: "Detaljer",
+      hideDetails: "Skjul detaljer",
+      errorCodeLabel: "Feilkode",
+      causeLabel: "Sannsynlig årsak",
+      solutionLabel: "Forslag",
+      errorHelp: {
+        "600010": {
+          cause:
+            "Sikkerhetssjekken klarte ikke å kjøre i nettleseren. Dette skjer ofte med VPN/proxy, strenge personvernutvidelser, eller nettleserinnstillinger som blokkerer scripts fra Cloudflare.",
+          solution:
+            "Skru av VPN, deaktiver utvidelser som blokkerer scripts (uBlock, Privacy Badger, NoScript), eller prøv en annen nettleser eller inkognitomodus.",
+        },
+        "110200": {
+          cause: "Domenet er ikke konfigurert for denne sikkerhetsnøkkelen.",
+          solution: "Dette er en konfigurasjonsfeil hos oss — kontakt støtte hvis problemet vedvarer.",
+        },
+        network: {
+          cause: "Nettleseren klarte ikke å nå Cloudflares servere.",
+          solution: "Sjekk internettforbindelsen og prøv igjen. Hvis du bruker bedrifts-/skole-nettverk kan en brannmur blokkere Cloudflare.",
+        },
+        client: {
+          cause: "Sikkerhetssjekken feilet på klient-siden.",
+          solution: "Last siden på nytt. Hvis problemet vedvarer, prøv en annen nettleser eller skru av eventuelle script-blokkerende utvidelser.",
+        },
+        expired: {
+          cause: "Sikkerhetstokenet utløp eller ble allerede brukt.",
+          solution: "Trykk \"Prøv på nytt\" for å hente et nytt token.",
+        },
+      },
       gateError: "Sikkerhetsverifisering utløpt. Last siden på nytt og fullfør sjekken.",
       rechallenge: {
         title: "Sikkerhetsverifisering",
@@ -2164,6 +2194,9 @@ export const nbMessages = {
     thirdPartyContactRelayLabel: "E-postlevering for kontaktskjema (Cloudflare Worker + Resend):",
     thirdPartyContactRelayBody:
       "Når du sender en henvendelse via kontaktskjemaet, videresendes innholdet (navn, e-postadresse, emne og melding) via en Cloudflare Worker til Resend, som leverer e-posten til teamet vårt. En kopi lagres også i vår egen database i opptil 365 dager slik at administratorer kan se innboksen i admin-panelet, og slettes automatisk etter det eller manuelt når saken er ferdig behandlet.",
+    thirdPartyNotionLabel: "Notion-eksport (valgfritt):",
+    thirdPartyNotionBody:
+      "Hvis du selv aktiverer Notion-integrasjonen og lagrer en Notion API-nøkkel hos oss, sender vi notater og dokumenter du eksplisitt eksporterer, til den Notion-siden du har valgt. Vi kan kun opprette nye undersider — vi kan ikke lese, endre eller slette eksisterende Notion-innhold. Du må selv dele en parent-side med din Notion-integrasjon for at funksjonen skal virke, og du kan fjerne tilkoblingen når som helst i innstillinger.",
     thirdPartyMapsLabel: "Innebygd kart (Google Maps):",
     thirdPartyMapsBody:
       'Kontakt-siden inneholder et innebygd Google Maps-kart som viser USN Campus Bø. Når du besøker siden, laster nettleseren din kartet direkte fra Google, og Google kan dermed se IP-adressen din og user-agent. Vi sender ingen referrer-informasjon fra vår side til Google (referrerPolicy="no-referrer"), men selve kart-innlastingen kontakter Google. Hvis du ikke ønsker dette, unngå /kontakt-siden eller bruk nettleserfunksjoner som blokkerer tredjeparts-innhold.',
@@ -2267,6 +2300,15 @@ export const nbMessages = {
       "Vi bruker tokenet kun til å lese dine Canvas-data — vi utfører ingen skriveoperasjoner",
     canvasApi2: "Du kan tilbakekalle tokenet i Canvas når som helst",
     canvasApi3: "Tokenet lagres kryptert og sendes aldri til tredjeparter",
+    notionApiTitle: "Notion-eksport (valgfritt)",
+    notionApiIntro:
+      "Hvis du selv aktiverer Notion-integrasjonen og lagrer en Notion API-nøkkel hos oss:",
+    notionApi1:
+      "Vi kan kun opprette nye undersider under den siden du har valgt — vi kan ikke lese, endre eller slette eksisterende Notion-innhold",
+    notionApi2:
+      "Eksport skjer kun når du eksplisitt klikker «Eksporter» — vi sender ingenting i bakgrunnen",
+    notionApi3:
+      "Notion API-nøkkelen lagres kryptert. Du kan fjerne tilkoblingen når som helst i innstillinger",
     loggingTitle: "Logging og personvern",
     loggingBody:
       "På serveren logger vi tekniske feil og sikkerhetshendelser for å kunne drifte tjenesten og feilsøke problemer. Vi logger aldri e-post, navn, passord, Canvas-token eller innholdet i det du skriver (chat-meldinger, søk, dokumenter). Det vi lagrer er anonymisert teknisk informasjon — en tilfeldig forespørsels-ID, IP-adressen, nettleseren din — som trengs for å oppdage misbruk. Loggene slettes automatisk etter en begrenset periode, og anonymiseres ytterligere hvis du sletter kontoen din.",

@@ -19,6 +19,28 @@ import {
 
 const router = Router();
 
+/**
+ * Cloudflare-feilkoder som indikerer transient/klient-sidefeil og dermed
+ * IKKE bør ete opp brukerens rate-limit-budsjett. Eksportert så endringer
+ * her er regresjons-dekket av tester.
+ */
+export const TRANSIENT_TURNSTILE_ERROR_CODES = new Set<string>([
+  "invalid-input-response",
+  "timeout-or-duplicate",
+]);
+
+/**
+ * Avgjør om et mislykket Turnstile-svar bør refunderes til rate-limit-bøtten.
+ * Krever at minst én feilkode er rapportert OG at alle er i den transient-listen.
+ * Tom liste eller manglende koder → ikke refunder (vi har ikke nok info).
+ */
+export function shouldRefundRateLimit(errorCodes: string[] | undefined): boolean {
+  if (!errorCodes || errorCodes.length === 0) {
+    return false;
+  }
+  return errorCodes.every((code) => TRANSIENT_TURNSTILE_ERROR_CODES.has(code));
+}
+
 function getAuthTurnstileSecret(): string | undefined {
   return process.env.AUTH_TURNSTILE_SECRET_KEY?.trim();
 }
@@ -66,11 +88,26 @@ router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Respons
   );
 
   if (!turnstileResult.success) {
-    logger.info(
-      { errorCodes: turnstileResult.errorCodes },
+    // warn (ikke info) så Datadog/log-aggregeringen alarmerer ved gjentatte feil
+    // for samme IP — typisk symptom på klient-sidefeil (f.eks. 600010, blokkerte
+    // Cloudflare-scripts) som vi ellers ikke ville fanget før brukeren melder fra.
+    logger.warn(
+      {
+        errorCodes: turnstileResult.errorCodes,
+        clientIp,
+        hostname: req.get("host"),
+      },
       "Auth Turnstile-verifisering feilet",
     );
     clearAuthTurnstileCookie(res);
+    // Cloudflare avviser tokenet (f.eks. utløpt/ugyldig fra widget-feil 600010).
+    // Dette er klient-sidefeil og bør ikke ete opp brukerens rate-limit-budsjett —
+    // ellers låser brukeren seg selv ute etter noen mislykkede widget-renderinger.
+    // Brute-force mot endepunktet er fortsatt beskyttet av selve grensen siden
+    // refusjon kun gjøres for verifiserte feiltyper fra Cloudflare.
+    if (shouldRefundRateLimit(turnstileResult.errorCodes)) {
+      void rateLimitAuthTurnstile.reward(req);
+    }
     return apiError.badRequest(res, "Verifisering feilet. Prøv igjen.");
   }
 
