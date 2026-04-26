@@ -2389,8 +2389,10 @@ export const enMessages = {
     canvasTokenSettings: "Settings → Approved Integrations",
     canvasTokenButton: "New Access Token",
     canvasInstitutionsQ: "Which Canvas institutions are supported?",
-    canvasInstitutionsA:
-      "StudyWise supports Canvas installations at Norwegian universities and colleges. Select your institution when connecting to Canvas.",
+    canvasInstitutionsA1:
+      "StudyWise supports Canvas installations at Norwegian universities and colleges. Select your institution when connecting to Canvas. Is your institution listed but still not working — or is your school missing from the list entirely?",
+    canvasInstitutionsLink: "Contact us",
+    canvasInstitutionsA2: "directly, and we'll help you get set up.",
     vsCanvasQ: "Why use StudyWise when I already have Canvas?",
     vsCanvasA:
       "StudyWise doesn't replace Canvas — we're a supplement. Canvas is the learning platform where your school publishes course material, assignments, and deadlines. StudyWise pulls that content in and adds a layer Canvas doesn't have: an AI chat that answers based on your own course material, automatically generated quizzes and flashcards from lecture notes, a weekly study plan that adapts to your deadlines, and task breakdowns that split large assignments into manageable steps. You keep using Canvas as usual — StudyWise just makes it easier to actually work with the content that lives there.",

@@ -40,17 +40,30 @@ function ClerkProviderMedSprak({
   nonce?: string;
 }) {
   const { language } = useLanguage();
+  const baseLocale = language === "en" ? enUS : nbNO;
 
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKey ?? undefined}
       localization={{
-        ...(language === "en" ? enUS : nbNO),
+        ...baseLocale,
         signUp: {
+          ...baseLocale.signUp,
           emailCode: {
+            ...baseLocale.signUp?.emailCode,
             subtitle: language === "en"
               ? "We sent a verification code to {{identifier}}. It may take a moment to arrive"
               : "Vi sendte en verifiseringskode til {{identifier}}. Det kan ta litt tid før den ankommer",
+          },
+        },
+        userProfile: {
+          ...baseLocale.userProfile,
+          start: {
+            ...baseLocale.userProfile?.start,
+            profileSection: {
+              ...baseLocale.userProfile?.start?.profileSection,
+              primaryButton: language === "en" ? "Update profile" : "Oppdater profil",
+            },
           },
         },
       }}

@@ -62,10 +62,20 @@ export default function FaqPage() {
         },
         {
           q: t("faq.canvasInstitutionsQ"),
-          a: t("faq.canvasInstitutionsA"),
+          a: (
+            <>
+              {t("faq.canvasInstitutionsA1")}{" "}
+              <Link href="/kontakt" prefetch={false} className={INFO_PAGE_INLINE_LINK_CLASSNAME}>
+                {t("faq.canvasInstitutionsLink")}
+              </Link>{" "}
+              {t("faq.canvasInstitutionsA2")}
+            </>
+          ),
           searchText: [
             t("faq.canvasInstitutionsQ"),
-            t("faq.canvasInstitutionsA"),
+            t("faq.canvasInstitutionsA1"),
+            t("faq.canvasInstitutionsLink"),
+            t("faq.canvasInstitutionsA2"),
           ].join(" "),
         },
         {

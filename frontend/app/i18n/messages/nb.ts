@@ -2387,8 +2387,10 @@ export const nbMessages = {
     canvasTokenSettings: "Innstillinger → Godkjente integrasjoner",
     canvasTokenButton: "+ Ny tilgangsnøkkel",
     canvasInstitutionsQ: "Hvilke Canvas-institusjoner støttes?",
-    canvasInstitutionsA:
-      "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas.",
+    canvasInstitutionsA1:
+      "StudyWise støtter Canvas-installasjoner ved norske universiteter og høgskoler. Velg institusjonen din når du kobler til Canvas. Er institusjonen din oppført i listen, men du får likevel ikke koblet til — eller mangler skolen din helt fra listen?",
+    canvasInstitutionsLink: "Kontakt oss",
+    canvasInstitutionsA2: "direkte, så hjelper vi deg å få tilgang.",
     vsCanvasQ: "Hvorfor bruke StudyWise når jeg allerede har Canvas?",
     vsCanvasA:
       "StudyWise erstatter ikke Canvas — vi er et supplement. Canvas er læringsplattformen der skolen din publiserer pensum, oppgaver og frister. StudyWise henter dette innholdet og legger på et lag som Canvas ikke har: KI-chat som svarer basert på ditt eget pensum, automatisk genererte quizer og flashcards fra forelesningsnotater, en ukentlig arbeidsplan som tilpasser seg fristene dine, og oppgavenedbrytning som deler store innleveringer i håndterbare steg. Du fortsetter å bruke Canvas som vanlig — StudyWise gjør det enklere å faktisk jobbe med innholdet som ligger der.",
