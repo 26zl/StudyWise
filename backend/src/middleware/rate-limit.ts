@@ -267,15 +267,10 @@ export const rateLimitKBWrite = isProd
       keyGenerator: (req) => req.user?.id ?? getClientIp(req),
     });
 
-// Auth Turnstile: moderat grense på offentlig verifisering foran Clerk.
-// 30/10min er valgt for å gi rom når Cloudflare-widgeten feiler klient-side
-// (f.eks. error 600010, utløpte tokens, restriktive nettverk) uten at en
-// enkelt bruker bak NAT/skole-WiFi sperrer seg selv ute. Ruter-handleren
-// kaller .reward(req) ved klient-sidefeil ("invalid-input-response") så
-// disse ikke teller mot grensen.
+// Auth Turnstile: moderat grense på offentlig verifisering foran Clerk
 export const rateLimitAuthTurnstile = isProd
   ? createRateLimiter({
-      points: 30,
+      points: 10,
       duration: 600, // 10 minutter
       keyPrefix: "rlflx:auth-turnstile",
       keyGenerator: getClientIp,

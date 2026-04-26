@@ -8,7 +8,6 @@ import { verifyAuthTurnstile } from "@/app/auth/auth-turnstile-api";
 import { useLanguage } from "@/app/i18n";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
-import { getTurnstileErrorHelp } from "@/app/auth/turnstileErrorHelp";
 
 const AUTH_TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
@@ -26,8 +25,6 @@ export function AuthTurnstileInline({
   const [isVerified, setIsVerified] = useState(initialVerified);
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [showErrorDetails, setShowErrorDetails] = useState(false);
 
   // Når Turnstile ikke er konfigurert, hopp over verifisering
   useEffect(() => {
@@ -47,7 +44,6 @@ export function AuthTurnstileInline({
 
     setIsVerifying(true);
     setErrorMessage(null);
-    setErrorCode(null);
 
     try {
       await verifyAuthTurnstile(token);
@@ -68,19 +64,11 @@ export function AuthTurnstileInline({
     }
   }, [isVerified, isVerifying, onVerified, t]);
 
-  const onTurnstileError = useCallback((code?: string) => {
+  const onTurnstileError = useCallback(() => {
     setErrorMessage(t("auth.humanCheck.widgetError"));
-    setErrorCode(code ?? null);
   }, [t]);
 
-  const onRetryClick = useCallback(() => {
-    setErrorMessage(null);
-    setErrorCode(null);
-    setShowErrorDetails(false);
-    resetRef.current?.();
-  }, []);
-
-  const { containerRef, reset } = useTurnstileScript({
+  const { containerRef, isLoaded, reset } = useTurnstileScript({
     siteKey: AUTH_TURNSTILE_SITE_KEY,
     action: AUTH_TURNSTILE_ACTION,
     onSuccess: (token) => { void onTurnstileSuccess(token); },
@@ -117,13 +105,19 @@ export function AuthTurnstileInline({
       </div>
 
       <div className="space-y-3">
-        {/* Container er alltid mountet — Cloudflare-widgeten kan rendre en synlig
-            checkbox hvis bruker er høyrisiko. Med interaction-only er den ofte
-            usynlig, så vi viser en spinner-stripe under inntil verifiseringen
-            er ferdig (eller en feil oppstår). */}
-        <div ref={containerRef} className="flex justify-center" />
+        <div className="relative flex justify-center">
+          <div
+            ref={containerRef}
+            className={isLoaded ? undefined : "opacity-0"}
+          />
+          {!isLoaded && (
+            <div className="absolute inset-0 flex h-16.25 w-75 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
+              <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+            </div>
+          )}
+        </div>
 
-        {!errorMessage && (
+        {isVerifying && (
           <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-300">
             <Loader2 className="h-4 w-4 animate-spin" />
             {t("auth.humanCheck.verifying")}
@@ -131,58 +125,9 @@ export function AuthTurnstileInline({
         )}
 
         {errorMessage && (
-          <div className="space-y-2">
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {errorMessage}
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onRetryClick}
-                className="text-sm font-medium text-blue-600 underline-offset-2 hover:underline dark:text-blue-400"
-              >
-                {t("auth.humanCheck.retry")}
-              </button>
-              {errorCode && (
-                <button
-                  type="button"
-                  onClick={() => setShowErrorDetails((v) => !v)}
-                  className="text-xs text-slate-500 underline-offset-2 hover:underline dark:text-slate-400"
-                  aria-expanded={showErrorDetails}
-                >
-                  {showErrorDetails
-                    ? t("auth.humanCheck.hideDetails")
-                    : t("auth.humanCheck.showDetails")}
-                </button>
-              )}
-            </div>
-            {showErrorDetails && errorCode && (() => {
-              const help = getTurnstileErrorHelp(errorCode);
-              return (
-                <div className="space-y-2 rounded-md bg-slate-100 px-3 py-2 text-xs text-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                  <p className="font-mono">
-                    {t("auth.humanCheck.errorCodeLabel")}: {errorCode}
-                  </p>
-                  {help && (
-                    <>
-                      <p>
-                        <span className="font-semibold">
-                          {t("auth.humanCheck.causeLabel")}:
-                        </span>{" "}
-                        {t(help.causeKey as never)}
-                      </p>
-                      <p>
-                        <span className="font-semibold">
-                          {t("auth.humanCheck.solutionLabel")}:
-                        </span>{" "}
-                        {t(help.solutionKey as never)}
-                      </p>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {errorMessage}
+          </p>
         )}
       </div>
     </div>

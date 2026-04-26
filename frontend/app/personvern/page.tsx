@@ -143,9 +143,6 @@ export default function PersonvernPage() {
             <strong>{t("personvern.thirdPartyContactRelayLabel")}</strong> {t("personvern.thirdPartyContactRelayBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyNotionLabel")}</strong> {t("personvern.thirdPartyNotionBody")}
-          </li>
-          <li>
             <strong>{t("personvern.thirdPartyMapsLabel")}</strong> {t("personvern.thirdPartyMapsBody")}
           </li>
         </ul>

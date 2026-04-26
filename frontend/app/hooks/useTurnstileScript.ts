@@ -33,8 +33,8 @@ interface UseTurnstileScriptOptions {
   action?: string;
   /** Callback ved vellykket verifisering */
   onSuccess: (token: string) => void;
-  /** Callback ved feil. Mottar Cloudflare-feilkoden (f.eks. "600010") når tilgjengelig. */
-  onError?: (errorCode?: string) => void;
+  /** Callback ved feil */
+  onError?: () => void;
   /** Callback ved utløpt token */
   onExpired?: () => void;
   /** Om widgeten skal rendres (default: true) */
@@ -93,24 +93,9 @@ export function useTurnstileScript({
         const options: Record<string, unknown> = {
           sitekey: siteKey,
           callback: (token: string) => onSuccess(token),
-          // Cloudflare kaller error-callback med en feilkode (string). Vi videresender
-          // koden så UI-laget kan vise "Feilkode: 600010" og brukeren kan google den.
-          "error-callback": (errorCode?: unknown) =>
-            onError?.(typeof errorCode === "string" ? errorCode : undefined),
+          "error-callback": () => onError?.(),
           "expired-callback": () => onExpired?.(),
           theme: "auto",
-          // Vises kun når Cloudflare faktisk trenger interaksjon (high-risk besøk).
-          // For VPN/NAT/skole-WiFi hopper Cloudflare nå rett til en kortere passive
-          // sjekk i stedet for å eskalere til full challenge — som er hovedårsaken
-          // til 600010. Må samsvare med "Non-interactive" widget-modus i CF-dashbord.
-          appearance: "interaction-only",
-          // Hindrer at widgeten auto-genererer ny token ved klient-sidefeil
-          // (f.eks. 600010). Uten dette spammes /verify til rate-limit slår inn.
-          retry: "never",
-          // Ikke auto-refresh tokens i bakgrunnen. Tokens lever ~290s — uten dette
-          // får vi "invalid-input-response" fra Cloudflare når brukeren har sittet
-          // og fylt ut skjema lenge. Med "manual" må widgeten resettes eksplisitt.
-          "refresh-expired": "manual",
         };
         if (action) options.action = action;
 
