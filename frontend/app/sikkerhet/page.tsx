@@ -65,6 +65,15 @@ export default function SikkerhetPage() {
         </ul>
       </InfoSection>
 
+      <InfoSection title={t("sikkerhet.notionApiTitle")}>
+        <p className="mb-4">{t("sikkerhet.notionApiIntro")}</p>
+        <ul className="space-y-2 text-sm">
+          <li>• {t("sikkerhet.notionApi1")}</li>
+          <li>• {t("sikkerhet.notionApi2")}</li>
+          <li>• {t("sikkerhet.notionApi3")}</li>
+        </ul>
+      </InfoSection>
+
       <InfoSection title={t("sikkerhet.loggingTitle")}>
         <p>{t("sikkerhet.loggingBody")}</p>
       </InfoSection>

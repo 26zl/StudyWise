@@ -26,7 +26,7 @@ import { rateLimitContact } from "../../middleware/rate-limit.js";
 import { verifyTurnstileToken, isTurnstileConfigured } from "../../services/turnstile.service.js";
 import { sendKontaktmelding } from "../../services/contact.service.js";
 import { ContactMessage } from "../../database/models/ContactMessage.js";
-import { isProd } from "../../utils/env.js";
+import { isProd, turnstileEnabled } from "../../utils/env.js";
 import { validateFileMagicBytes } from "../../services/document.js";
 
 const router = Router();
@@ -187,26 +187,28 @@ router.post(
       );
     }
 
-    // Verifiser Turnstile-token
-    if (!isTurnstileConfigured()) {
-      if (isProd) {
-        logger.error("Turnstile ikke konfigurert i produksjon");
-        return apiError.serviceUnavailable(res, "Kontaktskjema");
-      }
-      // Development: hopp over Turnstile-verifisering
-      logger.warn("DEV: Turnstile ikke konfigurert, hopper over verifisering");
-    } else if (!turnstileToken) {
-      return apiError.badRequest(res, "Verifisering kreves");
-    } else {
-      const clientIp = req.ip || req.socket?.remoteAddress;
-      const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp);
+    // Verifiser Turnstile-token KUN når flagget er på (ratelimit + honeypot beskytter ellers)
+    if (turnstileEnabled) {
+      if (!isTurnstileConfigured()) {
+        if (isProd) {
+          logger.error("Turnstile ikke konfigurert i produksjon");
+          return apiError.serviceUnavailable(res, "Kontaktskjema");
+        }
+        // Development: hopp over Turnstile-verifisering
+        logger.warn("DEV: Turnstile ikke konfigurert, hopper over verifisering");
+      } else if (!turnstileToken) {
+        return apiError.badRequest(res, "Verifisering kreves");
+      } else {
+        const clientIp = req.ip || req.socket?.remoteAddress;
+        const turnstileResult = await verifyTurnstileToken(turnstileToken, clientIp);
 
-      if (!turnstileResult.success) {
-        logger.info(
-          { requestId, errorCodes: turnstileResult.errorCodes },
-          "Turnstile-verifisering feilet",
-        );
-        return apiError.badRequest(res, "Verifisering feilet. Prøv igjen.");
+        if (!turnstileResult.success) {
+          logger.info(
+            { requestId, errorCodes: turnstileResult.errorCodes },
+            "Turnstile-verifisering feilet",
+          );
+          return apiError.badRequest(res, "Verifisering feilet. Prøv igjen.");
+        }
       }
     }
 

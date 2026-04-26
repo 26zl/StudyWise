@@ -17,9 +17,13 @@ import { AUTH_ME_QUERY_KEY } from "@/app/auth/auth-api";
 import { showToast } from "@/app/components/ui/Toaster";
 import { getApiErrorCode, lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
+import { turnstileEnabled } from "@/app/lib/validateEnv";
 
 const AUTH_TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
+
+// Når Turnstile er deaktivert i miljøet skal modalen aldri vises
+const TURNSTILE_ACTIVE = turnstileEnabled && !!AUTH_TURNSTILE_SITE_KEY;
 
 /**
  * Lytter på /me-query-feil for turnstile_required (403).
@@ -87,14 +91,14 @@ export function TurnstileReChallenge() {
       showToast.error(t("auth.humanCheck.title"), t("auth.humanCheck.widgetError"));
     },
     onExpired: () => resetRef.current?.(),
-    enabled: showChallenge && !!AUTH_TURNSTILE_SITE_KEY,
+    enabled: showChallenge && TURNSTILE_ACTIVE,
   });
 
   useEffect(() => {
     resetRef.current = reset;
   }, [reset]);
 
-  if (!showChallenge || !AUTH_TURNSTILE_SITE_KEY) return null;
+  if (!showChallenge || !TURNSTILE_ACTIVE) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">

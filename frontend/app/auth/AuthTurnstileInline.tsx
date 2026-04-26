@@ -8,9 +8,13 @@ import { verifyAuthTurnstile } from "@/app/auth/auth-turnstile-api";
 import { useLanguage } from "@/app/i18n";
 import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
+import { turnstileEnabled } from "@/app/lib/validateEnv";
 
 const AUTH_TURNSTILE_SITE_KEY =
   process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
+
+// Effektivt aktiveringsflagg: krever både master-flagg OG sitekey
+const TURNSTILE_ACTIVE = turnstileEnabled && !!AUTH_TURNSTILE_SITE_KEY;
 
 type AuthTurnstileInlineProps = {
   initialVerified: boolean;
@@ -26,9 +30,9 @@ export function AuthTurnstileInline({
   const [isVerifying, setIsVerifying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Når Turnstile ikke er konfigurert, hopp over verifisering
+  // Når Turnstile er deaktivert eller ikke konfigurert, hopp rett over til verifisert
   useEffect(() => {
-    if (!isVerified && !AUTH_TURNSTILE_SITE_KEY) {
+    if (!isVerified && !TURNSTILE_ACTIVE) {
       onVerified();
     }
   }, [isVerified, onVerified]);
@@ -74,14 +78,14 @@ export function AuthTurnstileInline({
     onSuccess: (token) => { void onTurnstileSuccess(token); },
     onError: onTurnstileError,
     onExpired: onTurnstileError,
-    enabled: !isVerified && !!AUTH_TURNSTILE_SITE_KEY,
+    enabled: !isVerified && TURNSTILE_ACTIVE,
   });
 
   useEffect(() => {
     resetRef.current = reset;
   }, [reset]);
 
-  if (isVerified || !AUTH_TURNSTILE_SITE_KEY) {
+  if (isVerified || !TURNSTILE_ACTIVE) {
     return null;
   }
 

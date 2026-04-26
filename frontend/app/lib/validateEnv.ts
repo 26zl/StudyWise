@@ -1,22 +1,42 @@
 /*
  * Miljøvariabel-validering for frontend
  *
- * Clerk- og Turnstile-variabler er alltid påkrevd.
+ * Clerk-variabler er alltid påkrevd. Turnstile-variabler er kun påkrevd
+ * når NEXT_PUBLIC_TURNSTILE_ENABLED=true.
  * INTERNAL_API_URL er påkrevd for build/produksjon, men kan falle tilbake til
  * localhost i next dev via next.config.js.
  */
 
+/**
+ * Master feature-flag for Cloudflare Turnstile (frontend).
+ *
+ * Når `false` (default) skipper hele frontend Turnstile:
+ *   - AuthTurnstileInline rendrer ingenting (kaller onVerified() umiddelbart)
+ *   - TurnstileReChallenge vises aldri
+ *   - ContactForm sender ingen turnstileToken
+ *
+ * For å reaktivere: sett NEXT_PUBLIC_TURNSTILE_ENABLED=true i Vercel og
+ * sørg for at NEXT_PUBLIC_TURNSTILE_SITE_KEY, NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY
+ * og AUTH_TURNSTILE_GATE_SECRET er satt. Backend må også få TURNSTILE_ENABLED=true.
+ */
+export const turnstileEnabled =
+  process.env.NEXT_PUBLIC_TURNSTILE_ENABLED?.toLowerCase() === "true";
+
 // CLERK_SECRET_KEY brukes server-side av Clerk Next.js middleware (clerkMiddleware i proxy.ts)
-// og er aldri eksponert til klienten. AUTH_TURNSTILE_GATE_SECRET brukes i auth-turnstile-server.ts.
+// og er aldri eksponert til klienten.
 const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
   "CLERK_SECRET_KEY",
-  "AUTH_TURNSTILE_GATE_SECRET",
-  "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
-  "NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY",
   "NEXT_PUBLIC_CLERK_SIGN_IN_URL",
   "NEXT_PUBLIC_CLERK_SIGN_UP_URL",
   "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL",
   "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL"
+] as const;
+
+// Påkrevd kun når Turnstile er aktivert. AUTH_TURNSTILE_GATE_SECRET brukes i auth-turnstile-server.ts.
+const TURNSTILE_REQUIRED_FRONTEND_ENV_VARS = [
+  "AUTH_TURNSTILE_GATE_SECRET",
+  "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+  "NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY",
 ] as const;
 
 interface ValidateFrontendEnvOptions {
@@ -50,9 +70,12 @@ export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): v
   const requireInternalApiUrl =
     options.requireInternalApiUrl === true ||
     process.env.NODE_ENV === "production";
-  const requiredFrontendEnvVars = requireInternalApiUrl
+  const baseRequired = requireInternalApiUrl
     ? ([...ALWAYS_REQUIRED_FRONTEND_ENV_VARS, "INTERNAL_API_URL"] as const)
     : ALWAYS_REQUIRED_FRONTEND_ENV_VARS;
+  const requiredFrontendEnvVars: readonly string[] = turnstileEnabled
+    ? [...baseRequired, ...TURNSTILE_REQUIRED_FRONTEND_ENV_VARS]
+    : baseRequired;
   const manglende: string[] = [];
 
   if (!getFrontendClerkPublishableKey()) {

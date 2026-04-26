@@ -2166,6 +2166,9 @@ export const enMessages = {
     thirdPartyContactRelayLabel: "Email delivery for contact form (Cloudflare Worker + Resend):",
     thirdPartyContactRelayBody:
       "When you submit an inquiry via the contact form, the content (name, email, subject, and message) is forwarded via a Cloudflare Worker to Resend, which delivers the email to our team. A copy is also stored in our own database for up to 365 days so administrators can view the inbox in the admin panel, and is automatically deleted afterward or manually once the case has been handled.",
+    thirdPartyNotionLabel: "Notion export (optional):",
+    thirdPartyNotionBody:
+      "If you enable the Notion integration yourself and store a Notion API key with us, we send notes and documents you explicitly export to the Notion page you've selected. We can only create new child pages — we cannot read, modify, or delete existing Notion content. You must share a parent page with your Notion integration for the feature to work, and you can remove the connection at any time in settings.",
     thirdPartyMapsLabel: "Embedded map (Google Maps):",
     thirdPartyMapsBody:
       'The contact page includes an embedded Google Maps map showing USN Campus Bø. When you visit the page, your browser loads the map directly from Google, and Google can therefore see your IP address and user agent. We do not send referrer information from our side to Google (referrerPolicy="no-referrer"), but the map load itself contacts Google. If you prefer to avoid this, do not visit the contact page, or use browser features that block third-party content.',
@@ -2269,6 +2272,15 @@ export const enMessages = {
     canvasApi1: "We only use the token to read your Canvas data — we perform no write operations",
     canvasApi2: "You can revoke the token in Canvas at any time",
     canvasApi3: "The token is stored encrypted and never sent to third parties",
+    notionApiTitle: "Notion export (optional)",
+    notionApiIntro:
+      "If you choose to enable the Notion integration and store a Notion API key with us:",
+    notionApi1:
+      "We can only create new child pages under the page you've selected — we cannot read, modify, or delete existing Notion content",
+    notionApi2:
+      "Export only happens when you explicitly click \"Export\" — we never send anything in the background",
+    notionApi3:
+      "The Notion API key is stored encrypted. You can remove the connection at any time in settings",
     loggingTitle: "Logging and privacy",
     loggingBody:
       "On the server we log technical errors and security events so we can operate the service and troubleshoot problems. We never log your email, name, password, Canvas token, or the content of what you write (chat messages, searches, documents). What we do store is anonymized technical information — a random request ID, your IP address, your browser — which is needed to detect abuse. Logs are automatically deleted after a limited period, and anonymized further if you delete your account.",

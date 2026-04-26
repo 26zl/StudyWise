@@ -34,7 +34,12 @@ function sanitizeReportedErrorId(raw: string | null | undefined): string | undef
   return trimmed;
 }
 
+import { turnstileEnabled } from "@/app/lib/validateEnv";
+
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+
+// Effektivt aktiveringsflagg: krever både master-flagg OG sitekey
+const TURNSTILE_ACTIVE = turnstileEnabled && !!TURNSTILE_SITE_KEY;
 
 type KontaktFormData = {
   navn: string;
@@ -113,7 +118,7 @@ export function ContactForm() {
     onSuccess: onTurnstileSuccess,
     onError: onTurnstileError,
     onExpired: onTurnstileError,
-    enabled: !!TURNSTILE_SITE_KEY,
+    enabled: TURNSTILE_ACTIVE,
   });
 
   // Zod-schema med oversatte feilmeldinger
@@ -158,10 +163,10 @@ export function ContactForm() {
     resetTurnstileWidget();
   }, [resetTurnstileWidget]);
 
-  const isTurnstileRequired = !!TURNSTILE_SITE_KEY;
+  const isTurnstileRequired = TURNSTILE_ACTIVE;
 
   const onSubmit = async (data: KontaktFormData) => {
-    // Krev Turnstile-token kun hvis Turnstile er konfigurert
+    // Krev Turnstile-token kun hvis Turnstile er aktivt (master-flagg + sitekey)
     if (isTurnstileRequired && !turnstileToken) {
       showToast.error(t("contactForm.turnstileError"));
       return;
@@ -433,8 +438,8 @@ export function ContactForm() {
         )}
       </div>
 
-      {/* Turnstile widget */}
-      {TURNSTILE_SITE_KEY && (
+      {/* Turnstile widget — kun synlig når master-flagg er på */}
+      {TURNSTILE_ACTIVE && (
         <div className="flex justify-center">
           <div ref={turnstileRef} />
           {!turnstileLoaded && (

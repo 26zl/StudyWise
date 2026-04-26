@@ -8,7 +8,7 @@ import {
 } from "common/auth";
 import { rateLimitAuthTurnstile } from "../../middleware/rate-limit.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
-import { isProd } from "../../utils/env.js";
+import { isProd, turnstileEnabled } from "../../utils/env.js";
 import { logger } from "../../utils/logger.js";
 import { isTurnstileConfigured, verifyTurnstileToken } from "../../services/turnstile.service.js";
 import {
@@ -45,6 +45,13 @@ function extractFrontendHostname(req: Request): string | null {
 }
 
 router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Response) => {
+  // Turnstile globalt deaktivert: returner success umiddelbart uten å validere noe.
+  // Frontend skal i utgangspunktet ikke kalle endepunktet i denne modusen, men hvis
+  // en gammel klient gjør det får den et tomt OK-svar i stedet for en feilmelding.
+  if (!turnstileEnabled) {
+    return res.json(AuthTurnstileVerifyResponseSchema.parse({ success: true }));
+  }
+
   const parseResult = AuthTurnstileVerifyRequestSchema.safeParse(req.body);
   if (!parseResult.success) {
     clearAuthTurnstileCookie(res);
@@ -130,6 +137,13 @@ router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Respons
  * for å sikre at bruker har bestått human-check.
  */
 router.get("/gate", rateLimitAuthTurnstile, async (req: Request, res: Response) => {
+  // Turnstile globalt deaktivert: rapporter alltid "verified" så frontend OAuth/forgot-flows
+  // kan fortsette uten å vise sikkerhetsverifisering-feil.
+  if (!turnstileEnabled) {
+    res.json({ verified: true });
+    return;
+  }
+
   const rawCookie = req.headers.cookie;
   let cookieValue: string | undefined;
   if (rawCookie) {

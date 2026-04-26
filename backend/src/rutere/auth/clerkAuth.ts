@@ -23,7 +23,7 @@ import type { IUser } from "../../database/models/User.js";
 import { getConfiguredWebOrigins } from "../../utils/webOrigins.js";
 import { sanitizeUsername } from "../../database/models/User.js";
 import { isValidAuthTurnstileCookieValue } from "../../utils/authTurnstileCookie.js";
-import { isProd } from "../../utils/env.js";
+import { isProd, turnstileEnabled } from "../../utils/env.js";
 import { getCache, setCache } from "../../cache/redis.js";
 import { guardRelink, getCurrentClerkEnv, type ClerkEnv } from "./relinkGuard.js";
 import { isMongoDuplicateKeyError } from "../../utils/canvasUserSync.js";
@@ -1626,8 +1626,9 @@ export async function findOrCreateUserByClerkId(
     // Sjekker ved HVER fersk sesjon, uavhengig av profilsync-intervall.
     // resolveSessionTurnstileVerification håndterer racen der parallelle requests
     // kappes om samme nonce — tapende request venter kort på at vinneren markerer sesjonen.
+    // Hoppes helt over når turnstileEnabled=false (Clerk + ratelimit beskytter da).
     const sid = options?.sessionId;
-    if (isProd && !(await resolveSessionTurnstileVerification(sid, options?.authTurnstileCookie))) {
+    if (turnstileEnabled && isProd && !(await resolveSessionTurnstileVerification(sid, options?.authTurnstileCookie))) {
       logger.warn(
         { clerkUserId, userId: existing._id, flowId: fid, sid },
         "authFlow: sesjon mangler Turnstile-verifisering — blokkerer",
@@ -2162,8 +2163,9 @@ export async function findOrCreateUserByClerkId(
     // Forhindrer bot-registrering selv om Turnstile-widget-sjekken på klienten blir omgått.
     // resolveSessionTurnstileVerification håndterer både rask path (sesjon allerede verifisert)
     // og race-vinduet der parallelle requests kappes om samme nonce.
+    // Hoppes helt over når turnstileEnabled=false (Clerk + ratelimit beskytter da).
     const newUserSid = options?.sessionId;
-    if (isProd && !(await resolveSessionTurnstileVerification(newUserSid, options?.authTurnstileCookie))) {
+    if (turnstileEnabled && isProd && !(await resolveSessionTurnstileVerification(newUserSid, options?.authTurnstileCookie))) {
       logger.warn(
         { clerkUserId, email, flowId: fid },
         "authFlow: mangler gyldig Turnstile-cookie ved brukeropprettelse — blokkerer",

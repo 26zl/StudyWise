@@ -313,20 +313,23 @@ export const validateEnv = (): void => {
     }
   }
 
-  // Valider kontaktskjema/Turnstile-variabler i alle miljøer
-  if (!process.env.TURNSTILE_SECRET_KEY?.trim()) {
-    manglende.push("TURNSTILE_SECRET_KEY (påkrevd for kontaktskjema)");
-  }
-  if (!process.env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
-    manglende.push("AUTH_TURNSTILE_SECRET_KEY (påkrevd for auth Turnstile)");
-  }
-  const gateSecret = process.env.AUTH_TURNSTILE_GATE_SECRET?.trim();
-  if (!gateSecret) {
-    manglende.push("AUTH_TURNSTILE_GATE_SECRET (påkrevd for auth-gate cookie-signering)");
-  } else if (gateSecret.length < 32) {
-    manglende.push(
-      "AUTH_TURNSTILE_GATE_SECRET må være minst 32 tegn (brukes til HMAC-signering). Generer med: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
-    );
+  // Valider Turnstile-variabler KUN når flagget er på.
+  // Når TURNSTILE_ENABLED!=true er Turnstile helt skrudd av — ingen env-vars trengs.
+  if (process.env.TURNSTILE_ENABLED?.toLowerCase() === "true") {
+    if (!process.env.TURNSTILE_SECRET_KEY?.trim()) {
+      manglende.push("TURNSTILE_SECRET_KEY (påkrevd når TURNSTILE_ENABLED=true)");
+    }
+    if (!process.env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
+      manglende.push("AUTH_TURNSTILE_SECRET_KEY (påkrevd når TURNSTILE_ENABLED=true)");
+    }
+    const gateSecret = process.env.AUTH_TURNSTILE_GATE_SECRET?.trim();
+    if (!gateSecret) {
+      manglende.push("AUTH_TURNSTILE_GATE_SECRET (påkrevd når TURNSTILE_ENABLED=true)");
+    } else if (gateSecret.length < 32) {
+      manglende.push(
+        "AUTH_TURNSTILE_GATE_SECRET må være minst 32 tegn (brukes til HMAC-signering). Generer med: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
+      );
+    }
   }
   if (!process.env.CONTACT_WORKER_URL?.trim()) {
     manglende.push("CONTACT_WORKER_URL (påkrevd for kontaktskjema)");
