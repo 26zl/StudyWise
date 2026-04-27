@@ -10,3 +10,23 @@
 # så PR-review ikke drukner i lockfile-støy og Repo-insights ikke rapporterer
 # 40 % YAML.
 pnpm-lock.yaml linguist-generated=true
+
+# LaTeX-kilde (filer_prosjekt/BSc/) — tving tekst/LF og merk som "TeX" i
+# språkstatistikk så bachelor-tex-en ikke teller som "vanlig" kode.
+*.tex text eol=lf linguist-language=TeX
+*.bib text eol=lf linguist-language=BibTeX
+*.cls text eol=lf linguist-language=TeX
+*.sty text eol=lf linguist-language=TeX
+
+# Bachelor-leveranser og figurer er binær — ikke prøv å diffe eller normalisere
+# linjeslutt på dem.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.eps binary
+
+# filer_prosjekt/ er bachelor-leveranse, ikke prod-kode — skjul fra
+# språkstatistikk så Repo-insights ikke teller .tex/.bib som kodebasen vår.
+filer_prosjekt/** linguist-vendored=true
