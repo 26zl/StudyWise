@@ -184,6 +184,23 @@ body {
     }
 }
 
+/* Mer kontrast pa hover for chat-handlingsknapper */
+.chat-input-icon-btn:hover {
+    background-color: #e2e8f0;
+}
+
+.chat-input-icon-btn:hover .chat-input-icon {
+    color: #334155;
+}
+
+.dark .chat-input-icon-btn:hover {
+    background-color: #1f2937;
+}
+
+.dark .chat-input-icon-btn:hover .chat-input-icon {
+    color: #e2e8f0;
+}
+
 ::-webkit-scrollbar-track {
     background: transparent;
 }

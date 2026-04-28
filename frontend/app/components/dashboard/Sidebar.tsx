@@ -434,8 +434,21 @@ export function Sidebar({
                 )}
 
                 <nav ref={navScrollRef} aria-label={t("dashboard.sidebar.navigationTitle")} className="relative flex-1 overflow-y-auto px-5 py-5 space-y-2">
+                    {/* Ny samtale-knapp */}
+                    <button
+                        type="button"
+                        onClick={() => {
+                            requestNewChat();
+                            handleNavigasjon("chat");
+                        }}
+                        className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                    >
+                        <Plus size={16} />
+                        <span>{t("common.actions.newConversation")}</span>
+                    </button>
+
                     {/* Hovednavigasjon */}
-                    <div className="mb-1">
+                    <div className="mb-7">
                         <Link
                             href="/oversikt"
                             prefetch={false}
@@ -459,20 +472,6 @@ export function Sidebar({
                             <span className="truncate">{t("dashboard.sidebar.overview")}</span>
                         </Link>
                     </div>
-
-
-                    {/* Ny samtale-knapp */}
-                    <button
-                        type="button"
-                        onClick={() => {
-                            requestNewChat();
-                            handleNavigasjon("chat");
-                        }}
-                        className="w-full flex items-center justify-center gap-2 px-5 py-3.5 mb-8 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                    >
-                        <Plus size={16} />
-                        <span>{t("common.actions.newConversation")}</span>
-                    </button>
 
                     {/* Chat-historikk */}
                     <div className="mb-10">
