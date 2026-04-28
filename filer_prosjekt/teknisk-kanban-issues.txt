@@ -1,9 +1,9 @@
 Teknisk Kanban — StudyWise
 ==========================
-Alle 177 issues opprettet i GitHub Projects (#25) med status: Done.
+Alle 176 issues opprettet i GitHub Projects (#25) med status: Done.
 
 ==============================================================================
-ORIGINALE ITEMS (1-145) — Fra opprinnelig liste
+ORIGINALE ITEMS (1-144) — Fra opprinnelig liste
 ==============================================================================
 
 --- Prosjektoppsett & Infrastruktur (1-13) ---
@@ -75,7 +75,7 @@ ORIGINALE ITEMS (1-145) — Fra opprinnelig liste
 58. Implementert pending state for chat under navigering
 59. Laget chat-eksport til Markdown
 60. Implementert deling av KI-samtaler via token
-61. Laget delt-chat visning (/delt-chat/[shareToken])
+61. Laget delt-chat visning (/share/[shareId])
 62. Implementert retry-knapp for feilede KI-meldinger
 63. Laget smarte oppfølgingsforslag basert på svartype
 64. Implementert auto-genererte modulspørsmål i chat
@@ -180,57 +180,56 @@ ORIGINALE ITEMS (1-145) — Fra opprinnelig liste
 139. Laget LanguageProvider med server-side støtte
 140. Opprettet meldingsfiler for nb og en
 
---- Dokumentasjon (141-145) ---
-141. Skrevet AGENTS.md med prosjektretningslinjer
-142. Skrevet CLAUDE.md som prosjektreferanse
-143. Skrevet CONTRIBUTING.md som bidragsguide
-144. Satt opp Swagger UI for API-dokumentasjon
-145. Konfigurert VitePress docs-side
+--- Dokumentasjon (141-144) ---
+141. Skrevet CLAUDE.md som prosjektreferanse
+142. Skrevet CONTRIBUTING.md som bidragsguide
+143. Satt opp Swagger UI for API-dokumentasjon
+144. Konfigurert VitePress docs-side
 
 ==============================================================================
-NYE ITEMS (146-177) — Funnet ved kodebase-analyse, ikke i original liste
+NYE ITEMS (145-176) — Funnet ved kodebase-analyse, ikke i original liste
 ==============================================================================
 
---- KI/AI — Nye (146-151) ---
-146. Implementert flashcard-generering fra Canvas-innhold
-147. Laget FlashcardView-komponent med studie-modus
-148. Implementert KI-eksport til 6 formater (Markdown, PDF, Word, Excel, Text, Notion)
-149. Laget eksport-providers med builder-pattern
-150. Implementert studiekontekst-service for personaliserte KI-svar
-151. Implementert Notion-integrasjon (API-nøkkel, side-verifisering, eksport)
+--- KI/AI — Nye (145-150) ---
+145. Implementert flashcard-generering fra Canvas-innhold
+146. Laget QuizView (felles komponent for quiz og flashcards) med studie-modus
+147. Implementert KI-eksport til 6 formater (Markdown, PDF, Word, Excel, Text, Notion)
+148. Laget eksport-providers med builder-pattern
+149. Implementert studiekontekst-service for personaliserte KI-svar
+150. Implementert Notion-integrasjon (API-nøkkel, side-verifisering, eksport)
 
---- Sikkerhet & Auth — Nye (152-157) ---
-152. Implementert nonce-basert CSP (Content Security Policy)
-153. Implementert Turnstile-verifisering for auth og kontaktskjema
-154. Laget step-up auth (requireRecentAuth) for sensitive operasjoner
-155. Implementert cross-environment re-linking (Clerk dev/prod)
-156. Laget auth conflict guard i frontend
-157. Implementert soft-delete pattern for brukere (deletedAt)
+--- Sikkerhet & Auth — Nye (151-156) ---
+151. Implementert nonce-basert CSP (Content Security Policy)
+152. Implementert Turnstile-verifisering for auth og kontaktskjema
+153. Laget step-up auth (requireRecentAuth) for sensitive operasjoner
+154. Implementert cross-environment re-linking (Clerk dev/prod)
+155. Laget auth conflict guard i frontend
+156. Implementert soft-delete pattern for brukere (deletedAt)
 
---- Infrastruktur & Resiliens — Nye (158-164) ---
-158. Satt opp web push notifications service med VAPID
-159. Implementert web crawler for eksterne Canvas-lenker
-160. Laget kontaktskjema med Cloudflare Worker-integrasjon
-161. Implementert graceful shutdown (SIGTERM/SIGINT)
-162. Laget retry-kø for Clerk-slettinger (PendingClerkDeletion)
-163. Laget retry-kø for Pinecone vektor-slettinger (PendingVectorDeletion)
-164. Implementert memory pressure checks for Heroku-dynos
+--- Infrastruktur & Resiliens — Nye (157-163) ---
+157. Satt opp web push notifications service med VAPID
+158. Implementert web crawler for eksterne Canvas-lenker
+159. Laget kontaktskjema med Cloudflare Worker-integrasjon
+160. Implementert graceful shutdown (SIGTERM/SIGINT)
+161. Laget retry-kø for Clerk-slettinger (DeletedUserTombstone + clerkDeletion.queue)
+162. Laget retry-kø for Pinecone vektor-slettinger (pineconeCleanup.queue)
+163. Implementert memory pressure checks for Heroku-dynos
 
---- Frontend — Nye (165-170) ---
-165. Laget velkomst-/onboarding-modal for nye brukere
-166. Laget FAQ-side
-167. Implementert smarte fristvarsler med kompleksitetsvurdering
-168. Laget studiestatistikk endpoint og visning
-169. Implementert auth sign-in/sign-up sider med Turnstile
-170. Laget glemt passord-flyt
+--- Frontend — Nye (164-169) ---
+164. Laget velkomst-/onboarding-modal for nye brukere
+165. Laget FAQ-side
+166. Implementert smarte fristvarsler med kompleksitetsvurdering
+167. Laget studiestatistikk endpoint og visning
+168. Implementert auth sign-in/sign-up sider med Turnstile
+169. Laget glemt passord-flyt
 
---- Admin — Nye (171-172) ---
-171. Implementert admin-panel med brukeradministrasjon og statistikk
-172. Laget admin audit-logg visning
+--- Admin — Nye (170-171) ---
+170. Implementert admin-panel med brukeradministrasjon og statistikk
+171. Laget admin audit-logg visning
 
---- CI/CD — Nye (173-177) ---
-173. Satt opp CI-pipeline med actionlint, quality, dependency-scan, secret-scan, SBOM
-174. Konfigurert automatisk deploy til Vercel (frontend) og Heroku (backend)
-175. Laget OWASP dependency-check workflow (ukentlig)
-176. Laget automatisk dependency update workflow
-177. Satt opp Playwright E2E testing i CI
+--- CI/CD — Nye (172-176) ---
+172. Satt opp CI-pipeline med actionlint, quality, dependency-scan, secret-scan, SBOM
+173. Konfigurert automatisk deploy til Vercel (frontend) og Heroku (backend)
+174. Laget OWASP dependency-check workflow (ukentlig)
+175. Laget automatisk dependency update workflow
+176. Satt opp Playwright E2E testing i CI

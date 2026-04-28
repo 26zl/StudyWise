@@ -123,7 +123,7 @@ const migrations: Migration[] = [
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
-        { role: "support" },
+        { role: "support" as never },
         { $set: { role: "user" } },
       );
       logger.info(
@@ -230,7 +230,7 @@ const migrations: Migration[] = [
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
-        { role: "student" },
+        { role: "student" as never },
         { $set: { role: "user" } },
       );
       logger.info(

@@ -422,7 +422,7 @@ importers:
         specifier: ^17.5.0
         version: 17.5.0
       postcss:
-        specifier: '>=8.5.10'
+        specifier: ^8.5.12
         version: 8.5.12
       tailwindcss:
         specifier: ^4.2.4
