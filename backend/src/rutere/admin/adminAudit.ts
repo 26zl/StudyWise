@@ -127,11 +127,15 @@ router.get("/audit", async (req, res) => {
   }
 
   try {
+    // $eq-operator brukes konsekvent for bruker-kontrollerte verdier slik at
+    // MongoDB tvinges til primitive-equality og operator-injeksjon (f.eks.
+    // {$ne: null}) avvises selv om en verdi mot all formodning skulle slippe
+    // forbi Zod-valideringen.
     const filter: Record<string, unknown> = {};
-    if (category) filter.category = category;
-    if (outcome) filter.outcome = outcome;
-    if (targetUserId) filter.targetUserId = targetUserId;
-    if (actorUserIdFilter) filter.actorUserId = actorUserIdFilter;
+    if (category) filter.category = { $eq: category };
+    if (outcome) filter.outcome = { $eq: outcome };
+    if (targetUserId) filter.targetUserId = { $eq: targetUserId };
+    if (actorUserIdFilter) filter.actorUserId = { $eq: actorUserIdFilter };
     if (fromDate || toDate) {
       filter.createdAt = {
         ...(fromDate ? { $gte: fromDate } : {}),
@@ -221,13 +225,17 @@ router.get("/audit/export.csv", async (req, res) => {
     return apiError.badRequest(res, "'Fra' kan ikke være senere enn 'Til'");
   }
 
+  // Bruker $eq-operator eksplisitt for alle bruker-kontrollerte verdier.
+  // MongoDB tolker $eq som strict primitive-equality og avviser objekter som
+  // {$ne: null}, slik at NoSQL-operator-injeksjon er umulig selv om en verdi
+  // mot all formodning skulle slippe forbi sanitiseringen over.
   const filter: Record<string, unknown> = {
     createdAt: { $gte: fromDate, $lte: toDate },
   };
-  if (category) filter.category = category;
-  if (outcomeRaw) filter.outcome = outcomeRaw;
-  if (actorUserIdRaw) filter.actorUserId = actorUserIdRaw;
-  if (targetUserIdRaw) filter.targetUserId = targetUserIdRaw;
+  if (category) filter.category = { $eq: category };
+  if (outcomeRaw) filter.outcome = { $eq: outcomeRaw };
+  if (actorUserIdRaw) filter.actorUserId = { $eq: actorUserIdRaw };
+  if (targetUserIdRaw) filter.targetUserId = { $eq: targetUserIdRaw };
 
   const MAX_EXPORT_ROWS = 10_000;
 
@@ -356,13 +364,17 @@ router.get("/audit/export.txt", async (req, res) => {
     return apiError.badRequest(res, "'Fra' kan ikke være senere enn 'Til'");
   }
 
+  // Bruker $eq-operator eksplisitt for alle bruker-kontrollerte verdier.
+  // MongoDB tolker $eq som strict primitive-equality og avviser objekter som
+  // {$ne: null}, slik at NoSQL-operator-injeksjon er umulig selv om en verdi
+  // mot all formodning skulle slippe forbi sanitiseringen over.
   const filter: Record<string, unknown> = {
     createdAt: { $gte: fromDate, $lte: toDate },
   };
-  if (category) filter.category = category;
-  if (outcomeRaw) filter.outcome = outcomeRaw;
-  if (actorUserIdRaw) filter.actorUserId = actorUserIdRaw;
-  if (targetUserIdRaw) filter.targetUserId = targetUserIdRaw;
+  if (category) filter.category = { $eq: category };
+  if (outcomeRaw) filter.outcome = { $eq: outcomeRaw };
+  if (actorUserIdRaw) filter.actorUserId = { $eq: actorUserIdRaw };
+  if (targetUserIdRaw) filter.targetUserId = { $eq: targetUserIdRaw };
 
   const MAX_EXPORT_ROWS = 10_000;
 

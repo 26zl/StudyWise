@@ -370,9 +370,12 @@ export interface AdminFailureListParams {
 export async function listExtractionFailuresForAdmin(
   params: AdminFailureListParams = {},
 ): Promise<{ items: IFileExtractionStatus[]; total: number }> {
+  // $eq-operator brukes konsekvent for bruker-kontrollerte verdier slik at
+  // MongoDB tvinges til primitive-equality og operator-injeksjon avvises selv
+  // om en verdi mot all formodning skulle slippe forbi Zod-valideringen i ruten.
   const filter: Record<string, unknown> = {};
-  if (params.courseId) filter.courseId = params.courseId;
-  if (params.status) filter.status = params.status;
+  if (params.courseId) filter.courseId = { $eq: params.courseId };
+  if (params.status) filter.status = { $eq: params.status };
 
   const limit = Math.max(1, Math.min(params.limit ?? 100, 500));
   const skip = Math.max(0, params.skip ?? 0);

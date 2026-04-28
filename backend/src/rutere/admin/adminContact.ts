@@ -49,14 +49,17 @@ router.get("/contact/messages", async (req, res) => {
   const errorIdFilter = parsed.data.errorId;
 
   try {
+    // $eq-operator brukes konsekvent for bruker-kontrollerte verdier slik at
+    // MongoDB tvinges til primitive-equality og operator-injeksjon avvises selv
+    // om en verdi mot all formodning skulle slippe forbi Zod-valideringen.
     const filter: Record<string, unknown> = {};
-    if (status !== "all") filter.status = status;
+    if (status !== "all") filter.status = { $eq: status };
     // Søk både i reportedErrorId (feilen brukeren rapporterte) og requestId (selve submit-requesten).
     // Admin kan da lime inn én ID og treffe uansett hvilken av de to som er kjent.
     if (errorIdFilter) {
       filter.$or = [
-        { reportedErrorId: errorIdFilter },
-        { requestId: errorIdFilter },
+        { reportedErrorId: { $eq: errorIdFilter } },
+        { requestId: { $eq: errorIdFilter } },
       ];
     }
 
