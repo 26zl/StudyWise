@@ -36,6 +36,7 @@ import {
 import {
   createCourseTargetedQuery,
   extractJsonArray,
+  extractJsonObject,
 } from "../ki/studyContentUtils.js";
 import { getCache, setCache } from "../../cache/redis.js";
 
@@ -123,6 +124,10 @@ Unntak: svar på engelsk KUN hvis studenten eksplisitt skrev på engelsk.
 ### Andre regler
 - Spørsmålene skal variere i vanskelighetsgrad (lett, middels, vanskelig)
 - Alternativene skal være plausible — unngå åpenbart feil distraktorer
+- Alternativene skal ha omtrentlig lik lengde og format
+- Unngå at riktig svar er merkbart lengre enn de andre (ikke legg inn ekstra forklaringer i riktig alternativ)
+- Hold svaralternativene korte og parallelle (samme setningsstruktur der det gir mening)
+- Svaralternativene skal ha omtrent samme antall ord (+/- 2 ord)
 - Basér spørsmålene UTELUKKENDE på det medfølgende kursmateriellet — ikke bruk ekstern kunnskap
 - Shuffle riktig svar-posisjon — IKKE sett correctIndex til 0 for alle spørsmål
 - Dekk ulike deler av materiellet — ikke still flere spørsmål om samme konsept
@@ -134,6 +139,22 @@ Backend stokker alternativene etter at du har svart, så posisjoner er ustabile.
 - Skriv ALDRI "indeks 0/1/2/3" eller refererer til plassering i lista
 - Gjenta heller selve SVARET med egne ord: "Riktig svar er 'kvantitativ metode' fordi..."
 - Eller forklar KONSEPTET direkte uten å referere til alternativ-posisjon: "Dette skyldes at..."`;
+
+const QUIZ_OPTION_REWRITE_PROMPT = `Du er en norsk quiz-redaktor.
+Svar KUN med et JSON-objekt uten ekstra tekst, markdown eller forklaring.
+JSON-objektet skal ha:
+- "options": nøyaktig 4 svaralternativer (array med 4 strenger)
+- "correctIndex": indeks (0-3) til riktig svar
+- "explanation": kort forklaring på hvorfor svaret er riktig (1-3 setninger)
+
+Regler:
+- Alt skal være på norsk Bokmal.
+- Alternativene skal ha omtrent lik lengde og lik setningsstruktur.
+- Svaralternativene skal ha omtrent samme antall ord (+/- 2 ord).
+- Riktig svar skal IKKE være merkbart lengre enn de andre.
+- Behold faglig korrekthet: riktig svar skal fortsatt være riktig.
+- Forklaringen skal vaere posisjons-agnostisk (ikke referer til alternativ A/B eller indeks).
+`;
 
 /**
  * Resolver posisjonsreferanser i en quiz-forklaring til faktisk alternativtekst.
@@ -291,6 +312,78 @@ export function shuffleQuizOptions<
   return { ...q, options: newOptions, correctIndex: newCorrectIndex };
 }
 
+const QuizOptionRewriteSchema = z.object({
+  options: z.array(z.string().min(1)).length(4),
+  correctIndex: z.number().int().min(0).max(3),
+  explanation: z.string().min(1),
+});
+
+function optionLength(value: string): number {
+  return value.trim().length;
+}
+
+function isCorrectOptionLengthBiased(options: string[], correctIndex: number): boolean {
+  if (correctIndex < 0 || correctIndex >= options.length) return false;
+  const lengths = options.map(optionLength);
+  const correctLen = lengths[correctIndex] ?? 0;
+  const otherLengths = lengths.filter((_, idx) => idx !== correctIndex);
+  const avg = lengths.reduce((sum, value) => sum + value, 0) / lengths.length;
+  const maxOther = Math.max(...otherLengths);
+  return correctLen >= Math.max(avg * 1.35, maxOther + 20);
+}
+
+function areOptionLengthsBalanced(options: string[]): boolean {
+  if (options.length === 0) return true;
+  const lengths = options.map(optionLength);
+  const min = Math.min(...lengths);
+  const max = Math.max(...lengths);
+  const avg = lengths.reduce((sum, value) => sum + value, 0) / lengths.length;
+  return max - min <= 18 && max <= avg * 1.2;
+}
+
+async function rewriteQuizOptionsIfNeeded(
+  question: { question: string; options: string[]; correctIndex: number; explanation: string },
+  model: string,
+): Promise<typeof question> {
+  if (areOptionLengthsBalanced(question.options)) {
+    return question;
+  }
+
+  const correctAnswer = question.options[question.correctIndex] ?? "";
+  if (!correctAnswer) return question;
+
+  const rewritePrompt = `Sporsmal: ${question.question}
+Riktig svar (maa bevares i betydning): ${correctAnswer}
+Naverende alternativer:
+${question.options.map((opt, idx) => `${idx + 1}. ${opt}`).join("\n")}
+
+Lag nye alternativer i samme betydning, men med jevn lengde.`;
+
+  try {
+    const result = await chatCompletion({
+      model,
+      messages: [
+        { role: "system", content: QUIZ_OPTION_REWRITE_PROMPT },
+        { role: "user", content: rewritePrompt },
+      ],
+      max_tokens: 1200,
+      temperature: 0.5,
+      traceName: "quiz-options-rewrite",
+    });
+
+    const parsed = QuizOptionRewriteSchema.parse(JSON.parse(extractJsonObject(result.text)));
+    return {
+      ...question,
+      options: parsed.options,
+      correctIndex: parsed.correctIndex,
+      explanation: parsed.explanation,
+    };
+  } catch (error) {
+    logger.warn({ err: error }, "Kunne ikke balansere quiz-alternativer");
+    return question;
+  }
+}
+
 /**
  * Kjører selve quiz-genereringen i bakgrunnen og lagrer resultatet i Redis.
  * Kalles som fire-and-forget fra POST-endepunktet.
@@ -401,6 +494,28 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       .max(50)
       .parse(JSON.parse(extractJsonArray(result.text)));
 
+    // Rebalanser alternativer hvis riktig svar ofte blir merkbart lengre.
+    const biasedQuestions = rawQuestions.filter((q) =>
+      isCorrectOptionLengthBiased(q.options, q.correctIndex),
+    );
+    const rewrittenQuestions: typeof rawQuestions = [];
+    let rewritesDone = 0;
+    for (const q of rawQuestions) {
+      if (!areOptionLengthsBalanced(q.options)) {
+        const rewritten = await rewriteQuizOptionsIfNeeded(q, DEFAULT_MODEL);
+        rewrittenQuestions.push(rewritten);
+        rewritesDone++;
+        continue;
+      }
+      rewrittenQuestions.push(q);
+    }
+    if (rewritesDone > 0) {
+      logger.info(
+        { userId, courseId, rewritesDone, biasedCount: biasedQuestions.length },
+        "Rebalanserte quiz-alternativer for a unnga lengde-bias",
+      );
+    }
+
     // LLM-er har en tendens til å legge riktig svar på samme posisjon (ofte
     // indeks 0 eller 1) selv når prompten ber om variasjon. Shuffle server-side
     // er den eneste pålitelige måten å fjerne denne biasen på. Før vi shuffler,
@@ -409,7 +524,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
     // forklaringen immun mot at posisjonene endres ved shuffle.
     let sanitizedExplanations = 0;
     let detectedPositionRefs = 0;
-    const normalizedQuestions = rawQuestions.map((q) => {
+    const normalizedQuestions = rewrittenQuestions.map((q) => {
       const sanitized = resolvePositionReferencesInExplanation(
         q.explanation,
         q.options,

@@ -247,6 +247,45 @@ function ForsokKort({
                       </span>
                     </p>
                   )}
+                  <div className="mt-2 space-y-1">
+                    {sporsmal.options.map((option, optionIndex) => {
+                      const erRiktig = optionIndex === sporsmal.correctIndex;
+                      const erValgt = option === svar.selectedOption;
+                      const baseClass = erRiktig
+                        ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-200"
+                        : erValgt
+                          ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200"
+                          : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300";
+
+                      return (
+                        <div
+                          key={`${svar.questionId}-${optionIndex}`}
+                          className={`flex items-center justify-between gap-2 rounded-md border px-2 py-1 ${baseClass}`}
+                        >
+                          <span className="truncate">
+                            {optionIndex + 1}. {option}
+                          </span>
+                          {erRiktig ? (
+                            <span className="shrink-0 rounded-full bg-green-600/10 px-2 py-0.5 text-[10px] font-semibold text-green-700 dark:bg-green-400/10 dark:text-green-300">
+                              Riktig
+                            </span>
+                          ) : erValgt ? (
+                            <span className="shrink-0 rounded-full bg-red-600/10 px-2 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-400/10 dark:text-red-300">
+                              Ditt valg
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {sporsmal.explanation ? (
+                    <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-2 text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                      <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        Forklaring
+                      </p>
+                      <p className="text-xs leading-relaxed">{sporsmal.explanation}</p>
+                    </div>
+                  ) : null}
                 </div>
               </li>
             );
