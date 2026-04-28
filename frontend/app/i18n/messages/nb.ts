@@ -199,6 +199,16 @@ export const nbMessages = {
       allFieldsRequired: "Alle felt er påkrevd.",
       incomplete: "Innlogging ufullstendig. Prøv igjen.",
       sessionFailed: "Innlogging fullført, men økten kunne ikke opprettes. Prøv igjen.",
+      errors: {
+        credentials:
+          "Kunne ikke logge inn med e-post/brukernavn og passord. Sjekk at begge er skrevet riktig. Hvis du opprettet kontoen med Microsoft eller Google, bruk samme knapp i stedet.",
+        method:
+          "Denne kontoen ser ut til å bruke en annen innloggingsmetode. Velg Microsoft eller Google hvis det var slik du opprettet kontoen.",
+        rateLimited:
+          "Det har vært for mange innloggingsforsøk. Vent litt før du prøver igjen.",
+        verificationRequired:
+          "E-postadressen må bekreftes før du kan logge inn. Sjekk innboksen din for verifiseringskoden.",
+      },
       mfa: {
         title: "To-faktorautentisering",
         subtitle: "Skriv inn koden fra autentiseringsappen din.",
@@ -256,6 +266,17 @@ export const nbMessages = {
         notStrongEnough:
           "Passordet er for svakt. Prøv et lengre passord eller bruk flere uvanlige ord.",
         tooShort: "Passordet er for kort. Må være minst 8 tegn.",
+      },
+      errors: {
+        emailTaken:
+          "Det finnes allerede en konto med denne e-postadressen. Logg inn i stedet, eller bruk Microsoft/Google hvis det var slik kontoen ble opprettet.",
+        invalidEmail: "Skriv inn en gyldig e-postadresse.",
+        usernameTaken:
+          "Brukernavnet er allerede tatt. Velg et annet brukernavn.",
+        usernameInvalid:
+          "Brukernavnet kan bare inneholde bokstaver, tall og understrek, og må være 4–30 tegn.",
+        rateLimited:
+          "Det har vært for mange registreringsforsøk. Vent litt før du prøver igjen.",
       },
       submitButton: "Opprett konto",
       submitting: "Oppretter...",
@@ -390,6 +411,18 @@ export const nbMessages = {
     },
   },
   landing: {
+    accountDeleted: {
+      successTitle: "Sletting gjennomført",
+      successDescription:
+        "Kontoen din og all tilknyttet data er slettet fra StudyWise. Du er logget ut.",
+      partialTitle: "Kontoen er slettet",
+      partialDescription:
+        "StudyWise-kontoen er slettet, men én eller flere eksterne oppryddinger fullførte ikke automatisk. Vi rydder opp i bakgrunnen — kontakt oss om du har spørsmål.",
+      canvasReminderTitle: "Husk å fjerne Canvas-tilgangsnøkkelen",
+      canvasReminderBody:
+        "Tilgangsnøkkelen lå alltid trygt kryptert hos oss (AES-256-GCM) — den var aldri lesbar i klartekst — og er nå slettet sammen med kontoen. Bare for å være på den helt trygge siden anbefaler vi at du også fjerner oppføringen i Canvas selv: gå til Konto → Innstillinger → «Approved Integrations» og slett StudyWise-oppføringen.",
+      dismiss: "Lukk melding",
+    },
     actions: {
       continueToDashboard: "Fortsett til dashboard",
       signInOrRegister: "Logg inn / Registrer deg",
@@ -402,8 +435,8 @@ export const nbMessages = {
       },
       canvasIntegration: {
         description:
-          "Koble til Canvas én gang og få automatisk tilgang til alle dine emner, moduler, filer og kunngjøringer. Vi synker i bakgrunnen — du ser alltid det ferskeste uten å løfte en finger.",
-        title: "Sømløs Canvas-integrasjon",
+          "StudyWise er bygd rundt Canvas. Koble til med en personlig API-token én gang, og resten av appen — KI-chat, quiz, flashcards, ukeplan, kalender — får automatisk tilgang til emner, moduler, filer, frister og kunngjøringer. Uten Canvas-tilkobling låses de fleste funksjonene.",
+        title: "Canvas er fundamentet",
       },
       heading: "Alt du trenger for å lykkes",
       knowledgeBase: {
@@ -431,7 +464,7 @@ export const nbMessages = {
     },
     hero: {
       description:
-        "StudyWise samler alt du trenger på ett sted. Få full oversikt over Canvas, dine kommende oppgaver, og få hjelp av KI til å studere smartere – ikke hardere.",
+        "StudyWise samler Canvas, kalender og en KI-assistent som faktisk kjenner pensumet ditt. For å få full nytte må du koble til Canvas med en personlig API-token — det tar to minutter, og uten den fungerer kun generell KI-chat og kunnskapsbase med dine egne dokumenter.",
       title: "Din intelligente studieassistent",
     },
   },
@@ -472,7 +505,7 @@ export const nbMessages = {
         title: "Kalender",
       },
       library: {
-        description: "Bokmerker og egne kunnskapsbaser",
+        description: "Festede samtaler og egne kunnskapsbaser",
         title: "Bibliotek",
       },
       quizFlashcards: {
@@ -1385,7 +1418,7 @@ export const nbMessages = {
       emailUsers: "E-post-innlogging",
       unknownProviderUsers: "Ukjent innlogging",
       totalChats: "Samtaler",
-      bookmarkedChats: "Bokmerkede samtaler",
+      bookmarkedChats: "Festede samtaler",
       avgChatsPerUser: "Snitt samtaler per bruker",
       activeShareLinks: "Aktive delingslenker",
       inactiveShareLinks: "Inaktive delingslenker",
@@ -1829,6 +1862,29 @@ export const nbMessages = {
     sendingFailed: "Sending feilet",
     sources: "Kilder",
     sourcesHeading: "Kilder",
+    svarKilde: {
+      kursmateriale: {
+        label: "Pensum",
+        tooltip: "Forankret i innhold fra Canvas-pensumet ditt.",
+      },
+      canvas: {
+        label: "Canvas-data",
+        tooltip: "Forankret i Canvas-metadata (frister, moduler, kunngjøringer).",
+      },
+      kunnskapsbase: {
+        label: "Kunnskapsbase",
+        tooltip: "Forankret i dokumenter du selv har lastet opp.",
+      },
+      blandet: {
+        label: "Pensum + KI",
+        tooltip: "Kombinerer ditt pensum/kunnskapsbase og generell KI-kunnskap.",
+      },
+      generell: {
+        label: "Generell KI-kunnskap",
+        tooltip:
+          "Dette svaret er ikke forankret i ditt eget Canvas-pensum eller kunnskapsbase — det kommer direkte fra KI-modellens generelle kunnskap. Verifiser viktige fakta selv.",
+      },
+    },
     sourcesPillLabel: "kilder",
     sourceDownloadFailed: "Kunne ikke laste ned kilden",
     sourceDownloadStarted: "Laster ned kilden…",
@@ -2422,6 +2478,10 @@ export const nbMessages = {
     deleteAccountLink: "kontakt oss",
     deleteAccountA2:
       "for å be om kontosletting. Av sikkerhetshensyn må du ha logget inn nylig for å slette kontoen (step-up authentication) — logg inn på nytt om det er en stund siden sist. Ved sletting slettes eller anonymiseres kontoopplysninger og tilknyttede data, mens begrensede sikkerhets- og revisjonslogger kan beholdes i pseudonymisert form i en begrenset periode.",
+    canvasTokenAfterDeleteQ:
+      "Bør jeg fjerne Canvas-tilgangsnøkkelen min etter å ha slettet StudyWise-kontoen?",
+    canvasTokenAfterDeleteA:
+      "Ja — bare for å være på den helt trygge siden. Hos oss var nøkkelen alltid lagret kryptert med AES-256-GCM, ble aldri eksponert i klartekst, og er slettet sammen med kontoen — så den var trygg her uansett. Selve nøkkelen finnes likevel registrert i Canvas til du fjerner den der: logg inn på Canvas, gå til Konto → Innstillinger → «Approved Integrations» og slett StudyWise-oppføringen.",
     twoFactorQ: "Hvordan aktiverer jeg tofaktor-autentisering (2FA)?",
     twoFactorA:
       "Gå til Konto → Sikkerhet og følg oppsettet. Vi anbefaler en authenticator-app (Google Authenticator, 1Password, Authy eller tilsvarende). Mister du tilgang til appen, kontakt oss via kontaktskjemaet så hjelper vi deg å tilbakestille 2FA.",
@@ -2433,7 +2493,7 @@ export const nbMessages = {
       "Arbeidsplanen samler kommende frister og oppgaver fra Canvas i en strukturert ukeoversikt, slik at du enkelt kan planlegge lesing og innleveringer. Den oppdateres automatisk når Canvas synkroniseres.",
     withoutCanvasQ: "Kan jeg bruke StudyWise uten Canvas-token?",
     withoutCanvasA:
-      "Delvis. Du kan bruke KI-chatten og kunnskapsbasen (egne dokumenter og lenker) uten Canvas. Men funksjoner som henter data direkte fra skolen din — kurs, oppgaver, kalender, quiz og flashcards fra pensum, arbeidsplan og oppgavenedbrytning — krever at du kobler til Canvas. Du får altså fortsatt nytte av StudyWise uten Canvas, men de mest skolespesifikke funksjonene er låst.",
+      "Bare i svært begrenset grad — og vi anbefaler det ikke. StudyWise er bygd rundt Canvas-integrasjonen. Uten en personlig Canvas-API-token er kun generell KI-chat og kunnskapsbasen (dine egne opplastede dokumenter) tilgjengelig. Alt som gir StudyWise sin egentlige verdi — emneoversikt, kalender med frister, kunngjøringer, KI-chat med pensum-kontekst, quiz og flashcards fra Canvas-pensum, ukeplan og oppgavenedbrytning — krever Canvas-tilkobling. Du finner instruksjoner for å lage en token i Innstillinger; det tar et par minutter.",
     fileTypesQ: "Hvilke filtyper støttes for dokumentanalyse?",
     fileTypesA:
       "StudyWise støtter PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), bilder (PNG, JPG, WEBP) og vanlige kodefiler.",
@@ -2640,15 +2700,15 @@ export const nbMessages = {
     genericHint1: "Forklar enklere",
   },
   bokmerker: {
-    title: "Bokmerker",
+    title: "Festede samtaler",
     pageDescription:
-      "Samle bokmerkede samtaler og kunnskapsbaser på ett sted, så du raskt finner igjen materialet du jobber med.",
-    loading: "Laster bokmerker...",
-    searchLabel: "Søk i bokmerkede samtaler",
+      "Samle festede samtaler og kunnskapsbaser på ett sted, så du raskt finner igjen materialet du jobber med.",
+    loading: "Laster festede samtaler...",
+    searchLabel: "Søk i festede samtaler",
     searchPlaceholder: "Søk i samtaler...",
-    noSearchMatches: "Ingen bokmerkede samtaler matcher søket.",
-    removedFromBookmarks: "Fjernet fra bokmerker",
-    unpin: "Fjern bokmerke",
+    noSearchMatches: "Ingen festede samtaler matcher søket.",
+    removedFromBookmarks: "Festet samtale fjernet",
+    unpin: "Fjern fra festede",
   },
   kb: {
     title: "Kunnskapsbase",

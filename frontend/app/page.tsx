@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { LandingHeroActions } from "@/app/components/layout/LandingHeroActions";
+import { AccountDeletedBanner } from "@/app/components/account/AccountDeletedBanner";
 import { getUserServerSafe } from "@/app/auth/auth-server";
 import { translate } from "@/app/i18n";
 import { resolveRequestLanguage } from "@/app/i18n/server";
@@ -83,6 +84,7 @@ export default async function HomePage() {
   return (
     <div className="relative min-h-full flex flex-col text-slate-900 transition-colors dark:text-slate-100 overflow-x-hidden">
       <main className="relative flex-1 flex flex-col">
+        <AccountDeletedBanner />
         <section className="relative px-4 sm:px-6 lg:px-8 pt-20 pb-8 md:pt-28 md:pb-12">
           <div className="max-w-4xl mx-auto text-center space-y-6">
             <h1 className={`${headingClass} text-4xl sm:text-5xl md:text-6xl text-balance`}>

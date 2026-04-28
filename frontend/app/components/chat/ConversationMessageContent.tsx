@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useDeferredValue } from "react";
-import { FileText, Image } from "lucide-react";
+import { FileText, Image, BookOpen, Calendar, Folder, Sparkles, Layers } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeKatex from "rehype-katex";
@@ -13,6 +13,8 @@ import {
   hentSamtaleinnhold,
   type ConversationDisplayMessage,
 } from "@/app/components/chat/conversationMessageUtils";
+import { useLanguage } from "@/app/i18n";
+import type { SvarKilde } from "common/ki";
 
 // Utvid sanitize-schema for å tillate KaTeX-genererte elementer (math, annotation, semantics, etc.)
 const sanitizeSchema = {
@@ -79,25 +81,107 @@ const sanitizeSchema = {
 /**
  * Fjerner interne wrapper-tagger (<svar>, </svar>, <answer>, ...) som
  * AI-modellen bruker internt. Disse skal aldri synes for brukeren.
+ *
+ * Spesialhåndterer <svarkilde>...</svarkilde>: hele blokken (inkludert verdien)
+ * fjernes — ellers ville en eldre, lagret melding med ren regex-stripping vist
+ * "generell" som tilfeldig ord midt i teksten.
  */
 function stripInternalTags(text: string): string {
-  return text.replace(/<\/?[a-z_][a-z0-9_-]*>/gi, "").trim();
+  return text
+    .replace(/<svarkilde>[\s\S]*?<\/svarkilde>/gi, "")
+    .replace(/<\/?[a-z_][a-z0-9_-]*>/gi, "")
+    .trim();
 }
 
-function AssistantMarkdown({ innhold }: { innhold: string }) {
+type SvarKildeBadgeProps = {
+  svarKilde: SvarKilde;
+};
+
+/**
+ * Badge som vises over assistent-svar for å gjøre kilden tydelig.
+ * "generell" får sterkest visuell vekt — det er signalet om at svaret
+ * IKKE er forankret i studentens egen pensum/Canvas.
+ */
+function SvarKildeBadge({ svarKilde }: SvarKildeBadgeProps) {
+  const { t } = useLanguage();
+  const config: Record<
+    SvarKilde,
+    { label: string; tooltip: string; klasse: string; Icon: typeof BookOpen }
+  > = {
+    kursmateriale: {
+      label: t("chat.svarKilde.kursmateriale.label"),
+      tooltip: t("chat.svarKilde.kursmateriale.tooltip"),
+      klasse:
+        "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900",
+      Icon: BookOpen,
+    },
+    canvas: {
+      label: t("chat.svarKilde.canvas.label"),
+      tooltip: t("chat.svarKilde.canvas.tooltip"),
+      klasse:
+        "bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900",
+      Icon: Calendar,
+    },
+    kunnskapsbase: {
+      label: t("chat.svarKilde.kunnskapsbase.label"),
+      tooltip: t("chat.svarKilde.kunnskapsbase.tooltip"),
+      klasse:
+        "bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:ring-indigo-900",
+      Icon: Folder,
+    },
+    blandet: {
+      label: t("chat.svarKilde.blandet.label"),
+      tooltip: t("chat.svarKilde.blandet.tooltip"),
+      klasse:
+        "bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-900",
+      Icon: Layers,
+    },
+    generell: {
+      label: t("chat.svarKilde.generell.label"),
+      tooltip: t("chat.svarKilde.generell.tooltip"),
+      klasse:
+        "bg-amber-50 text-amber-800 ring-amber-300 dark:bg-amber-950/50 dark:text-amber-200 dark:ring-amber-800",
+      Icon: Sparkles,
+    },
+  };
+
+  const { label, tooltip, klasse, Icon } = config[svarKilde];
+
+  return (
+    <div
+      className={`mb-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${klasse}`}
+      title={tooltip}
+      aria-label={tooltip}
+    >
+      <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+      {label}
+    </div>
+  );
+}
+
+function AssistantMarkdown({
+  innhold,
+  svarKilde,
+}: {
+  innhold: string;
+  svarKilde?: SvarKilde;
+}) {
   // useDeferredValue lar React hoppe over mellomliggende render-stadier under
   // rask streaming — markdown-parsingen (remark+rehype+KaTeX+sanitize) er
   // tung, så deferred rendering holder UI-tråden responsiv.
   const deferred = useDeferredValue(stripInternalTags(innhold));
   return (
-    <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkMath]}
-        rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
-        components={contentRendererComponents}
-      >
-        {deferred}
-      </ReactMarkdown>
+    <div>
+      {svarKilde ? <SvarKildeBadge svarKilde={svarKilde} /> : null}
+      <div className="prose prose-base max-w-none prose-p:my-2 prose-p:leading-relaxed prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 prose-pre:my-0 prose-code:before:content-none prose-code:after:content-none dark:prose-invert">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath]}
+          rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
+          components={contentRendererComponents}
+        >
+          {deferred}
+        </ReactMarkdown>
+      </div>
     </div>
   );
 }
@@ -108,7 +192,12 @@ function ConversationMessageContentImpl({
   message: ConversationDisplayMessage;
 }) {
   if (message.rolle === "assistant") {
-    return <AssistantMarkdown innhold={message.innhold} />;
+    return (
+      <AssistantMarkdown
+        innhold={message.innhold}
+        svarKilde={message.svarKilde}
+      />
+    );
   }
 
   const { tekst, filer } = hentSamtaleinnhold(message);
@@ -149,12 +238,13 @@ function vedleggLiktArray(
 }
 
 // Memoiser så ferdige meldinger ikke re-parser markdown når den streamende
-// meldingen oppdateres. Comparator sjekker rolle + innhold + vedlegg slik at
-// oppdateringer på samme melding fortsatt trigger re-render.
+// meldingen oppdateres. Comparator sjekker rolle + innhold + vedlegg + svarKilde
+// slik at oppdateringer på samme melding fortsatt trigger re-render.
 export const ConversationMessageContent = memo(
   ConversationMessageContentImpl,
   (prev, next) =>
     prev.message.rolle === next.message.rolle
     && prev.message.innhold === next.message.innhold
+    && prev.message.svarKilde === next.message.svarKilde
     && vedleggLiktArray(prev.message.vedleggNavn, next.message.vedleggNavn),
 );

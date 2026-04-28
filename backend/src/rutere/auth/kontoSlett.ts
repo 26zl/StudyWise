@@ -44,6 +44,13 @@ export interface AccountDeletionResult {
   };
   providerAccountDeleted: boolean;
   vectorCleanupSucceeded: boolean;
+  /**
+   * Sant hvis brukeren hadde en lagret Canvas-tilgangsnøkkel ved sletting.
+   * Vi sletter ikke tokenet i Canvas selv — brukeren må gjøre det manuelt
+   * i Canvas-innstillingene. Dette feltet brukes til å vise en påminnelse
+   * etter sletting (kun når relevant).
+   */
+  hadCanvasToken: boolean;
 }
 
 /**
@@ -86,8 +93,14 @@ export async function deleteAccountData(
       // Hvis tombstone finnes, ble slettingen fullført tidligere
       providerAccountDeleted: !!alreadyDeleted,
       vectorCleanupSucceeded: !!alreadyDeleted,
+      hadCanvasToken: false,
     };
   }
+
+  // Husk om brukeren hadde en Canvas-token før vi sletter brukerdocumentet.
+  // Vi rører IKKE Canvas — brukeren må selv slette tokenet i Canvas-innstillingene.
+  // Dette flagget brukes kun til å vise en påminnelse etter sletting.
+  const hadCanvasToken = !!user.canvasApiToken;
   const kbBaseIds = (await KnowledgeBase.find({ userId }, { _id: 1 }).lean()).map((base) =>
     String(base._id),
   );
@@ -314,5 +327,10 @@ export async function deleteAccountData(
     );
   }
 
-  return { deleted: result, providerAccountDeleted, vectorCleanupSucceeded };
+  return {
+    deleted: result,
+    providerAccountDeleted,
+    vectorCleanupSucceeded,
+    hadCanvasToken,
+  };
 }

@@ -19,7 +19,8 @@ import {
   type WeeklyPlanAssignment,
   type WeeklyPlanSuggestionBlock,
 } from "common/ki";
-import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
+import { UKEDAGER } from "common/arbeidsplan";
+import { getIsoWeekInfo, parseTimerStreng, STUDYWISE_TIMEZONE } from "common/dateUtils";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import {
   apiError,
@@ -28,6 +29,7 @@ import {
   sendZodError,
 } from "../../utils/apiError.js";
 import { logger } from "../../utils/logger.js";
+import { knyttCanvasToken } from "../../middleware/auth.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
 import { chatCompletion, isClientAvailable } from "./aiClient.js";
 import { extractJsonObject } from "./studyContentUtils.js";
@@ -111,6 +113,114 @@ function beregnPrioritet(dueAt?: Date): "high" | "medium" | "low" {
   return "low";
 }
 
+/** Henter Oslo-kalenderdato (år/måned/dag) for et UTC-tidspunkt. */
+function getOsloDateParts(date: Date): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: STUDYWISE_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+  const [year, month, day] = parts.split("-").map(Number);
+  return { year, month, day };
+}
+
+/** ISO-ukedagindeks 1=Mandag … 7=Søndag for en gitt dato i Oslo-tidssonen. */
+function getOsloIsoWeekday(date: Date): number {
+  const { year, month, day } = getOsloDateParts(date);
+  // Bruk UTC-funksjoner for å unngå at lokal-tz på serveren forskyver dagen.
+  const utcDay = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return utcDay === 0 ? 7 : utcDay;
+}
+
+/** Returnerer YYYY-MM-DD i Oslo-tidssonen for en gitt dato. */
+function formatOsloIsoDate(date: Date): string {
+  const { year, month, day } = getOsloDateParts(date);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Returnerer Date for kl. 00:00 Oslo-tid på en gitt kalenderdato. */
+function osloMidnightUtc(year: number, month: number, day: number): Date {
+  // Beregn Oslo-offset på selve dagen (DST-trygt).
+  const utcNoon = Date.UTC(year, month - 1, day, 12, 0, 0);
+  const osloHourAtNoon = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: STUDYWISE_TIMEZONE,
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date(utcNoon)),
+  );
+  const offsetHours = osloHourAtNoon - 12; // 1 (CET) eller 2 (CEST)
+  return new Date(Date.UTC(year, month - 1, day, -offsetHours, 0, 0));
+}
+
+/**
+ * Beregn datoene for hver ISO-ukedag (Mandag…Søndag) i den ISO-uka som inneholder `now`.
+ * Returnerer 7 datoer som peker på 00:00 Oslo-tid for hver av dagene.
+ */
+function getCurrentWeekDates(now: Date = new Date()): Date[] {
+  const todayWeekday = getOsloIsoWeekday(now); // 1..7
+  const { year, month, day } = getOsloDateParts(now);
+  const monday = osloMidnightUtc(year, month, day);
+  monday.setUTCDate(monday.getUTCDate() - (todayWeekday - 1));
+  const days: Date[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setUTCDate(monday.getUTCDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+type FristKategori =
+  | { kind: "ingenFrist" }
+  | { kind: "overdue"; isoDate: string; weekdayName?: string }
+  | { kind: "denneUka"; weekdayIndex: number; weekdayName: string; isoDate: string }
+  | { kind: "senere"; isoDate: string; weekdayName: string };
+
+/**
+ * Klassifiser en frist relativt til den aktive ISO-uka, slik at vi kan
+ * (a) gi modellen tydelig kontekst og (b) håndheve at studieblokker ikke
+ * legges etter fristens ukedag i samme uke.
+ */
+function klassifiserFrist(
+  dueAt: Date | undefined,
+  weekDates: Date[],
+): FristKategori {
+  if (!dueAt) return { kind: "ingenFrist" };
+
+  const dueParts = getOsloDateParts(dueAt);
+  const dueIsoDate = formatOsloIsoDate(dueAt);
+  const mondayParts = getOsloDateParts(weekDates[0]);
+  const sundayParts = getOsloDateParts(weekDates[6]);
+
+  const dueOrdinal =
+    dueParts.year * 10000 + dueParts.month * 100 + dueParts.day;
+  const mondayOrdinal =
+    mondayParts.year * 10000 + mondayParts.month * 100 + mondayParts.day;
+  const sundayOrdinal =
+    sundayParts.year * 10000 + sundayParts.month * 100 + sundayParts.day;
+
+  if (dueOrdinal < mondayOrdinal) {
+    return { kind: "overdue", isoDate: dueIsoDate };
+  }
+  if (dueOrdinal > sundayOrdinal) {
+    const weekdayIndex = getOsloIsoWeekday(dueAt);
+    return {
+      kind: "senere",
+      isoDate: dueIsoDate,
+      weekdayName: UKEDAGER[weekdayIndex - 1],
+    };
+  }
+  const weekdayIndex = getOsloIsoWeekday(dueAt);
+  return {
+    kind: "denneUka",
+    weekdayIndex,
+    weekdayName: UKEDAGER[weekdayIndex - 1],
+    isoDate: dueIsoDate,
+  };
+}
+
 function normaliserTekst(verdi: string | undefined): string {
   return verdi?.trim().toLowerCase() ?? "";
 }
@@ -143,16 +253,41 @@ function finnOppgaveForBlokk(
 function normaliserBlokker(
   blokker: WeeklyPlanSuggestionBlock[],
   oppgaver: WeeklyPlanAssignment[],
-): WeeklyPlanSuggestionBlock[] {
+  weekDates: Date[],
+): { blocks: WeeklyPlanSuggestionBlock[]; droppedAfterDeadline: number } {
   const oppgaverPerId = new Map(oppgaver.map((oppgave) => [oppgave.id, oppgave]));
   const brukteSlots = new Set<string>();
   const normaliserte: WeeklyPlanSuggestionBlock[] = [];
+  let droppedAfterDeadline = 0;
 
   for (const blokk of blokker) {
     const oppgave = finnOppgaveForBlokk(blokk, oppgaver, oppgaverPerId);
     const slotKey = `${blokk.day}|${blokk.timeSlot}`;
     if (brukteSlots.has(slotKey)) {
       continue;
+    }
+
+    // Håndhev at studieblokker ikke legges etter fristens ukedag i samme uke.
+    // Modellen bommer av og til (f.eks. plasserer onsdag-blokk for tirsdag-frist),
+    // så server-side-validering er nødvendig som defense in depth.
+    if (oppgave) {
+      const fristInfo = klassifiserFrist(oppgave.dueAt, weekDates);
+      if (fristInfo.kind === "denneUka") {
+        const blokkIndex = UKEDAGER.indexOf(blokk.day) + 1;
+        if (blokkIndex > fristInfo.weekdayIndex) {
+          droppedAfterDeadline += 1;
+          logger.warn(
+            {
+              assignmentId: oppgave.id,
+              fristDay: fristInfo.weekdayName,
+              fristDate: fristInfo.isoDate,
+              foreslåttDag: blokk.day,
+            },
+            "Droppet ukeplan-blokk: KI plasserte studieøkt etter fristens ukedag",
+          );
+          continue;
+        }
+      }
     }
 
     brukteSlots.add(slotKey);
@@ -171,13 +306,17 @@ function normaliserBlokker(
     throw new Error("AI_RESPONSE_EMPTY_BLOCKS");
   }
 
-  return normaliserte;
+  return { blocks: normaliserte, droppedAfterDeadline };
 }
 
 function parseGeneratedWeeklyPlan(
   responseText: string,
   oppgaver: WeeklyPlanAssignment[],
-): z.infer<typeof WeeklyPlanSuggestionResponseSchema> {
+  weekDates: Date[],
+): {
+  payload: z.infer<typeof WeeklyPlanSuggestionResponseSchema>;
+  droppedAfterDeadline: number;
+} {
   // Defensiv størrelses-guard mot uvanlig stort LLM-svar.
   const MAX_RESPONSE_BYTES = 1_000_000; // 1 MB
   if (responseText.length > MAX_RESPONSE_BYTES) {
@@ -188,7 +327,11 @@ function parseGeneratedWeeklyPlan(
   );
 
   const { weekNumber, weekYear } = getIsoWeekInfo(new Date());
-  const blocks = normaliserBlokker(parsedDraft.blocks, oppgaver);
+  const { blocks, droppedAfterDeadline } = normaliserBlokker(
+    parsedDraft.blocks,
+    oppgaver,
+    weekDates,
+  );
   const tips =
     parsedDraft.tips?.map((tip) => tip.trim()).filter(Boolean).slice(0, 5) ??
     [];
@@ -198,7 +341,7 @@ function parseGeneratedWeeklyPlan(
     return sum + (timer > 0 ? timer : 1.5);
   }, 0);
 
-  return WeeklyPlanSuggestionResponseSchema.parse({
+  const payload = WeeklyPlanSuggestionResponseSchema.parse({
     week: `Uke ${weekNumber}, ${weekYear}`,
     weekNumber,
     year: weekYear,
@@ -206,17 +349,49 @@ function parseGeneratedWeeklyPlan(
     blocks,
     tips: tips.length > 0 ? tips : [...DEFAULT_TIPS],
   });
+
+  return { payload, droppedAfterDeadline };
 }
 
-function buildPrompt(oppgaver: WeeklyPlanAssignment[]): string {
+function buildPrompt(
+  oppgaver: WeeklyPlanAssignment[],
+  weekDates: Date[],
+): string {
+  const ukeKontekst = UKEDAGER.map(
+    (navn, idx) => `  ${navn}: ${formatOsloIsoDate(weekDates[idx])}`,
+  ).join("\n");
+
   const oppgaveliste = oppgaver
     .map((oppgave) => {
       const dager = dagerTilFrist(oppgave.dueAt);
+      const fristInfo = klassifiserFrist(oppgave.dueAt, weekDates);
+      let fristStatus: string;
+      let sisteTillattDag: string;
+      switch (fristInfo.kind) {
+        case "ingenFrist":
+          fristStatus = "ingen frist";
+          sisteTillattDag = "Søndag (hele uka tillatt)";
+          break;
+        case "overdue":
+          fristStatus = `OVERSITTET (frist var ${fristInfo.isoDate})`;
+          sisteTillattDag = "Mandag (hele uka tillatt — fristen er allerede gått)";
+          break;
+        case "denneUka":
+          fristStatus = `${fristInfo.weekdayName} ${fristInfo.isoDate}`;
+          sisteTillattDag = `${fristInfo.weekdayName} (frist denne uka)`;
+          break;
+        case "senere":
+          fristStatus = `${fristInfo.weekdayName} ${fristInfo.isoDate} (etter denne uka)`;
+          sisteTillattDag = "Søndag (frist ligger etter denne uka)";
+          break;
+      }
       return [
         `- assignmentId: ${oppgave.id}`,
         `  navn: ${oppgave.name}`,
         `  emne: ${oppgave.courseName || "Ukjent emne"}`,
         `  frist: ${formatFrist(oppgave.dueAt)}`,
+        `  fristUkedag: ${fristStatus}`,
+        `  sisteTillattStudieblokk: ${sisteTillattDag}`,
         `  dagerTilFrist: ${dager ?? "ukjent"}`,
         `  poeng: ${oppgave.pointsPossible ?? "ukjent"}`,
         `  beskrivelse: ${oppgave.description?.trim() || "Ingen beskrivelse"}`,
@@ -225,6 +400,9 @@ function buildPrompt(oppgaver: WeeklyPlanAssignment[]): string {
     .join("\n");
 
   return `Du er en strukturert studieveileder. Lag en realistisk ukeplan basert på disse oppgavene.
+
+UKE-KONTEKST (faktiske datoer for hver ukedag):
+${ukeKontekst}
 
 OPPGAVER:
 <<USER_CONTENT>>
@@ -237,7 +415,8 @@ KRAV:
 - "assignmentId" må være eksakt en av ID-ene du fikk.
 - Bruk kun disse tidslukene: ${STANDARD_TIDSLOTT.join(", ")}.
 - Bruk norske dagnavn: Mandag, Tirsdag, Onsdag, Torsdag, Fredag, Lørdag, Søndag.
-- Fordel belastningen jevnt utover uken.
+- KRITISK: en studieblokk MÅ legges på samme ukedag som "fristUkedag" eller TIDLIGERE i uka, aldri etter. Følg "sisteTillattStudieblokk" for hver oppgave.
+- Fordel belastningen jevnt utover de tillatte dagene.
 - Ikke legg to blokker i samme dag og tidsluke.
 - Prioriter oppgaver med nær frist først.
 - "duration" må være realistisk og på format som "1.5 timer", "2 timer" eller "3 timer".
@@ -273,7 +452,8 @@ async function processWeeklyPlanJob(
 ): Promise<void> {
   const generationStartedAt = Date.now();
   try {
-    const prompt = buildPrompt(oppgaver);
+    const weekDates = getCurrentWeekDates();
+    const prompt = buildPrompt(oppgaver, weekDates);
     const result = await chatCompletion({
       model: DEFAULT_MODEL,
       messages: [
@@ -290,10 +470,19 @@ async function processWeeklyPlanJob(
       },
     });
 
-    const payload = parseGeneratedWeeklyPlan(result.text, oppgaver);
+    const { payload, droppedAfterDeadline } = parseGeneratedWeeklyPlan(
+      result.text,
+      oppgaver,
+      weekDates,
+    );
 
     logger.info(
-      { userId, blockCount: payload.blocks.length, assignmentCount: oppgaver.length },
+      {
+        userId,
+        blockCount: payload.blocks.length,
+        assignmentCount: oppgaver.length,
+        droppedAfterDeadline,
+      },
       "Genererte weekly plan via backend",
     );
 
@@ -336,7 +525,11 @@ async function processWeeklyPlanJob(
 }
 
 // POST /api/ki/weekly-plan/generate — returnerer jobId umiddelbart (202 Accepted)
-router.post("/generate", async (req, res) => {
+// knyttCanvasToken: ukeplanen er bygd rundt Canvas-frister. Selv om endepunktet
+// teknisk tar `assignments[]` i body, er funksjonen kun meningsfull med Canvas-
+// data — og frontend skjuler den allerede uten harCanvasToken. Sperre i backend
+// holder API-en konsistent med løftet om at «uten Canvas er kun KI-chat tilgjengelig».
+router.post("/generate", knyttCanvasToken, async (req, res) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;

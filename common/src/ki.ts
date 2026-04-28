@@ -78,6 +78,27 @@ export const KIChatSourceSchema = z.object({
 });
 export type KIChatSource = z.infer<typeof KIChatSourceSchema>;
 
+/**
+ * Kategorisering av hvor svaret kommer fra. Brukes til å vise et tydelig
+ * "kilde-merke" over assistent-svaret, slik at studenten ikke forveksler
+ * et generelt KI-svar med et svar forankret i eget kursmateriale.
+ *
+ * - `kursmateriale`: forankret i PDF-/dokumentinnhold fra Canvas-pensum
+ * - `canvas`:        forankret i Canvas-metadata (frister, moduler, kunngjøringer)
+ * - `kunnskapsbase`: forankret i brukerens egen kunnskapsbase
+ * - `generell`:      ren KI-kunnskap — ingen forankring i pensum eller KB (fallback)
+ * - `blandet`:       kombinasjon av forankret materiale og generell KI-kunnskap
+ */
+export const SVAR_KILDER = [
+  "kursmateriale",
+  "canvas",
+  "kunnskapsbase",
+  "generell",
+  "blandet",
+] as const;
+export const SvarKildeSchema = z.enum(SVAR_KILDER);
+export type SvarKilde = z.infer<typeof SvarKildeSchema>;
+
 // Svar-schema for KI chat API
 export const KIChatResponseSchema = z.object({
   suksess: z.boolean(),
@@ -87,6 +108,12 @@ export const KIChatResponseSchema = z.object({
   usage: UsageSchema.optional(),
   /** Kilder (Canvas-filer) som ble brukt i svaret — vises som klikkbar liste under svaret. */
   kilder: z.array(KIChatSourceSchema).optional(),
+  /**
+   * Hvor svaret kommer fra. Settes hvis modellen emitterer en `<svarkilde>`-tag
+   * (se systemPrompt.ts). Brukes til UI-badge — "generell" må vises tydelig
+   * for å hindre at studenten forveksler et fritt KI-svar med pensum.
+   */
+  svarKilde: SvarKildeSchema.optional(),
 });
 
 /** Tommel opp/ned-feedback på et KI-svar. */

@@ -44,6 +44,12 @@ interface Melding {
     feilet?: boolean;
     /** Kilder (Canvas-filer) som ble brukt i KI-svaret — vises som klikkbar liste */
     kilder?: import("common/ki").KIChatSource[];
+    /**
+     * Hvor svaret kommer fra (kursmateriale/canvas/kunnskapsbase/generell/blandet).
+     * Brukes til å vise et kilde-badge over assistent-svar — særlig viktig for
+     * "generell" så brukeren ikke forveksler et fritt KI-svar med pensum.
+     */
+    svarKilde?: import("common/ki").SvarKilde;
 }
 
 /**
@@ -89,6 +95,7 @@ type PendingMeldingSnapshot = {
     tidsstempel: string;
     vedleggNavn?: string[];
     kilder?: import("common/ki").KIChatSource[];
+    svarKilde?: import("common/ki").SvarKilde;
 };
 
 /** Pågående forespørsel som kan gjenopptas etter refresh/navigering (chat eller dokumentanalyse). */
@@ -120,6 +127,7 @@ function serializeMelding(melding: Melding): PendingMeldingSnapshot {
         tidsstempel: melding.tidsstempel.toISOString(),
         vedleggNavn: melding.vedleggNavn,
         kilder: melding.kilder,
+        svarKilde: melding.svarKilde,
     };
 }
 
@@ -131,6 +139,7 @@ function hydrateMelding(snapshot: PendingMeldingSnapshot): Melding {
         tidsstempel: new Date(snapshot.tidsstempel),
         vedleggNavn: snapshot.vedleggNavn,
         kilder: snapshot.kilder,
+        svarKilde: snapshot.svarKilde,
     };
 }
 
@@ -156,6 +165,7 @@ function mapSavedChatMessages(chatId: string, messages: SavedChat["messages"]): 
         innhold: melding.innhold,
         tidsstempel: new Date(),
         kilder: melding.kilder,
+        svarKilde: "svarKilde" in melding ? melding.svarKilde : undefined,
     }));
 }
 
@@ -170,6 +180,7 @@ function buildPendingPayload(pending: PendingConversationState) {
         rolle: melding.rolle,
         innhold: melding.innhold,
         kilder: melding.kilder,
+        svarKilde: melding.svarKilde,
     }));
 }
 
@@ -533,6 +544,7 @@ export function ChatSection() {
             rolle: m.rolle,
             innhold: m.innhold,
             kilder: m.kilder,
+            svarKilde: m.svarKilde,
         }));
         const chatId = aktivChatIdRef.current;
         if (chatId) {
@@ -739,6 +751,7 @@ export function ChatSection() {
             rolle: m.rolle,
             innhold: m.innhold,
             kilder: m.kilder,
+            svarKilde: "svarKilde" in m ? m.svarKilde : undefined,
         }));
         const savedChatId = await saveChat(
             payload,
@@ -1310,6 +1323,7 @@ export function ChatSection() {
                     innhold: responseText,
                     tidsstempel: new Date(),
                     kilder: data.kilder && data.kilder.length > 0 ? data.kilder : undefined,
+                    svarKilde: data.svarKilde,
                 };
 
                 // Lagre i DB umiddelbart; state-oppdatering og skriver-deaktivering skjer etter animasjon

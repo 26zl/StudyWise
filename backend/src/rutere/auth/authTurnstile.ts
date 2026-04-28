@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   AUTH_TURNSTILE_ACTION,
   AuthTurnstileVerifyRequestSchema,
@@ -9,6 +9,25 @@ import {
 import { rateLimitAuthTurnstile } from "../../middleware/rate-limit.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { isProd, turnstileEnabled } from "../../utils/env.js";
+
+/**
+ * Wrapper rundt rateLimitAuthTurnstile som hopper over rate-limit-budsjettet
+ * når Turnstile er globalt deaktivert. Uten dette vil 10/10min-grensen være
+ * aktiv på endepunkter som umiddelbart returnerer success — typisk USN-nett
+ * (NAT/VPN) brenner gjennom budsjettet på sign-up-flow med flere studenter
+ * bak samme utgående IP, og brukeren får 429 før kontoen kan opprettes.
+ */
+function rateLimitAuthTurnstileSkippableNaarDeaktivert(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void {
+  if (!turnstileEnabled) {
+    next();
+    return;
+  }
+  rateLimitAuthTurnstile(req, res, next);
+}
 import { logger } from "../../utils/logger.js";
 import { isTurnstileConfigured, verifyTurnstileToken } from "../../services/turnstile.service.js";
 import {
@@ -44,7 +63,7 @@ function extractFrontendHostname(req: Request): string | null {
   return null;
 }
 
-router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Response) => {
+router.post("/verify", rateLimitAuthTurnstileSkippableNaarDeaktivert, async (req: Request, res: Response) => {
   // Turnstile globalt deaktivert: returner success umiddelbart uten å validere noe.
   // Frontend skal i utgangspunktet ikke kalle endepunktet i denne modusen, men hvis
   // en gammel klient gjør det får den et tomt OK-svar i stedet for en feilmelding.
@@ -136,7 +155,7 @@ router.post("/verify", rateLimitAuthTurnstile, async (req: Request, res: Respons
  * Frontend kaller dette før sensitive klient-side auth-operasjoner (OAuth, forgot-password)
  * for å sikre at bruker har bestått human-check.
  */
-router.get("/gate", rateLimitAuthTurnstile, async (req: Request, res: Response) => {
+router.get("/gate", rateLimitAuthTurnstileSkippableNaarDeaktivert, async (req: Request, res: Response) => {
   // Turnstile globalt deaktivert: rapporter alltid "verified" så frontend OAuth/forgot-flows
   // kan fortsette uten å vise sikkerhetsverifisering-feil.
   if (!turnstileEnabled) {

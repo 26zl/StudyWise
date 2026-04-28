@@ -13,6 +13,7 @@ import { useLanguage } from "@/app/i18n";
 import { LoadingView } from "@/app/components/ui/Loading";
 import {
   parseClerkError,
+  classifyClerkSignInError,
   withAuthTimeout,
   AuthTimeoutError,
   AuthCard,
@@ -76,6 +77,24 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
     window.location.replace(redirectUrl);
   }, [redirectUrl]);
 
+  const getSignInErrorMessage = useCallback(
+    (err: unknown) => {
+      switch (classifyClerkSignInError(err)) {
+        case "credentials":
+          return t("auth.signIn.errors.credentials");
+        case "method":
+          return t("auth.signIn.errors.method");
+        case "rateLimited":
+          return t("auth.signIn.errors.rateLimited");
+        case "verificationRequired":
+          return t("auth.signIn.errors.verificationRequired");
+        default:
+          return parseClerkError(err, t("auth.genericError"));
+      }
+    },
+    [t],
+  );
+
   // Safety net: hvis Clerk har markert sesjonen som aktiv, men den inline redirecten
   // etter handleSubmit/handleMfa aldri fullførte (f.eks. hengende setActive-promise),
   // tvinger vi en redirect her slik at LoadingView ikke blir stående evig.
@@ -124,12 +143,12 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
           setFormError(t("auth.signIn.incomplete"));
         }
       } catch (err) {
-        setFormError(parseClerkError(err, t("auth.genericError")));
+        setFormError(getSignInErrorMessage(err));
       } finally {
         setIsSubmitting(false);
       }
     },
-    [signIn, setActive, identifier, password, isSubmitting, t, redirectEtterAuth],
+    [signIn, setActive, identifier, password, isSubmitting, t, redirectEtterAuth, getSignInErrorMessage],
   );
 
   // MFA: verifiser TOTP-kode
@@ -218,11 +237,11 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
           redirectUrlComplete: redirectUrl,
         });
       } catch (err) {
-        setFormError(parseClerkError(err, t("auth.genericError")));
+        setFormError(getSignInErrorMessage(err));
         setIsOAuthSubmitting(false);
       }
     },
-    [signIn, isOAuthSubmitting, t, redirectUrl],
+    [signIn, isOAuthSubmitting, t, redirectUrl, getSignInErrorMessage],
   );
 
   // Vent på Clerk før vi viser noe — hindrer at Turnstile og Clerks redirect-overlay vises samtidig

@@ -12,6 +12,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { logger } from "../../utils/logger.js";
 import { anthropicCircuit } from "../../utils/circuitBreaker.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
+import { SVAR_KILDER, type SvarKilde } from "common/ki";
 import {
     finishLangsmithRun,
     startLangsmithRun,
@@ -72,23 +73,52 @@ export interface ChatCompletionResult {
      * betyr naturlig slutt og er ikke-problematiske.
      */
     finishReason?: string;
+    /**
+     * Modellens egen klassifisering av hvor svaret kommer fra (parsed fra
+     * `<svarkilde>`-tag). Brukes til å vise UI-badge — særlig viktig for
+     * "generell" så brukeren ikke forveksler et fritt KI-svar med pensum.
+     */
+    svarKilde?: SvarKilde;
 }
 
 // --- Felles chat completion-funksjon ---
 
+const SVAR_KILDE_SET = new Set<string>(SVAR_KILDER);
+
 /**
- * Stripper <analyse>-tagger fra AI-respons.
- * System prompten ber modellen skrive <analyse>...</analyse><svar>...</svar>,
- * men brukeren skal kun se innholdet i <svar>.
+ * Stripper <analyse>-tagger fra AI-respons og parser ut <svarkilde>-tag.
+ *
+ * System prompten ber modellen skrive <analyse>...</analyse><svar>...</svar>
+ * og avslutte med en <svarkilde>kursmateriale|canvas|kunnskapsbase|generell|blandet</svarkilde>-tag.
+ * Brukeren skal kun se innholdet i <svar>; svarKilde returneres som strukturert
+ * felt slik at frontend kan rendere et tydelig kilde-badge.
  */
-function stripAnalyseTags(raw: string): string {
-    const svarMatch = raw.match(/<svar>([\s\S]*?)<\/svar>/);
+export function extractAnswerAndSource(raw: string): {
+    text: string;
+    svarKilde?: SvarKilde;
+} {
+    let svarKilde: SvarKilde | undefined;
+
+    // Ekstraher <svarkilde>-tag uavhengig av posisjon (den ligger oftest sist).
+    const svarKildeMatch = raw.match(/<svarkilde>\s*([a-zæøå]+)\s*<\/svarkilde>/i);
+    if (svarKildeMatch) {
+        const kandidat = svarKildeMatch[1].toLowerCase();
+        if (SVAR_KILDE_SET.has(kandidat)) {
+            svarKilde = kandidat as SvarKilde;
+        }
+    }
+
+    // Fjern <svarkilde>-tag (med eventuelle ugyldige verdier) fra hele teksten
+    // før vi henter ut svar-innholdet, slik at den aldri vises for brukeren.
+    const utenSvarKilde = raw.replace(/<svarkilde>[\s\S]*?<\/svarkilde>/gi, "").trim();
+
+    const svarMatch = utenSvarKilde.match(/<svar>([\s\S]*?)<\/svar>/);
     if (svarMatch) {
-        return svarMatch[1].trim();
+        return { text: svarMatch[1].trim(), svarKilde };
     }
     // Hvis modellen ikke brukte <svar>-tagger, fjern <analyse>-blokken alene
-    const stripped = raw.replace(/<analyse>[\s\S]*?<\/analyse>/g, "").trim();
-    return stripped || raw;
+    const stripped = utenSvarKilde.replace(/<analyse>[\s\S]*?<\/analyse>/g, "").trim();
+    return { text: stripped || utenSvarKilde || raw, svarKilde };
 }
 
 /**
@@ -144,8 +174,12 @@ export async function chatCompletion(options: {
             callAnthropic({ model, messages, max_tokens, temperature, signal }),
         );
 
-        // Strip <analyse>/<svar>-tagger slik at brukeren kun ser det rene svaret
-        result.text = stripAnalyseTags(result.text);
+        // Strip <analyse>/<svar>-tagger og parse <svarkilde>-tag for kilde-merking
+        const extracted = extractAnswerAndSource(result.text);
+        result.text = extracted.text;
+        if (extracted.svarKilde) {
+            result.svarKilde = extracted.svarKilde;
+        }
 
         await finishLangsmithRun({
             runId,
@@ -170,7 +204,13 @@ export async function chatCompletion(options: {
                         signal,
                     }),
                 );
-                fallbackResult.text = stripAnalyseTags(fallbackResult.text);
+                {
+                    const extracted = extractAnswerAndSource(fallbackResult.text);
+                    fallbackResult.text = extracted.text;
+                    if (extracted.svarKilde) {
+                        fallbackResult.svarKilde = extracted.svarKilde;
+                    }
+                }
                 await finishLangsmithRun({
                     runId,
                     response: fallbackResult.text,
@@ -312,7 +352,13 @@ export async function chatCompletionWithVision(options: {
             temperature,
             signal,
         }));
-        result.text = stripAnalyseTags(result.text);
+        {
+            const extracted = extractAnswerAndSource(result.text);
+            result.text = extracted.text;
+            if (extracted.svarKilde) {
+                result.svarKilde = extracted.svarKilde;
+            }
+        }
 
         await finishLangsmithRun({
             runId,

@@ -435,6 +435,13 @@ export const AccountDeletionResponseSchema = z.object({
   deleted: AccountDeletionDeletedSchema,
   providerAccountDeleted: z.boolean(),
   vectorCleanupSucceeded: z.boolean(),
+  /**
+   * Sant hvis brukeren hadde en lagret Canvas-tilgangsnøkkel da kontoen
+   * ble slettet. StudyWise sletter IKKE tokenet i Canvas — frontend bruker
+   * dette flagget til å vise en påminnelse om at brukeren bør slette
+   * tokenet selv i Canvas-innstillingene.
+   */
+  hadCanvasToken: z.boolean().optional(),
 });
 
 /** Kortlivet cookie som markerer at bruker nylig har passert auth-Turnstile. */

@@ -82,6 +82,171 @@ export function parseClerkError(
   return fallback;
 }
 
+export type ClerkSignInErrorKind =
+  | "credentials"
+  | "method"
+  | "rateLimited"
+  | "verificationRequired";
+
+export type ClerkSignUpErrorKind =
+  | "emailTaken"
+  | "invalidEmail"
+  | "usernameTaken"
+  | "usernameInvalid"
+  | "rateLimited"
+  | "passwordPwned"
+  | "passwordWeak"
+  | "passwordTooShort";
+
+function getFirstClerkError(
+  err: unknown,
+): { code?: string; longMessage?: string; message?: string } | null {
+  if (
+    err &&
+    typeof err === "object" &&
+    "errors" in err &&
+    Array.isArray((err as { errors: unknown[] }).errors)
+  ) {
+    const [first] = (
+      err as {
+        errors: { code?: string; longMessage?: string; message?: string }[];
+      }
+    ).errors;
+    return first ?? null;
+  }
+
+  return null;
+}
+
+function isRateLimitClerkError(code: string, source: string): boolean {
+  return (
+    code.includes("rate_limit") ||
+    code.includes("too_many") ||
+    source.includes("rate limit") ||
+    source.includes("rate-limit") ||
+    source.includes("too many requests") ||
+    source.includes("too many attempts")
+  );
+}
+
+export function classifyClerkSignInError(
+  err: unknown,
+): ClerkSignInErrorKind | null {
+  const first = getFirstClerkError(err);
+  const code = first?.code?.trim().toLowerCase() ?? "";
+  const message = `${first?.longMessage ?? ""} ${first?.message ?? ""}`
+    .trim()
+    .toLowerCase();
+  const source = `${code} ${message}`;
+
+  if (isRateLimitClerkError(code, source)) {
+    return "rateLimited";
+  }
+
+  if (
+    code.includes("verification") ||
+    source.includes("verify your email") ||
+    source.includes("email address is not verified") ||
+    source.includes("email is not verified")
+  ) {
+    return "verificationRequired";
+  }
+
+  if (
+    code === "strategy_for_user_invalid" ||
+    code.includes("strategy") ||
+    source.includes("oauth") ||
+    source.includes("social") ||
+    source.includes("sso")
+  ) {
+    return "method";
+  }
+
+  if (
+    code.includes("password") ||
+    code.includes("identifier") ||
+    code.includes("credentials") ||
+    source.includes("password is incorrect") ||
+    source.includes("incorrect password") ||
+    source.includes("wrong password") ||
+    source.includes("couldn't find your account") ||
+    source.includes("could not find your account") ||
+    source.includes("identifier is invalid")
+  ) {
+    return "credentials";
+  }
+
+  return null;
+}
+
+export function classifyClerkSignUpError(
+  err: unknown,
+): ClerkSignUpErrorKind | null {
+  const first = getFirstClerkError(err);
+  const code = first?.code?.trim().toLowerCase() ?? "";
+  const message = `${first?.longMessage ?? ""} ${first?.message ?? ""}`
+    .trim()
+    .toLowerCase();
+  const source = `${code} ${message}`;
+
+  if (isRateLimitClerkError(code, source)) {
+    return "rateLimited";
+  }
+
+  if (code === "form_password_pwned") {
+    return "passwordPwned";
+  }
+
+  if (code === "form_password_length_too_short") {
+    return "passwordTooShort";
+  }
+
+  if (code === "form_password_not_strong_enough" || source.includes("password is too weak")) {
+    return "passwordWeak";
+  }
+
+  if (
+    code.includes("username") &&
+    (code.includes("exists") ||
+      code.includes("taken") ||
+      source.includes("already") ||
+      source.includes("taken"))
+  ) {
+    return "usernameTaken";
+  }
+
+  if (
+    code.includes("username") &&
+    (code.includes("invalid") ||
+      code.includes("format") ||
+      source.includes("invalid username"))
+  ) {
+    return "usernameInvalid";
+  }
+
+  if (
+    (code.includes("email") || code.includes("identifier")) &&
+    (code.includes("exists") ||
+      code.includes("taken") ||
+      source.includes("already exists") ||
+      source.includes("already in use") ||
+      source.includes("already taken"))
+  ) {
+    return "emailTaken";
+  }
+
+  if (
+    code.includes("email") &&
+    (code.includes("invalid") ||
+      code.includes("format") ||
+      source.includes("invalid email"))
+  ) {
+    return "invalidEmail";
+  }
+
+  return null;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Shared styling constants                                          */
 /* ------------------------------------------------------------------ */

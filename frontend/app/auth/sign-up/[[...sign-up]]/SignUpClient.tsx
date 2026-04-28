@@ -21,6 +21,7 @@ import {
 } from "common/auth";
 import {
   parseClerkError,
+  classifyClerkSignUpError,
   withAuthTimeout,
   AuthTimeoutError,
   AuthCard,
@@ -127,6 +128,32 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   const redirectEtterAuth = useCallback(() => {
     window.location.replace(redirectUrl);
   }, [redirectUrl]);
+
+  const getSignUpErrorMessage = useCallback(
+    (err: unknown) => {
+      switch (classifyClerkSignUpError(err)) {
+        case "emailTaken":
+          return t("auth.signUp.errors.emailTaken");
+        case "invalidEmail":
+          return t("auth.signUp.errors.invalidEmail");
+        case "usernameTaken":
+          return t("auth.signUp.errors.usernameTaken");
+        case "usernameInvalid":
+          return t("auth.signUp.errors.usernameInvalid");
+        case "rateLimited":
+          return t("auth.signUp.errors.rateLimited");
+        case "passwordPwned":
+          return t("auth.signUp.passwordErrors.pwned");
+        case "passwordWeak":
+          return t("auth.signUp.passwordErrors.notStrongEnough");
+        case "passwordTooShort":
+          return t("auth.signUp.passwordErrors.tooShort");
+        default:
+          return parseClerkError(err, t("auth.genericError"));
+      }
+    },
+    [t],
+  );
 
   // Etter OAuth-retur: brukernavn er valgfritt, redirect direkte til dashboard.
   // Backend håndterer relink i findOrCreateUserByClerkId via /api/user/me.
@@ -276,25 +303,12 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setPendingEmail(trimmedEmail);
         setStep("verify");
       } catch (err) {
-        setFormError(
-          parseClerkError(err, t("auth.genericError"), (code) => {
-            switch (code) {
-              case "form_password_pwned":
-                return t("auth.signUp.passwordErrors.pwned");
-              case "form_password_not_strong_enough":
-                return t("auth.signUp.passwordErrors.notStrongEnough");
-              case "form_password_length_too_short":
-                return t("auth.signUp.passwordErrors.tooShort");
-              default:
-                return undefined;
-            }
-          }),
-        );
+        setFormError(getSignUpErrorMessage(err));
       } finally {
         setIsSubmitting(false);
       }
     },
-    [signUp, firstName, lastName, username, email, password, passwordValid, usernameStatus, isSubmitting, t],
+    [signUp, firstName, lastName, username, email, password, passwordValid, usernameStatus, isSubmitting, t, getSignUpErrorMessage],
   );
 
   // OAuth sign-up (Google/Microsoft)

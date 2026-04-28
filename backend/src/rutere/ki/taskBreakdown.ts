@@ -7,6 +7,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
+import { knyttCanvasToken } from "../../middleware/auth.js";
 import {
   apiError,
   sendZodError,
@@ -73,7 +74,11 @@ function isValidAssignmentId(id: unknown): id is string {
 }
 
 // POST /api/ki/task-breakdown/:assignmentId/generate
-router.post("/:assignmentId/generate", async (req, res) => {
+// knyttCanvasToken: oppgavenedbrytning er semantisk en Canvas-funksjon (assignmentId
+// kommer fra Canvas, UI gater allerede via harCanvasToken). Sperre i backend
+// hindrer at API-en kan brukes uten Canvas-tilkobling — konsistent med løftet
+// vårt om at «uten Canvas er kun KI-chat tilgjengelig».
+router.post("/:assignmentId/generate", knyttCanvasToken, async (req, res) => {
   try {
     const userId = requireUserId(req, res);
     if (!userId) return;

@@ -117,11 +117,18 @@ async function håndterFeilRespons(
 ): Promise<void> {
   if (res.status === 401) {
     const { errorMessage, errorCode } = await parseApiErrorBody(res, "Ikke autentisert");
-    // Skiller Clerk-sesjonsutløp fra Canvas-token-feil:
-    // Eksplisitt kode fra backend (canvas_token_invalid) har høyest prioritet.
-    // Ellers faller vi tilbake til melding-deteksjon ("canvas.token" / "tilknyttet et token").
+    // Skiller Clerk-sesjonsutløp fra Canvas-token-feil. Tre kodepatater regnes
+    // som Canvas-token-feil og skal ikke trigge Clerk-redirect:
+    //   - "canvas_token_invalid" — vår backend kunne ikke dekryptere lagret token
+    //     (typisk ENCRYPTION_KEY-rotasjon), satt i middleware/auth.ts.
+    //   - "token_invalid"        — Canvas selv returnerte 401 (token slettet/utløpt
+    //     i Canvas), satt via classifyHttpStatus i common/canvasErrors.ts.
+    //   - "token_missing"        — backend så ingen token; settes av krevCanvasToken.
+    // Regex-fallbacken er beholdt for legacy-meldinger uten strukturert kode.
     const erCanvasTokenFeil =
       errorCode === "canvas_token_invalid" ||
+      errorCode === "token_invalid" ||
+      errorCode === "token_missing" ||
       /canvas.token/i.test(errorMessage) ||
       /tilknyttet et.*token/i.test(errorMessage);
     if (erCanvasTokenFeil) {

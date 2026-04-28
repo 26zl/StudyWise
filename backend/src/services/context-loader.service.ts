@@ -21,8 +21,9 @@
 
 import { logger } from "../utils/logger.js";
 import { escapeRegex } from "../utils/regexUtils.js";
-import { getCache, isRedisReady } from "../cache/redis.js";
+import { getCache, setCache, isRedisReady } from "../cache/redis.js";
 import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync, hasIndexedCourseData } from "./canvas-sync.service.js";
+import { fetchCanvasLectures, fetchPlannerItems } from "../rutere/canvas/canvasService.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
 import type { CanvasContextPreferences } from "common/auth";
@@ -1106,10 +1107,95 @@ interface LettKontekstEmne {
 }
 
 /**
+ * Henter de neste forelesningene/timetabell-eventene for chat-konteksten.
+ * Leser fra per-bruker-bro-cachen som /api/canvas/kalender skriver — hvis den
+ * er tom returneres null. Returnerer formatert seksjonstekst klar til å limes
+ * inn i `<canvas-kursdata>`.
+ */
+async function hentKommendeTimerForChat(userId: string): Promise<string | null> {
+  try {
+    const raw = await getCache(userKey(userId, "kalender", "kommende"));
+    if (!raw) return null;
+    const items = JSON.parse(raw) as Array<{
+      title: string;
+      due_at: string;
+      end_at?: string | null;
+      course_code?: string | null;
+      course_name?: string | null;
+      location?: string | null;
+      source?: string;
+    }>;
+    if (!Array.isArray(items) || items.length === 0) return null;
+
+    // Skill ekte forelesninger/timer (calendar_events) fra innleveringsfrister
+    // (planner-items uten calendar_event-type). Uten separasjon ville modellen
+    // svare på «når er neste time?» med en oppgavefrist hvis Canvas blokkerer
+    // calendar_events men planner returnerer assignments.
+    const formaterLinje = (item: typeof items[number]): string | null => {
+      const start = new Date(item.due_at);
+      if (Number.isNaN(start.getTime())) return null;
+      const dato = start.toLocaleDateString("nb-NO", {
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+      });
+      const tid = start.toLocaleTimeString("nb-NO", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const sluttDel = item.end_at
+        ? `–${new Date(item.end_at).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" })}`
+        : "";
+      const emne = item.course_code ?? item.course_name ?? "Ukjent emne";
+      const sted = item.location ? ` @ ${item.location}` : "";
+      return `- ${dato} ${tid}${sluttDel}: ${item.title} (${emne})${sted}`;
+    };
+
+    const timeLinjer: string[] = [];
+    const fristLinjer: string[] = [];
+    for (const item of items.slice(0, 30)) {
+      const linje = formaterLinje(item);
+      if (!linje) continue;
+      if (item.source === "event") {
+        timeLinjer.push(linje);
+      } else {
+        fristLinjer.push(linje);
+      }
+    }
+
+    const seksjoner: string[] = [];
+    if (timeLinjer.length > 0) {
+      seksjoner.push(
+        `KOMMANDE TIMER OG FORELESNINGER (autoritativ kalenderdata fra Canvas Calendar Events — bruk denne listen direkte når studenten spør om timer/forelesninger/timeplan):\n${timeLinjer.slice(0, 20).join("\n")}`,
+      );
+    }
+    if (fristLinjer.length > 0) {
+      seksjoner.push(
+        `KOMMANDE INNLEVERINGSFRISTER OG OPPGAVER (fra Canvas Planner — IKKE timer/forelesninger):\n${fristLinjer.slice(0, 20).join("\n")}`,
+      );
+    }
+
+    if (seksjoner.length === 0) return null;
+    return `\n${seksjoner.join("\n\n")}\n`;
+  } catch (err) {
+    logger.warn({ err, userId }, "Kunne ikke lese per-bruker kalender-bro");
+    return null;
+  }
+}
+
+/**
  * Felles formatter for lett kontekst — brukes av både Redis og MongoDB-fallback.
  * Eliminerer duplikat kontekst-byggingslogikk.
+ *
+ * `userId` brukes til å slå opp per-bruker kalender-bro (skrives av
+ * /api/canvas/kalender). Hvis userId mangler eller cache er tom hopper vi
+ * over hendelsesseksjonen i stedet for å feile.
  */
-function formaterLettKontekst(emner: LettKontekstEmne[], prefs?: CanvasContextPreferences): string {
+async function formaterLettKontekst(
+  emner: LettKontekstEmne[],
+  prefs?: CanvasContextPreferences,
+  userId?: string,
+): Promise<string> {
   const now = new Date();
   const twoWeeksFromNow = new Date(now.getTime() + TWO_WEEKS_MS);
 
@@ -1145,6 +1231,13 @@ function formaterLettKontekst(emner: LettKontekstEmne[], prefs?: CanvasContextPr
       kontekst += fristLinjer.map((item) => item.line).join("\n") + "\n";
     } else {
       kontekst += "\nINGEN FRISTER de neste 14 dagene.\n";
+    }
+  }
+
+  if ((!prefs || prefs.events) && userId) {
+    const kommendeTimer = await hentKommendeTimerForChat(userId);
+    if (kommendeTimer) {
+      kontekst += kommendeTimer;
     }
   }
 
@@ -1404,6 +1497,17 @@ function isAnnouncementQuery(message: string): boolean {
   return ANNOUNCEMENT_PATTERN.test(message);
 }
 
+/**
+ * Detekterer spørsmål om timeplan/forelesninger/neste time. Brukes til å
+ * injisere kalender-bro-cachen direkte i konteksten — ellers ville hybrid-
+ * søket på et ord som "time" matche tilfeldige Java-filer (Pinecone har
+ * ingen semantisk forståelse av at "time" her betyr "forelesning").
+ */
+const TIMETABLE_PATTERN = /\b(neste\s+time|neste\s+forelesn|forelesn|undervisn|timeplan|timene|timer\s+(jeg|mine|i|denne|neste)|mine\s+timer|alle\s+timer|kalender(en)?|agenda|avtaler|når\s+er\s+(min|neste|jeg)|når\s+har\s+jeg|n[åa]r er klassen|next\s+(class|lecture|lesson)|when\s+is\s+(my|the)\s+next|class\s+schedule|lecture\s+schedule|timetable|my\s+(classes|lectures|schedule))\b/i;
+export function isTimetableQuery(message: string): boolean {
+  return TIMETABLE_PATTERN.test(message);
+}
+
 interface AnnouncementEntry {
   title: string;
   message?: string | null;
@@ -1513,7 +1617,7 @@ async function byggLettKontekstFraMongo(userId: string, prefs?: CanvasContextPre
       oppgaver: s.oppgaver,
     }));
 
-    return formaterLettKontekst(emner, prefs);
+    return await formaterLettKontekst(emner, prefs, userId);
   } catch (error) {
     logger.warn({ err: error, userId }, "Feil ved bygging av lett kontekst fra MongoDB");
     return null;
@@ -1721,7 +1825,7 @@ async function byggLettKontekstFraRedis(userId: string, prefs?: CanvasContextPre
       return { name: emne.name, course_code: emne.course_code, oppgaver };
     });
 
-    return formaterLettKontekst(lettEmner, prefs);
+    return await formaterLettKontekst(lettEmner, prefs, userId);
   } catch (error) {
     logger.warn({ err: error }, "Feil ved bygging av lett kontekst fra Redis");
     return null;
@@ -3858,13 +3962,231 @@ async function loadCanvasContextCore(
   const wantsCourseOverview = Boolean(message && isCourseOverviewQuery(message));
   const shouldPreferStructuredContext = Boolean(message && isStructuredCanvasQuery(message));
   const wantsAnnouncements = Boolean(message && isAnnouncementQuery(message)) && (!contextPrefs || contextPrefs.announcements);
+  const wantsTimetable = Boolean(message && isTimetableQuery(message)) && (!contextPrefs || contextPrefs.events);
   const hasSpecificTarget = !!(
     hasCourseTarget(target) ||
     target?.moduleHint ||
     target?.fileHint
   );
 
+  // Bygg strukturert-data-blokker (kunngjøringer, timeplan) tidlig slik at
+  // de kan injiseres i ALLE kontekst-pather, ikke bare canvas_full-grenen.
+  // Tidligere bug: når chunkHint var satt (f.eks. "10 kunngjøringer"), tok
+  // pipelinen snarveien rett til hybrid Pinecone-søk og hoppet over
+  // wantsAnnouncements/wantsTimetable-injeksjonen → modellen fikk ingen ekte
+  // kunngjøringer/timeplan og svarte ærlig at den ikke har tilgang.
+  let announcementBlockEarly = "";
+  if (wantsAnnouncements) {
+    const announcements = await hentKunngjøringerForBruker(userId);
+    if (announcements.length > 0) {
+      announcementBlockEarly = formaterKunngjøringerKontekst(announcements);
+      const courseNames = [...new Set(announcements.map((a) => a.courseName))];
+      logger.info(
+        { userId, count: announcements.length, courses: courseNames, contextAddedLength: announcementBlockEarly.length },
+        "Kunngjøringer pre-bygget for kontekst-injeksjon",
+      );
+    } else {
+      logger.info({ userId }, "Bruker spurte om kunngjøringer, men ingen ble funnet");
+    }
+  }
+  let timetableBlockEarly = "";
+  if (wantsTimetable) {
+    let timetableContext = await hentKommendeTimerForChat(userId);
+    let calendarBlockedByCanvas = false;
+
+    // On-demand fallback: hvis bro-cachen er tom, hent kalenderdata direkte.
+    // Bruker SAMME parallell-strategi som /api/canvas/kalender:
+    //   1) fetchCanvasLectures → calendar_events (selve forelesningene/timene)
+    //   2) fetchPlannerItems → planner-items, men vi bruker KUN calendar_events
+    //      derfra. Oppgavefrister hører hjemme i kalender-/fristkontekst, ikke
+    //      i en seksjon som modellen leser som «timer og forelesninger».
+    // Hos institusjoner som blokkerer /calendar_events for studenter (USN!),
+    // returnerer planner fortsatt nok data til å kunne svare meningsfullt.
+    if (!timetableContext && canvasToken && baseUrl) {
+      const now = Date.now();
+      // 30-dagers vindu — kort nok til å være relevant for «neste time»,
+      // langt nok til å fange opp innleveringsfrister og forelesninger som
+      // ligger flere uker frem. Tidligere bruk av 7 dager ga ofte 0 items
+      // hos brukere som ikke hadde noe akkurat denne uka.
+      const lookAheadMs = 30 * 24 * 60 * 60 * 1000;
+      const startDate = new Date(now).toISOString().split("T")[0];
+      const endDate = new Date(now + lookAheadMs).toISOString().split("T")[0];
+
+      const [lecturesResult, plannerResult] = await Promise.allSettled([
+        fetchCanvasLectures(canvasToken, { baseUrl, startDate, endDate }),
+        fetchPlannerItems(canvasToken, { start_date: startDate, end_date: endDate, baseUrl, maxPages: 3 }),
+      ]);
+
+      const fromLectures =
+        lecturesResult.status === "fulfilled"
+          ? lecturesResult.value.data
+              .filter((e) => e.startAt && Date.parse(e.startAt) >= now && Date.parse(e.startAt) <= now + lookAheadMs)
+              .map((event) => ({
+                title: event.title,
+                due_at: event.startAt!,
+                end_at: event.endAt,
+                course_code: null,
+                course_name: event.courseName,
+                location: event.location,
+                source: "event" as const,
+              }))
+          : [];
+
+      const erPlannerKalenderhendelse = (type: string) =>
+        type === "calendar_event" || type === "CalendarEvent";
+
+      const fromPlanner =
+        plannerResult.status === "fulfilled"
+          ? plannerResult.value.data
+              .filter((item) => {
+                if (!erPlannerKalenderhendelse(item.plannable_type)) return false;
+                const dato = item.plannable?.due_at ?? item.plannable_date;
+                if (!dato) return false;
+                const t = Date.parse(dato);
+                if (!Number.isFinite(t)) return false;
+                return t >= now && t <= now + lookAheadMs;
+              })
+              .map((item) => ({
+                title: item.plannable?.title ?? "(uten tittel)",
+                due_at: (item.plannable?.due_at ?? item.plannable_date)!,
+                end_at: item.plannable?.end_at ?? null,
+                course_code: null,
+                course_name: null,
+                location: item.plannable?.location_name ?? null,
+                source: "event" as const,
+              }))
+          : [];
+
+      const seen = new Set<string>();
+      const kommendeTimer = [...fromLectures, ...fromPlanner]
+        .filter((item) => {
+          const key = `${item.title}|${item.due_at}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at))
+        .slice(0, 30);
+
+      const lectureFailed = lecturesResult.status === "rejected";
+      const plannerFailed = plannerResult.status === "rejected";
+      const lecturesErr = lectureFailed ? (lecturesResult.reason as { code?: string; httpStatus?: number }) : null;
+      const plannerErr = plannerFailed ? (plannerResult.reason as { code?: string; httpStatus?: number }) : null;
+      const lectureBlockedByCanvas =
+        lectureFailed && (lecturesErr?.code === "permission_denied" || lecturesErr?.httpStatus === 403);
+      const plannerBlockedByCanvas =
+        plannerFailed && (plannerErr?.code === "permission_denied" || plannerErr?.httpStatus === 403);
+
+      if (kommendeTimer.length > 0) {
+        await setCache(
+          userKey(userId, "kalender", "kommende"),
+          JSON.stringify(kommendeTimer),
+          600,
+        );
+        logger.info(
+          {
+            userId,
+            eventCount: kommendeTimer.length,
+            fromLectures: fromLectures.length,
+            fromPlanner: fromPlanner.length,
+            lectureFailed,
+            plannerFailed,
+          },
+          "Kalender-bro-cache fylt on-demand (kombinert lectures+planner)",
+        );
+        timetableContext = await hentKommendeTimerForChat(userId);
+      } else if (lectureBlockedByCanvas) {
+        // Forelesninger er blokkert av Canvas. Selv om Planner kan ha frister i
+        // vinduet, er det poenget brukeren spør om — «neste time» = forelesning,
+        // ikke oppgavefrist. Si ærlig at Canvas ikke gir oss tilgang til timeplanen.
+        calendarBlockedByCanvas = true;
+        logger.warn(
+          {
+            userId,
+            lecturesErr,
+            plannerFailed,
+            fromPlanner: fromPlanner.length,
+          },
+          "Calendar Events blokkert av Canvas (planner ga ingen frister) — gir modellen ærlig forklaring",
+        );
+      } else {
+        logger.info(
+          { userId, lectureFailed, plannerFailed, fromLectures: fromLectures.length, fromPlanner: fromPlanner.length, plannerBlockedByCanvas },
+          "On-demand henting av kalender ga ingen kommende timer/frister",
+        );
+      }
+    }
+
+    if (timetableContext) {
+      timetableBlockEarly = timetableContext;
+      logger.info(
+        { userId, contextAddedLength: timetableBlockEarly.length },
+        "Timeplan pre-bygget for kontekst-injeksjon",
+      );
+    } else if (calendarBlockedByCanvas) {
+      // Lever en eksplisitt melding inn i konteksten så modellen forstår at
+      // problemet IKKE er en mangel hos StudyWise. Dette signalet plukker
+      // modellen opp i system-prompten ved å lese «calendar_api_blocked».
+      timetableBlockEarly =
+        "\nKOMMANDE TIMER OG FORELESNINGER (neste 7 dager):\n" +
+        "(calendar_api_blocked) Canvas-instansen til denne brukeren tillater " +
+        "ikke at studenters personlige API-token henter kalenderhendelser " +
+        "(`/api/v1/calendar_events` returnerte 403). Dette er en institusjons-" +
+        "policy som StudyWise ikke kan jobbe rundt. Si dette ærlig til brukeren " +
+        "og henvis dem til Canvas-kalenderen direkte (Calendar i venstre menyen) " +
+        "eller TimeEdit/StudentWeb hvis instituttet bruker det.\n";
+      logger.info(
+        { userId },
+        "Timeplan markert som blokkert av Canvas — modellen får ærlig forklaring",
+      );
+    } else {
+      logger.info(
+        { userId },
+        "Bruker spurte om timeplan, men ingen kalenderdata tilgjengelig",
+      );
+    }
+  }
+
+  // Hjelper: injiserer pre-bygde strukturerte blokker (kunngjøringer/timeplan)
+  // i en eksisterende kontekst. Brukes i alle return-paths fra metadata-grenen
+  // slik at f.eks. «oppgi alle timer i mai» får timeplandata selv om Pinecone/Redis-
+  // baserte konteksten ikke inneholder den. Sikrer at <canvas-kursdata>-wrapper
+  // legges til hvis kontektsten ikke har den.
+  const injiserStrukturerteBlokker = (kontekst: string): string => {
+    if (!announcementBlockEarly && !timetableBlockEarly) return kontekst;
+    let resultat = kontekst;
+    const harWrapper = resultat.includes("</canvas-kursdata>");
+    if (!harWrapper) {
+      resultat = "<canvas-kursdata>\n" + resultat + "\n</canvas-kursdata>";
+    }
+    if (announcementBlockEarly) {
+      resultat = resultat.replace("</canvas-kursdata>", announcementBlockEarly + "\n</canvas-kursdata>");
+    }
+    if (timetableBlockEarly) {
+      resultat = resultat.replace("</canvas-kursdata>", timetableBlockEarly + "\n</canvas-kursdata>");
+    }
+    return resultat;
+  };
+
   if (wantsCourseOverview) {
+    // Hvis brukeren samtidig spør om kunngjøringer/timeplan (f.eks.
+    // «oppsummer mine 10 siste kunngjøringer fra alle emner» — som matcher
+    // BÅDE kursoversikt OG kunngjøringer), skal den spesifikke datakilden
+    // vinne. Ellers ville snarveien returnert kun kursnavn og hoppet over
+    // de pre-bygde blokkene.
+    if (announcementBlockEarly || timetableBlockEarly) {
+      logger.info(
+        { userId, intent, hasAnnouncements: !!announcementBlockEarly, hasTimetable: !!timetableBlockEarly },
+        "wantsCourseOverview overstyrt — bruker har spurt spesifikt om kunngjøringer/timeplan",
+      );
+      const kombinert =
+        "<canvas-kursdata>\n" +
+        (announcementBlockEarly ? announcementBlockEarly + "\n" : "") +
+        (timetableBlockEarly ? timetableBlockEarly + "\n" : "") +
+        "</canvas-kursdata>";
+      return { kontekst: kombinert, hasCanvasData: true, source: "redis" };
+    }
+
     // Prøv Redis først (prosessert kursdata fra sync)
     const dbCoursesKey = `db:user:${userId}:courses`;
     const cachedCourses = await getCache(dbCoursesKey);
@@ -3918,8 +4240,12 @@ async function loadCanvasContextCore(
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
   // intent er canvas_light (f.eks. "forklar kvantitativ metode").
   // Resultatet huskes i hybridAlreadyAttempted slik at Trinn 0 ikke gjentar identisk søk.
+  // NB: Skipper hybrid-søk for timeplan-spørsmål — chunkHint="time" matcher
+  // tilfeldige ord som "runtime"/"time complexity" i fagfiler, og forurenser
+  // kildelisten med irrelevante treff. Timeplanen ligger allerede i
+  // timetableBlockEarly og injiseres via canvas_full-grenen lenger ned.
   let hybridAlreadyAttempted = false;
-  if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint) {
+  if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint && !wantsTimetable) {
     hybridAlreadyAttempted = true;
     const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
     if (hybridResult) {
@@ -3930,6 +4256,14 @@ async function loadCanvasContextCore(
         if (strukturOversikt) {
           kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
         }
+      }
+      // Strukturert data (kunngjøringer/timeplan) ligger ikke i Pinecone, så
+      // hybrid-søket finner dem aldri — injiser direkte fra de pre-bygde blokkene.
+      if (announcementBlockEarly) {
+        kontekst = kontekst.replace("</canvas-kursdata>", announcementBlockEarly + "\n</canvas-kursdata>");
+      }
+      if (timetableBlockEarly) {
+        kontekst = kontekst.replace("</canvas-kursdata>", timetableBlockEarly + "\n</canvas-kursdata>");
       }
       logger.info(
         { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: kontekst.length },
@@ -3961,7 +4295,7 @@ async function loadCanvasContextCore(
   if (intent === "canvas_light") {
     // Faglige spørsmål havner av og til feilaktig i canvas_light uten chunkHint.
     // Prøv hybrid-søk også her når vi har lagret AI-innhold.
-    if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message && !wantsAnnouncements) {
+    if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message && !wantsAnnouncements && !wantsTimetable) {
       const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
       if (hybridResult) {
         let kontekst = hybridResult.kontekst;
@@ -4002,18 +4336,20 @@ async function loadCanvasContextCore(
       if (hasRedisSyncData) {
         const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
         if (redisKontekst) {
+          const beriket = injiserStrukturerteBlokker(redisKontekst);
           logger.info(
-            { userId, intent, target, source: "redis", contextLength: redisKontekst.length },
+            { userId, intent, target, source: "redis", contextLength: beriket.length },
             "Canvas-kontekst lastet fra Redis (målrettet metadata)",
           );
-          return { kontekst: redisKontekst, hasCanvasData: true, source: "redis" };
+          return { kontekst: beriket, hasCanvasData: true, source: "redis" };
         }
       }
 
       const mongoKontekst = await byggMålrettetKontekstFraMongo(userId, target, contextPrefs);
       if (mongoKontekst) {
+        const beriket = injiserStrukturerteBlokker(mongoKontekst);
         logger.info(
-          { userId, intent, target, source: "mongodb", contextLength: mongoKontekst.length },
+          { userId, intent, target, source: "mongodb", contextLength: beriket.length },
           "Canvas-kontekst lastet fra MongoDB (målrettet metadata fallback)",
         );
         if (redisAvailable) {
@@ -4021,7 +4357,7 @@ async function loadCanvasContextCore(
             logger.warn({ err, userId }, "Bakgrunns-sync feilet etter målrettet metadata-fallback");
           });
         }
-        return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
+        return { kontekst: beriket, hasCanvasData: true, source: "mongodb" };
       }
 
       // Ingen lokal data — trigger sync og returner tom kontekst (ingen Canvas API-kall)
@@ -4041,12 +4377,13 @@ async function loadCanvasContextCore(
     if (hasRedisSyncData) {
       const redisKontekst = await byggLettKontekstFraRedis(userId, contextPrefs);
       if (redisKontekst) {
+        const beriket = injiserStrukturerteBlokker(redisKontekst);
         logger.info(
-          { userId, intent, source: "redis", contextLength: redisKontekst.length },
+          { userId, intent, source: "redis", contextLength: beriket.length },
           "Canvas-kontekst lastet fra Redis (lett)",
         );
         return {
-          kontekst: redisKontekst,
+          kontekst: beriket,
           hasCanvasData: true,
           source: "redis",
         };
@@ -4056,8 +4393,9 @@ async function loadCanvasContextCore(
     // MongoDB fallback (permanent lagring, ~10-30ms)
     const mongoKontekst = await byggLettKontekstFraMongo(userId, contextPrefs);
     if (mongoKontekst) {
+      const beriket = injiserStrukturerteBlokker(mongoKontekst);
       logger.info(
-        { userId, intent, source: "mongodb", contextLength: mongoKontekst.length },
+        { userId, intent, source: "mongodb", contextLength: beriket.length },
         "Canvas-kontekst lastet fra MongoDB (lett fallback)",
       );
       // Trigger bakgrunns-sync for å oppdatere Redis
@@ -4066,7 +4404,7 @@ async function loadCanvasContextCore(
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
-      return { kontekst: mongoKontekst, hasCanvasData: true, source: "mongodb" };
+      return { kontekst: beriket, hasCanvasData: true, source: "mongodb" };
     }
 
     // Ingen lokal data — trigger sync og returner tom kontekst (ingen Canvas API-kall)
@@ -4083,24 +4421,11 @@ async function loadCanvasContextCore(
   }
 
   // ── canvas_full ──
-  // Kunngjøring-deteksjon: Kunngjøringer er strukturert data som ikke er indeksert i
-  // Pinecone/BM25, så hybrid-søk finner dem aldri. Når brukeren spør om kunngjøringer,
-  // hent dem direkte fra Redis/MongoDB og injiser i konteksten.
-  let announcementBlock = "";
-
-  if (wantsAnnouncements) {
-    const announcements = await hentKunngjøringerForBruker(userId);
-    if (announcements.length > 0) {
-      announcementBlock = formaterKunngjøringerKontekst(announcements);
-      const courseNames = [...new Set(announcements.map((a) => a.courseName))];
-      logger.info(
-        { userId, count: announcements.length, courses: courseNames, contextAddedLength: announcementBlock.length },
-        "Kunngjøringer injisert i Canvas-kontekst",
-      );
-    } else {
-      logger.info({ userId }, "Bruker spurte om kunngjøringer, men ingen ble funnet");
-    }
-  }
+  // Kunngjøringer/timeplan ble pre-bygget tidligere i funksjonen (se
+  // `announcementBlockEarly` / `timetableBlockEarly`) slik at også chunkHint-
+  // pathen kan injisere dem. Bruk samme variabler her under canvas_full.
+  const announcementBlock = announcementBlockEarly;
+  const timetableBlock = timetableBlockEarly;
 
   // Sjekk abort-signal før canvas_full søketrinn
   if (signal?.aborted) return ABORTED_RESULT;
@@ -4114,6 +4439,11 @@ async function loadCanvasContextCore(
       // Injiser kunngjøringer
       if (announcementBlock) {
         kontekst = kontekst.replace("</canvas-kursdata>", announcementBlock + "\n</canvas-kursdata>");
+      }
+      // Injiser timeplan (kommer typisk når hybrid-søk rotet seg bort i kode-
+      // chunks for et generelt ord som "time").
+      if (timetableBlock) {
+        kontekst = kontekst.replace("</canvas-kursdata>", timetableBlock + "\n</canvas-kursdata>");
       }
       // Berik med modulstruktur slik at KI kjenner til hele emneinnholdet
       if (hasCourseTarget(target)) {
@@ -4147,6 +4477,13 @@ async function loadCanvasContextCore(
   // hybrid-søk finner aldri kunngjøringer (ikke indeksert), så vi trenger ikke vente på chunk-søk.
   if (wantsAnnouncements && announcementBlock) {
     const kontekst = "<canvas-kursdata>\n" + announcementBlock + "\n</canvas-kursdata>";
+    return { kontekst, hasCanvasData: true, source: "redis" };
+  }
+
+  // Samme prinsipp for timeplan-spørsmål — returner fra bro-cachen i stedet
+  // for å kaste bort tid på chunk-søk som ikke finner kalenderhendelser.
+  if (wantsTimetable && timetableBlock) {
+    const kontekst = "<canvas-kursdata>\n" + timetableBlock + "\n</canvas-kursdata>";
     return { kontekst, hasCanvasData: true, source: "redis" };
   }
 

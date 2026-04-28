@@ -35,6 +35,7 @@
 import { getCache, setCache, deleteCacheKeys } from "../cache/redis.js";
 import { logger } from "../utils/logger.js";
 import { z } from "zod";
+import { SvarKildeSchema } from "common/ki";
 
 /** TTL i sekunder (24 timer). Content-hash-basert invalidering hadde vært
  *  bedre men koster en DB-roundtrip per cache-hit — 24h er pragmatisk start. */
@@ -50,6 +51,8 @@ const CachedChatResponseSchema = z.object({
   primaryCourseId: z.string(),
   primaryFileId: z.number(),
   triggerWord: z.string().optional(),
+  /** Kilde-merket fra modellens svar (kursmateriale|canvas|kunnskapsbase|generell|blandet). */
+  svarKilde: SvarKildeSchema.optional(),
 });
 
 export type CachedChatResponse = z.infer<typeof CachedChatResponseSchema>;

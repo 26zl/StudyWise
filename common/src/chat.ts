@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import { KI_MAX_MESSAGE_LENGTH_BACKEND } from "./ki.js";
-import { KIChatSourceSchema } from "./ki.js";
+import { KIChatSourceSchema, SvarKildeSchema } from "./ki.js";
 
 export const CHAT_TITLE_MAX_LENGTH = 120;
 export const CHAT_TOPIC_MAX_LENGTH = 40;
@@ -39,6 +39,11 @@ export const ChatMessageSchema = z.object({
     .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`)
     .refine((value) => value.trim().length > 0, "Meldingen kan ikke være tom"),
   kilder: z.array(KIChatSourceSchema).optional(),
+  /**
+   * Hvor svaret kom fra. Persisteres på assistent-meldinger så badge
+   * fremdeles vises ved gjenåpning av samtale fra historikken.
+   */
+  svarKilde: SvarKildeSchema.optional(),
 });
 
 // Schema for lagring av chat-samtale. title valgfri; brukes for visning (f.eks. avkortet første spørsmål).

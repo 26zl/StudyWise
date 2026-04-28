@@ -198,6 +198,14 @@ export default function FaqPage() {
           ].join(" "),
         },
         {
+          q: t("faq.canvasTokenAfterDeleteQ"),
+          a: t("faq.canvasTokenAfterDeleteA"),
+          searchText: [
+            t("faq.canvasTokenAfterDeleteQ"),
+            t("faq.canvasTokenAfterDeleteA"),
+          ].join(" "),
+        },
+        {
           q: t("faq.withoutCanvasQ"),
           a: t("faq.withoutCanvasA"),
           searchText: [

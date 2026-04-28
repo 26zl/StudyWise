@@ -1362,6 +1362,7 @@ router.delete("/account", requireRecentAuth, rateLimitAccountDeletion, async (re
       deleted: deletionResult.deleted,
       providerAccountDeleted: deletionResult.providerAccountDeleted,
       vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
+      hadCanvasToken: deletionResult.hadCanvasToken,
     }));
   } catch (err) {
     // Refunder rate-limit-tokenet siden selve sletteoperasjonen feilet —

@@ -28,6 +28,7 @@ import {
 import { noCache } from "../../middleware/no-cache.js";
 import { logger } from "../../utils/logger.js";
 import { getCache, setCache } from "../../cache/redis.js";
+import { userKey } from "../../services/canvas-sync.service.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { User } from "../../database/models/User.js";
@@ -1067,6 +1068,33 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
         String(Date.now()),
         CACHE_TTL.ASSIGNMENTS,
       );
+      // Per-bruker-bro: KI-chat-konteksten leser kun userId-nøkler (har ikke
+      // token-avtrykket). Speil de neste 7 dagene med events/timetable her så
+      // at chat kan svare på «når er neste time». Begrenset til 30 elementer
+      // for å holde prompten kort.
+      const userIdForChat = req.user?.id;
+      if (userIdForChat) {
+        const now = Date.now();
+        const sevenDays = now + 7 * 24 * 60 * 60 * 1000;
+        const kommendeTimer = items
+          .filter((item) => {
+            if (item.source !== "event" && item.source !== "timetable") return false;
+            const t = Date.parse(item.due_at);
+            if (!Number.isFinite(t)) return false;
+            return t >= now && t <= sevenDays;
+          })
+          .sort((a, b) => Date.parse(a.due_at) - Date.parse(b.due_at))
+          .slice(0, 30);
+        try {
+          await setCache(
+            userKey(userIdForChat, "kalender", "kommende"),
+            JSON.stringify(kommendeTimer),
+            CACHE_TTL.ASSIGNMENTS,
+          );
+        } catch (broErr) {
+          logger.warn({ err: broErr }, "Kunne ikke sette per-bruker kalender-bro");
+        }
+      }
     } catch (cacheErr) {
       logger.warn({ err: cacheErr }, "Kunne ikke sette kalender-cache");
     }

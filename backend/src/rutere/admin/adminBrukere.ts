@@ -111,7 +111,10 @@ router.get("/brukere", async (req, res) => {
     // brukere via filter-objektet over (lint-scriptet ser ikke gjennom dynamisk filter-bygging)
     const [brukere, total] = await Promise.all([
       User.find(filter)
-        .select("email role username firstName lastName canvasBaseUrl authProviders mfaEnabled createdAt lockedAt lockedReason deletedAt")
+        // canvasApiToken har `select: false`; må eksplisitt bes om med `+canvasApiToken`.
+        // Vi leser kun `Boolean(...)` på den, ikke selve verdien — ingen tokens lekker
+        // gjennom audit/logger eller responsen siden vi mapper til boolean under.
+        .select("email role username firstName lastName canvasBaseUrl +canvasApiToken authProviders mfaEnabled createdAt lockedAt lockedReason deletedAt")
         .sort({ createdAt: -1 })
         .skip(offset)
         .limit(limit)
@@ -137,7 +140,11 @@ router.get("/brukere", async (req, res) => {
         brukernavn: b.username,
         fornavn: b.firstName,
         etternavn: b.lastName,
-        harCanvasToken: Boolean(b.canvasBaseUrl),
+        // Sjekk faktisk token, ikke bare canvasBaseUrl. canvasBaseUrl persisterer
+        // selv etter at tokenet er fjernet (institusjons-valg lagres separat),
+        // så uten denne sjekken viste admin-listen grønt hak for brukere som
+        // ikke lenger hadde noen aktiv Canvas-token.
+        harCanvasToken: Boolean(b.canvasApiToken),
         authProviders: b.authProviders ?? [],
         opprettet: b.createdAt,
         mfaEnabled: b.mfaEnabled ?? false,
@@ -406,15 +413,16 @@ router.get("/brukere/:id/detalj", async (req, res) => {
       KnowledgeBase.countDocuments({ userId: targetId }),
       KBContentChunk.countDocuments({ userId: targetId }),
       WebPushSubscriptionModel.countDocuments({ userId: targetId }),
-      AuditLog.find({
-        $or: [{ targetUserId: targetId }, { actorUserId: targetId }],
-      })
+      // Kun handlinger brukeren selv har utført — ellers blander vi inn
+      // admin-handlinger mot brukeren (f.eks. detaljpanel-visning) som
+      // feilaktig fremstår som brukerens egne i UI-et.
+      AuditLog.find({ actorUserId: targetId })
         .sort({ createdAt: -1 })
         .limit(20)
         .select("action category outcome createdAt")
         .lean(),
       AuditLog.countDocuments({
-        $or: [{ targetUserId: targetId }, { actorUserId: targetId }],
+        actorUserId: targetId,
         outcome: "failure",
         createdAt: { $gte: thirtyDaysAgo },
       }),

@@ -65,6 +65,22 @@ function SlettKontoSeksjon() {
         );
       }
 
+      // Lagre et engangs-flagg som forsiden plukker opp etter redirect og
+      // bruker til å vise bekreftelse + Canvas-token-påminnelse. sessionStorage
+      // er bevisst (overlever full page-load men ikke ny fane), og forsiden
+      // sletter nøkkelen umiddelbart etter at meldingen er vist.
+      try {
+        sessionStorage.setItem(
+          "studywise:account-deleted",
+          JSON.stringify({
+            partial: !harFullstendigEksternOpprydding,
+            hadCanvasToken: !!result.hadCanvasToken,
+          }),
+        );
+      } catch {
+        // sessionStorage kan kaste i privat-modus — meldingen er ikke kritisk.
+      }
+
       // Sett utloggingsflagg og naviger umiddelbart for å unngå at
       // React Query refetcher og viser feilgrense ("something went wrong").
       // cancelQueries() avbryter in-flight requests kontrollert.

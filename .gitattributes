@@ -30,3 +30,37 @@ pnpm-lock.yaml linguist-generated=true
 # filer_prosjekt/ er bachelor-leveranse, ikke prod-kode — skjul fra
 # språkstatistikk så Repo-insights ikke teller .tex/.bib som kodebasen vår.
 filer_prosjekt/** linguist-vendored=true
+
+# ─── Git LFS for tunge bachelor-leveranser ─────────────────────────────────
+# Mappa filer_prosjekt/ inneholder PDF-er, bilder og presentasjonsfiler som
+# kan bli store (eksempel: 4 MB+ Google Forms-eksport av brukertest). Vi
+# router slike filtyper i denne mappa gjennom Git LFS slik at .git ikke
+# vokser unødig og clone/fetch holder seg raske.
+#
+# Krav: utvikleren må ha `git-lfs` installert (`brew install git-lfs`) og
+# kjøre `git lfs install` én gang. Filer som ble committed FØR disse
+# reglene ble lagt til ligger fortsatt i vanlig git — bruk
+# `git lfs migrate import --include="filer_prosjekt/**" --everything`
+# (rewrite av historikk + force-push) hvis du vil dra dem inn etterpå.
+filer_prosjekt/**/*.pdf  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.png  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.jpg  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.jpeg filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.gif  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.eps  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.psd  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.tif  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.tiff filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.docx filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.doc  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.pptx filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.ppt  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.xlsx filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.xls  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.zip  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.mp4  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.mov  filter=lfs diff=lfs merge=lfs -text
+filer_prosjekt/**/*.webm filter=lfs diff=lfs merge=lfs -text
+# LaTeX-byggeartefakter i BSc/ er ikke tunge nok i seg selv, men .xdv/.bcf
+# kan bli store ved omfattende oppgaver. Behold som vanlig git til de
+# faktisk vokser — overstyr enkelt-fil med en regel her hvis nødvendig.

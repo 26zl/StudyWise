@@ -38,6 +38,7 @@ import {
   fetchModules,
   fetchAssignments,
   fetchCourseAnnouncements,
+  fetchCanvasLectures,
   fetchPdfContent,
   fetchFileContent,
   fetchFileMetadata,
@@ -1474,6 +1475,51 @@ async function _doSync(
     logger.info(
       { userId, courseCount: processedCourses.length },
       "Prosessert kursdata lagret til Redis for chat-kontekst",
+    );
+  }
+
+  // Forhåndsvarme bro-cachen for «neste time»/timeplan-spørsmål i KI-chat.
+  // Tidligere ble cachen kun fylt når brukeren åpnet kalender-siden, så hvis
+  // de gikk rett til chatten og spurte «når er min neste time?», fikk modellen
+  // ingen kalenderdata. Best-effort: feiler stille om Canvas Calendar er nede
+  // — sync skal aldri faile helt på grunn av kalender-bom.
+  try {
+    const lectures = await fetchCanvasLectures(canvasToken, { baseUrl });
+    const now = Date.now();
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const kommendeTimer = lectures.data
+      .filter((event) => {
+        if (!event.startAt) return false;
+        const t = Date.parse(event.startAt);
+        if (!Number.isFinite(t)) return false;
+        return t >= now && t <= now + sevenDaysMs;
+      })
+      .sort((a, b) => Date.parse(a.startAt!) - Date.parse(b.startAt!))
+      .slice(0, 30)
+      .map((event) => ({
+        title: event.title,
+        due_at: event.startAt,
+        end_at: event.endAt,
+        course_code: null,
+        course_name: event.courseName,
+        location: event.location,
+        source: "event" as const,
+      }));
+    // Skriv ALLTID — også tom array — så context-loader kan skille mellom
+    // «cache mangler» (åpne kalenderen først) og «ingen kommende timer».
+    await setCache(
+      userKey(userId, "kalender", "kommende"),
+      JSON.stringify(kommendeTimer),
+      600, // CACHE_TTL.ASSIGNMENTS = 10 min, samme som /api/canvas/kalender
+    );
+    logger.info(
+      { userId, eventCount: kommendeTimer.length },
+      "Kalender-bro-cache forhåndsvarmet for KI-chat",
+    );
+  } catch (err) {
+    logger.warn(
+      { err, userId },
+      "Kunne ikke forhåndsvarme kalender-bro-cache — KI-chat vil mangle timeplan til kalenderen åpnes",
     );
   }
 

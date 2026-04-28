@@ -201,6 +201,16 @@ export const enMessages = {
       allFieldsRequired: "All fields are required.",
       incomplete: "Sign-in incomplete. Please try again.",
       sessionFailed: "Sign-in succeeded, but the session could not be created. Please try again.",
+      errors: {
+        credentials:
+          "Could not sign in with email/username and password. Check that both are typed correctly. If you created the account with Microsoft or Google, use the same button instead.",
+        method:
+          "This account appears to use a different sign-in method. Choose Microsoft or Google if that is how you created the account.",
+        rateLimited:
+          "There have been too many sign-in attempts. Wait a little before trying again.",
+        verificationRequired:
+          "Your email address must be verified before you can sign in. Check your inbox for the verification code.",
+      },
       mfa: {
         title: "Two-factor authentication",
         subtitle: "Enter the code from your authenticator app.",
@@ -257,6 +267,17 @@ export const enMessages = {
           "This password was found in a data breach. For account safety, please choose a different password.",
         notStrongEnough: "Password is too weak. Try a longer password or add more uncommon words.",
         tooShort: "Password is too short. Must be at least 8 characters.",
+      },
+      errors: {
+        emailTaken:
+          "An account with this email address already exists. Sign in instead, or use Microsoft/Google if that is how the account was created.",
+        invalidEmail: "Enter a valid email address.",
+        usernameTaken:
+          "This username is already taken. Choose another username.",
+        usernameInvalid:
+          "Username can only contain letters, numbers, and underscores, and must be 4–30 characters.",
+        rateLimited:
+          "There have been too many sign-up attempts. Wait a little before trying again.",
       },
       submitButton: "Create account",
       submitting: "Creating...",
@@ -391,6 +412,18 @@ export const enMessages = {
     },
   },
   landing: {
+    accountDeleted: {
+      successTitle: "Deletion completed",
+      successDescription:
+        "Your account and all associated data have been deleted from StudyWise. You have been signed out.",
+      partialTitle: "Account deleted",
+      partialDescription:
+        "Your StudyWise account has been deleted, but one or more external cleanups did not finish automatically. We are retrying in the background — contact us if you have questions.",
+      canvasReminderTitle: "Remember to remove the Canvas access token",
+      canvasReminderBody:
+        "The access token was always stored encrypted on our side (AES-256-GCM) — never readable in plaintext — and has now been deleted along with your account. Just to be on the safe side, we still recommend removing the entry in Canvas yourself: go to Account → Settings → \"Approved Integrations\" and delete the StudyWise entry.",
+      dismiss: "Dismiss notice",
+    },
     actions: {
       continueToDashboard: "Continue to Dashboard",
       signInOrRegister: "Sign in / Sign up",
@@ -403,8 +436,8 @@ export const enMessages = {
       },
       canvasIntegration: {
         description:
-          "Connect Canvas once and get automatic access to all your courses, modules, files, and announcements. We sync in the background — you always see the latest without lifting a finger.",
-        title: "Seamless Canvas integration",
+          "StudyWise is built around Canvas. Connect once with a personal API token, and the rest of the app — AI chat, quizzes, flashcards, weekly plan, calendar — automatically gets access to courses, modules, files, deadlines, and announcements. Without a Canvas connection, most features are locked.",
+        title: "Canvas is the foundation",
       },
       heading: "Everything you need to succeed",
       knowledgeBase: {
@@ -432,7 +465,7 @@ export const enMessages = {
     },
     hero: {
       description:
-        "StudyWise gathers everything you need in one place. Get a full overview of Canvas, your upcoming assignments, and AI help to study smarter, not harder.",
+        "StudyWise gathers Canvas, your calendar, and an AI assistant that actually knows your syllabus. To get the full benefit you need to connect Canvas with a personal API token — it takes two minutes, and without it only general AI chat and your own knowledge base with uploaded documents are available.",
       title: "Your Intelligent Study Assistant",
     },
   },
@@ -473,7 +506,7 @@ export const enMessages = {
         title: "Calendar",
       },
       library: {
-        description: "Bookmarks and your own knowledge bases",
+        description: "Pinned chats and your own knowledge bases",
         title: "Library",
       },
       quizFlashcards: {
@@ -1384,7 +1417,7 @@ export const enMessages = {
       emailUsers: "Email sign-in",
       unknownProviderUsers: "Unknown sign-in",
       totalChats: "Conversations",
-      bookmarkedChats: "Bookmarked conversations",
+      bookmarkedChats: "Pinned chats",
       avgChatsPerUser: "Avg conversations per user",
       activeShareLinks: "Active share links",
       inactiveShareLinks: "Inactive share links",
@@ -1831,6 +1864,31 @@ export const enMessages = {
     sendingFailed: "Sending failed",
     sources: "Sources",
     sourcesHeading: "Sources",
+    svarKilde: {
+      kursmateriale: {
+        label: "Course material",
+        tooltip: "Grounded in content from your Canvas course material.",
+      },
+      canvas: {
+        label: "Canvas data",
+        tooltip:
+          "Grounded in Canvas metadata (deadlines, modules, announcements).",
+      },
+      kunnskapsbase: {
+        label: "Knowledge base",
+        tooltip: "Grounded in documents you uploaded yourself.",
+      },
+      blandet: {
+        label: "Course + AI",
+        tooltip:
+          "Combines your course material/knowledge base with general AI knowledge.",
+      },
+      generell: {
+        label: "General AI knowledge",
+        tooltip:
+          "This answer is not grounded in your own Canvas course material or knowledge base — it comes directly from the AI model's general knowledge. Verify important facts yourself.",
+      },
+    },
     sourcesPillLabel: "sources",
     sourceDownloadFailed: "Could not download source",
     sourceDownloadStarted: "Downloading source…",
@@ -2424,6 +2482,10 @@ export const enMessages = {
     deleteAccountLink: "contact us",
     deleteAccountA2:
       "to request account deletion. For security, you must have logged in recently to delete your account (step-up authentication) — sign in again if it's been a while. On deletion, account information and associated data will be deleted or anonymized, while limited security and audit logs may be retained in pseudonymized form for a limited period.",
+    canvasTokenAfterDeleteQ:
+      "Should I remove my Canvas access token after deleting my StudyWise account?",
+    canvasTokenAfterDeleteA:
+      "Yes — just to be on the safe side. On our end the token was always stored encrypted with AES-256-GCM, never exposed in plaintext, and has been deleted along with your account, so it was safe with us either way. The token itself is still registered in Canvas until you remove it there: sign in to Canvas, go to Account → Settings → \"Approved Integrations\" and delete the StudyWise entry.",
     twoFactorQ: "How do I enable two-factor authentication (2FA)?",
     twoFactorA:
       "Go to Account → Security and follow the setup. We recommend an authenticator app (Google Authenticator, 1Password, Authy, or similar). If you lose access to the app, contact us via the contact form and we'll help you reset 2FA.",
@@ -2435,7 +2497,7 @@ export const enMessages = {
       "The study plan gathers upcoming Canvas deadlines and assignments into a structured weekly overview, so you can plan your reading and submissions. It updates automatically when Canvas syncs.",
     withoutCanvasQ: "Can I use StudyWise without a Canvas token?",
     withoutCanvasA:
-      "Partially. You can use the AI chat and knowledge base (your own documents and links) without Canvas. But features that pull data directly from your school — courses, assignments, calendar, quizzes and flashcards from course material, study plan, and task breakdowns — require connecting Canvas. You still get value from StudyWise without Canvas, but the most school-specific features are locked.",
+      "Only in a very limited way — and we don't recommend it. StudyWise is built around the Canvas integration. Without a personal Canvas API token, only general AI chat and the knowledge base (your own uploaded documents) are available. Everything that gives StudyWise its real value — course overview, calendar with deadlines, announcements, AI chat with syllabus context, quizzes and flashcards from your Canvas course material, weekly plan, and task breakdowns — requires a Canvas connection. You'll find instructions for creating a token in Settings; it takes a couple of minutes.",
     fileTypesQ: "Which file types are supported for document analysis?",
     fileTypesA:
       "StudyWise supports PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), images (PNG, JPG, WEBP), and common code files.",
@@ -2643,15 +2705,15 @@ export const enMessages = {
     genericHint1: "Explain more simply",
   },
   bokmerker: {
-    title: "Bookmarks",
+    title: "Pinned chats",
     pageDescription:
-      "Gather bookmarked conversations and knowledge bases in one place so you can quickly return to the material you're working on.",
-    loading: "Loading bookmarks...",
-    searchLabel: "Search bookmarked conversations",
+      "Gather pinned chats and knowledge bases in one place so you can quickly return to the material you're working on.",
+    loading: "Loading pinned chats...",
+    searchLabel: "Search pinned chats",
     searchPlaceholder: "Search conversations...",
-    noSearchMatches: "No bookmarked conversations match your search.",
-    removedFromBookmarks: "Removed from bookmarks",
-    unpin: "Remove bookmark",
+    noSearchMatches: "No pinned chats match your search.",
+    removedFromBookmarks: "Pinned chat removed",
+    unpin: "Unpin",
   },
   kb: {
     title: "Knowledge Base",

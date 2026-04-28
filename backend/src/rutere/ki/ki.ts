@@ -45,6 +45,7 @@ import {
   type IntentType,
   type ContextResult,
   isFullDocumentTrigger,
+  isTimetableQuery,
 } from "../../services/context-loader.service.js";
 import { isSyncing, waitForSync } from "../../services/canvas-sync.service.js";
 import { isStructuredCanvasQuery } from "../../services/canvasStructuredQueries.js";
@@ -692,9 +693,10 @@ function kbSessionKey(userId: string, chatLockId: string): string {
   return chatScopedKey(userId, chatLockId, "active-kb");
 }
 
-// User-scoped fallback: lar oppfølgingsmeldinger finne aktiv KB selv om
-// chatLockId endrer seg (f.eks. ny hash når ny chatId-strategi brukes,
-// eller når frontend sender melding uten full historikk).
+// Historisk user-scoped sesjonsnøkkel. KB-sesjon er nå STRENGT per-chat —
+// vi leser/skriver ikke lenger denne nøkkelen, men beholder funksjonen så
+// /av kan rydde opp eventuelle gamle verdier som ligger igjen i Redis fra
+// før per-chat-fixen (TTL 1 time, så de forsvinner uansett etter hvert).
 function kbUserSessionKey(userId: string): string {
   return `ki:user:${userId}:active-kb`;
 }
@@ -2143,6 +2145,24 @@ Never guess or invent a name from email, username, or other profile fields.
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
     let intent = detectIntent(messages);
 
+    // Timeplan-override: Når brukeren eksplisitt spør om timeplan/kalender
+    // ("oppgi alle timene mine i mai", "neste forelesning") må intent IKKE
+    // havne i general_chat — da hopper vi over Canvas-kontekstlasteren og
+    // mister timetableBlockEarly-injeksjonen. Tving canvas_light slik at
+    // wantsTimetable kan trigge kalender-bro-cache + on-demand kalenderhenting.
+    if (intent === "general_chat" && req.canvasToken && isTimetableQuery(lastUserMessage)) {
+      logger.info(
+        {
+          previousIntent: "general_chat",
+          overriddenIntent: "canvas_light",
+          reason: "timetable_query_needs_calendar_context",
+          messagePreview: lastUserMessage.substring(0, 120),
+        },
+        "Timeplan-spørsmål — oppjusterer intent til canvas_light",
+      );
+      intent = "canvas_light";
+    }
+
     // Referensiell-oppfølging-override:
     // Når detectIntent returnerer "general_chat" fordi nåværende melding
     // mangler Canvas-signaler ("leksjon", "forelesning" osv.), MEN brukeren
@@ -2243,9 +2263,10 @@ Never guess or invent a name from email, username, or other profile fields.
 
     let hasActiveKnowledgeBaseSession = false;
     if (req.user?.id) {
-      const activeKbRawForIntent =
-        (await getCache(kbSessionKey(req.user.id, chatLockId)))
-        ?? (await getCache(kbUserSessionKey(req.user.id)));
+      // KB-sesjon er per-chat. Tidligere falt vi tilbake til user-scoped key
+      // her, men det førte til at KB-aktivering i én chat lekket inn i andre
+      // chatter — overraskende for brukeren.
+      const activeKbRawForIntent = await getCache(kbSessionKey(req.user.id, chatLockId));
       if (activeKbRawForIntent) {
         try {
           const parsed = JSON.parse(activeKbRawForIntent) as { id?: string; navn?: string };
@@ -3390,8 +3411,9 @@ chapters/topics in this course material.
       }
 
       const sessionPayload = JSON.stringify({ id: String(base._id), navn: base.navn });
+      // KUN per-chat-nøkkel — ingen user-scoped speiling, så /Algoritmer i
+      // én chat lekker ikke til andre chatter.
       await setCache(kbSessionKey(req.user!.id, chatLockId), sessionPayload, KB_SESSION_TTL);
-      await setCache(kbUserSessionKey(req.user!.id), sessionPayload, KB_SESSION_TTL);
 
       const responseText = `Kunnskapsbasen "${base.navn}" er nå aktivert. Still et spørsmål om innholdet — alle videre meldinger i denne samtalen bruker basen automatisk. Skriv /av for å deaktivere.`;
       const payload = KIChatResponseSchema.parse({
@@ -3409,17 +3431,10 @@ chapters/topics in this course material.
     // opp som kilder i svar om Modul I. Bare chat-scope brukes når meldingen
     // har eksplisitt Canvas-signal; user-scope er fortsatt nyttig for
     // oppfølgingsmeldinger som ikke har Canvas-referanser.
-    const kbFallbackTarget = extractQueryTarget(lastUserMessageForKB);
-    const messageHasCanvasSignal =
-      !!kbFallbackTarget.courseHint
-      || kbFallbackTarget.courseIdHint !== null
-      || !!kbFallbackTarget.moduleHint
-      || !!kbFallbackTarget.fileHint
-      || hasExplicitCourseOverride(lastUserMessageForKB);
-    const chatScopedKbRaw = await getCache(kbSessionKey(req.user!.id, chatLockId));
-    const activeKbRaw =
-      chatScopedKbRaw
-      ?? (messageHasCanvasSignal ? null : await getCache(kbUserSessionKey(req.user!.id)));
+    // KB-sesjon er strengt per-chat. (Tidligere fallt vi tilbake til en
+    // user-scoped nøkkel når meldingen ikke hadde Canvas-signal — det førte
+    // til at /Algoritmer i én chat lekket inn i andre chatter.)
+    const activeKbRaw = await getCache(kbSessionKey(req.user!.id, chatLockId));
     if (activeKbRaw) {
       // Re-prim chat-scoped key så senere lookups i samme samtale er raske.
       await setCache(
@@ -3474,11 +3489,17 @@ chapters/topics in this course material.
                 },
                 "KB-kontekst lagt til i prompt (sesjonsaktiv base)",
               );
-            } else {
-              // Sesjonen er aktiv, men semantisk søk ga 0 treff (typisk når
-              // basen er liten eller spørringen er bred). Last hele basen
+            } else if (mentionsKnowledgeBase) {
+              // Sesjonen er aktiv, brukeren refererte eksplisitt til "basen"/
+              // "kunnskapsbase", men semantisk søk ga 0 treff. Last hele basen
               // slik at KI har faktisk innhold å svare fra i stedet for å
               // hallusinere "har ikke tilgang".
+              //
+              // Tidligere ble denne fallbacken trigget UANSETT — også for
+              // helt urelaterte spørsmål som "Hvor ligger Albania?" — noe som
+              // dumpet 8500+ tokens av basen i hver melding bare fordi en
+              // tidligere melding auto-matchet basen. Nå kreves eksplisitt
+              // KB-referanse for å trigge fallbacken.
               const fullDoc = await loadFullKBContext(req.user!.id, parsed.id, parsed.navn);
               if (fullDoc.hasContent) {
                 kbKontekst = fullDoc.context;
@@ -3495,7 +3516,7 @@ chapters/topics in this course material.
                     truncated: fullDoc.truncated,
                     kbContextLength: kbKontekst.length,
                   },
-                  "KB sesjonsaktiv: 0 søketreff — fallback til full-dokument-kontekst",
+                  "KB sesjonsaktiv + bruker refererte til basen: 0 søketreff — fallback til full-dokument-kontekst",
                 );
               } else {
                 logger.warn(
@@ -3547,6 +3568,13 @@ chapters/topics in this course material.
         if (match) {
           const matchId = String(match._id);
           const triggerWord = isFullDocumentTrigger(lastUserMessageForKB);
+          // NB: auto_match SKAL IKKE opprette en sticky KB-sesjon. Brukeren har
+          // ikke aktivert basen eksplisitt — bare meldingen tilfeldigvis matchet
+          // en alias. Tidligere ble setCache(kbSessionKey) kalt her, noe som
+          // førte til at f.eks. "Hvor ligger Kosovo?" lastet inn 8500+ tokens av
+          // algoritmer-basen i hver påfølgende melding. Nå er injeksjonen
+          // per-melding: gjelder kun denne ene forespørselen, og brukeren må
+          // skrive /basenavn for å låse basen som aktiv.
           if (triggerWord) {
             const fullDoc = await loadFullKBContext(req.user!.id, matchId, match.navn);
             if (fullDoc.hasContent) {
@@ -3554,11 +3582,6 @@ chapters/topics in this course material.
               kbKilder = mapKBResultsToChatSources(fullDoc.sources, match.navn, matchId);
               kbFullDocumentMode = true;
               kbFullDocTriggerWord = triggerWord;
-              await setCache(
-                kbSessionKey(req.user!.id, chatLockId),
-                JSON.stringify({ id: matchId, navn: match.navn }),
-                KB_SESSION_TTL,
-              );
               logger.info(
                 {
                   userId: req.user!.id,
@@ -3572,7 +3595,7 @@ chapters/topics in this course material.
                   aliases,
                   kbContextLength: kbKontekst.length,
                 },
-                "KB full-dokument-kontekst lagt til i prompt (auto-matchet)",
+                "KB full-dokument-kontekst lagt til i prompt (auto-matchet, ikke sesjon)",
               );
             }
           }
@@ -3582,11 +3605,6 @@ chapters/topics in this course material.
             if (kbResults.length > 0) {
               kbKontekst = buildKBContext(kbResults, match.navn);
               kbKilder = mapKBResultsToChatSources(kbResults, match.navn, matchId);
-              await setCache(
-                kbSessionKey(req.user!.id, chatLockId),
-                JSON.stringify({ id: matchId, navn: match.navn }),
-                KB_SESSION_TTL,
-              );
               logger.info(
                 {
                   userId: req.user!.id,
@@ -3597,7 +3615,7 @@ chapters/topics in this course material.
                   aliases,
                   kbContextLength: kbKontekst.length,
                 },
-                "KB-kontekst lagt til i prompt (auto-matchet fra spørsmål)",
+                "KB-kontekst lagt til i prompt (auto-matchet fra spørsmål, ikke sesjon)",
               );
             } else {
               logger.warn(
@@ -4033,11 +4051,16 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
           "Chat-respons servert fra cache",
         );
         const cachedKilder = cached.kilder as import("common/ki").KIChatSource[] | undefined;
+        // Samme regel som i live-pathen: rene generelle KI-svar skal ikke vise
+        // kilder, selv om vi tilfeldigvis cachet noen sammen med svaret.
+        const cachedKilderForPayload =
+          cached.svarKilde === "generell" ? undefined : cachedKilder;
         const cachedPayload = KIChatResponseSchema.parse({
           suksess: true,
           response: cached.response,
           model: cached.model,
-          kilder: cachedKilder,
+          kilder: cachedKilderForPayload,
+          svarKilde: cached.svarKilde,
         });
         sseCleanup?.();
         if (writeSSE(res, cachedPayload)) {
@@ -4124,9 +4147,17 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // Dette unngår at courseHint-lås i Canvas forurenser kildelisten for "basen"-spørsmål.
     const preferNonCanvasSources =
       (kbKilder && kbKilder.length > 0) || (liveUrlKilder && liveUrlKilder.length > 0);
-    const mergedSources = preferNonCanvasSources
+    const rawMergedSources = preferNonCanvasSources
       ? mergeChatSources(kbKilder, liveUrlKilder)
       : mergeChatSources(contextKilder, kbKilder, liveUrlKilder);
+
+    // Når modellen selv markerer svaret som «generell» (rent KI-kunnskap, ikke
+    // forankret i pensum/KB), skal vi IKKE rendre kildelisten — selv om
+    // retrieval dro inn dokumenter fra samtalens primaryCourseId. Ellers ville
+    // f.eks. et off-topic spørsmål («hvem var Sokrates?») fått DAT1000-PDFer
+    // hengende ved seg fra et tidligere spørsmål i samme samtale.
+    const mergedSources =
+      result.svarKilde === "generell" ? undefined : rawMergedSources;
 
     const payload = KIChatResponseSchema.parse({
       suksess: true,
@@ -4140,6 +4171,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
           }
         : undefined,
       kilder: mergedSources,
+      svarKilde: result.svarKilde,
     });
     // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
     if (writeSSE(res, payload)) {
@@ -4170,6 +4202,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         primaryCourseId: cacheInput.primaryCourseId,
         primaryFileId: cacheInput.primaryFileId,
         ...(fullDocumentTriggerWord ? { triggerWord: fullDocumentTriggerWord } : {}),
+        ...(result.svarKilde ? { svarKilde: result.svarKilde } : {}),
       }).catch((err) => {
         logger.warn({ err, responseCacheKey }, "setCachedChatResponse feilet");
       });

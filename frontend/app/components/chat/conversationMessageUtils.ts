@@ -1,7 +1,9 @@
 import type { ChatMessage } from "common/chat";
+import type { SvarKilde } from "common/ki";
 
 export type ConversationDisplayMessage = Pick<ChatMessage, "rolle" | "innhold"> & {
   vedleggNavn?: string[];
+  svarKilde?: SvarKilde;
 };
 
 const VEDLEGG_PATTERN = /\n?\n?\[Vedlagt:\s*(.+?)\]\s*$/;
