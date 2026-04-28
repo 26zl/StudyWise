@@ -1,6 +1,6 @@
 Teknisk Kanban — StudyWise
 ==========================
-Alle 176 issues opprettet i GitHub Projects (#25) med status: Done.
+Alle 187 issues opprettet i GitHub Projects (#25) med status: Done.
 
 ==============================================================================
 ORIGINALE ITEMS (1-144) — Fra opprinnelig liste
@@ -233,3 +233,30 @@ NYE ITEMS (145-176) — Funnet ved kodebase-analyse, ikke i original liste
 174. Laget OWASP dependency-check workflow (ukentlig)
 175. Laget automatisk dependency update workflow
 176. Satt opp Playwright E2E testing i CI
+
+==============================================================================
+BRUKERTEST-FIKSER (177-187) — Tiltak basert på brukertest med 10 deltakere
+==============================================================================
+
+Etter brukertesten ble konkrete tilbakemeldinger fôret tilbake som GitHub-issues
+og fikset i en serie commits (a7c93d7, b2db351, d91353b, 1ed10d6, 423af64).
+Numrene under refererer til issues #436-#446 i StudyWise-repoet.
+
+--- KI/AI-tilbakemeldinger (177-181) ---
+177. Brukertest-fiks: tolerant /-syntaks med forslag for kunnskapsbase (#436)
+178. Brukertest-fiks: motvirk lengde-bias i quiz og legg til forklaring på feil svar (#437)
+179. Brukertest-fiks: KI-svar respekterer valgt språk konsekvent (#440)
+180. Brukertest-fiks: kilde-badge på KI-svar med <svarkilde>-tag (#441)
+181. Brukertest-fiks: tydelig skille mellom KOMMANDE TIMER og INNLEVERINGSFRISTER i system-prompt (#443)
+
+--- UI/UX-tilbakemeldinger (182-183) ---
+182. Brukertest-fiks: flyttet 'Ny samtale'-knapp øverst i sidebaren (#438)
+183. Brukertest-fiks: økt hover-kontrast på chat-handlingsknapper (#439)
+
+--- Canvas-tilbakemeldinger (184) ---
+184. Brukertest-fiks: forhåndsvarmer Canvas-kalenderdata i sync for 'neste time'-spørsmål (#442)
+
+--- Auth-tilbakemeldinger (185-187) ---
+185. Brukertest-fiks: snillere Turnstile-håndtering for VPN/NAT-brukere (#444)
+186. Brukertest-fiks: justert rate limit på sign-up etter 429-rapport (#445)
+187. Brukertest-fiks: harmonisert frontend/backend passord-validering (#446)

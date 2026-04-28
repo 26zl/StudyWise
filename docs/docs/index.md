@@ -120,7 +120,7 @@ Prosjektet har et flerlagsoppsett for testing og kvalitetssikring som kjøres b�
 
 ### Enhetstester
 
-Over 40 testfiler med 1000+ tester (Vitest) fordelt på `common`, `backend` og `frontend`. Testene dekker skjemavalidering, feilhåndtering, kryptering, datoformatering, i18n, varsler, circuit breakers, SSRF-guards, sanitization og mer.
+Over 50 testfiler med 1100+ tester (Vitest) fordelt på `common`, `backend` og `frontend`. Testene dekker skjemavalidering, feilhåndtering, kryptering, datoformatering, i18n, varsler, circuit breakers, SSRF-guards, sanitization og mer.
 
 ### E2E og funksjonelle tester
 

@@ -1,6 +1,42 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) and other AI coding assistants when working with code in this repository. Read the **Guardrails** section below before making any changes.
+
+## Guardrails for AI assistants (READ FIRST)
+
+These guardrails exist because StudyWise handles personal data, Canvas tokens, chat history and KI-pipeline secrets. The codebase is published as a bachelor thesis (USN, 2026) and is intentionally constructed so a misstep is hard to merge by accident. AI assistants must respect that — uncertainty is resolved by **asking the human reviewer**, not by guessing or bypassing checks.
+
+### Hard prohibitions — never do these without explicit human approval
+
+1. **Never disable, weaken or bypass security middleware.** Helmet (CSP with nonce), CSRF protection, rate limiting, `requireAuth`, `requireRecentAuth` (step-up), Cloudflare Turnstile verification and host/origin validation are load-bearing. Removing or relaxing any of them is a security regression. The middleware order in `backend/src/index.ts` is also sensitive — Clerk webhook needs raw body before JSON parsing, CSRF runs after CORS, rate limit before `requireAuth`. Do not reorder.
+2. **Never change cryptographic parameters.** Encryption is AES-256-GCM via `backend/src/utils/kryptering.ts`. The active key is `ENCRYPTION_KEY`; rotation uses `ENCRYPTION_KEY_PREV`. Do not change algorithm, key length, IV length or authentication tag handling. Do not invent your own crypto. Do not store keys in code, in tests, or in commits.
+3. **Never introduce secrets in code or git.** All secrets go through `process.env`, validated by `backend/src/utils/validateEnv.ts` and `frontend/app/lib/validateEnv.ts` at startup. Never commit `.env`, `.env.local`, tokens, signed URLs or example values that look real. TruffleHog runs in CI to catch this; do not work around it.
+4. **Never log tokens, Canvas API responses, chat content or PII.** Logging uses Pino (`logger.info`, `logger.warn`, `logger.error`) with structured fields. Never `console.log` in backend. When logging, never include the Bearer token, encrypted blobs, full chat messages, e-mail, phone number, fødselsnummer, studentnummer or addresses. The PII-sanitization regex in `backend/src/services/kunnskapsbase-indeksering.service.ts` is the boundary before Pinecone; weakening it leaks PII to a third party.
+5. **Never bypass the soft-delete and queue pattern for user deletion.** User deletion goes through `kontoSlett.ts` → `clerkDeletion.queue.ts` (Clerk) and `pineconeCleanup.queue.ts` (vectors), with `DeletedUserTombstone` tracking the lifecycle. Do not write code that directly removes a `User` record without going through this flow — that creates orphaned data in Clerk, Pinecone and Mongo.
+6. **Never modify migration history.** Migrations in `backend/src/database/migrations.ts` are append-only and idempotent (each runs once based on `id`). Never edit a migration that has already been deployed; add a new one instead. Do not change the `id` of an existing migration.
+7. **Never disable, skip or comment out failing tests** to make CI pass. Fix the underlying issue. Do not use `it.skip`, `test.skip`, `it.todo`, `xit` or `xdescribe` to silence a real failure. If a test is genuinely obsolete, remove it with a commit message that explains why.
+8. **Never bypass type and runtime validation.** TypeScript runs in strict mode in all packages. Avoid `any`. Do not use `as` casts to launder types past the compiler. Every shared type lives in `common/` as a Zod schema and is exported as both schema (runtime validation) and type (`z.infer<typeof ...>`). External input — HTTP body, Canvas API response, Anthropic response, file uploads — must pass a Zod parse before it is trusted.
+9. **Never bypass git safety.** No `git push --force` to `main`, no `git commit --no-verify`, no `git commit --no-gpg-sign`, no `git rebase -i` on shared branches. The pre-commit hook is currently disabled, but the same checks run in CI on PRs — do not work around them.
+10. **Never run destructive operations** without explicit human confirmation: `pnpm db:reset-encrypted`, dropping a Mongo collection, deleting a Pinecone namespace, `git reset --hard`, `git clean -f`. These are not reversible.
+
+### Required practices — always do these
+
+1. **Types-first.** Define new shared schemas in `common/src/<feature>.ts` as Zod, add subpath export in `common/package.json`, then import in backend and frontend. The same schema validates input on both sides — do not duplicate the type by hand.
+2. **Use `apiError.*` helpers in backend** for HTTP error responses (`apiError.badRequest`, `apiError.unauthorized`, etc.). Use the typed error classes in `frontend/app/lib/errors.ts` on frontend. Do not invent ad-hoc error shapes.
+3. **Mongoose models only — no native MongoDB driver.** All DB access goes through the models in `backend/src/database/models/`. This preserves middleware, hooks, soft-delete and audit-logging behavior.
+4. **Use the existing rate-limit middleware** for new endpoints that touch external APIs, KI, auth, or are state-changing. Do not write your own throttling.
+5. **Audit-log sensitive admin actions** via `AuditLog` (account changes, role changes, exports, deletions). Audit-log entries are pseudonymized when a user is deleted — preserve this behavior.
+6. **Preserve the `<svarkilde>`-tag mechanism** in KI responses. The system prompt requires the model to label answers as `kursmateriale|canvas|kunnskapsbase|blandet|generell`. Frontend shows this as a visible badge so users do not confuse a free general answer with one anchored in their pensum. Do not remove the tag, change its values, or bypass `extractAnswerAndSource` in `aiClient.ts`.
+7. **Frontend `dark:` variants are mandatory** in Tailwind. Mobile-first. Add `dark:`-equivalents for every visible color/background you set.
+8. **Frontend data fetching uses relative `/api/...` URLs.** Next.js rewrites in `next.config.js` proxy these to the backend. Do not call backend directly via `http://localhost:4000` from frontend code.
+9. **ES modules everywhere.** All packages have `"type": "module"`. Use `.js` import suffixes in compiled TypeScript. Do not introduce CommonJS.
+10. **Run the pre-commit checklist locally** before any commit: `pnpm format && pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build`.
+
+### When in doubt
+
+If a task seems to require breaking one of these rules, **stop and ask the human reviewer** before proceeding. Phrasings like "I'll just disable this temporarily" or "we can fix the test later" are red flags — they tend to ship to production. Better to surface the conflict explicitly than to merge a workaround.
+
+These guardrails are an explicit part of the bachelor thesis's contribution on safe AI-assisted coding. They are not aspirational — they are enforced through code review, CI checks, and (after `main` is bulk-formatted) the pre-commit hook.
 
 ## Project Overview
 
@@ -111,6 +147,8 @@ PostHog for product analytics (frontend). Datadog APM and LangSmith tracing are 
 ### AI Chat Pipeline
 
 Frontend -> `/api/ki/chat` -> load Canvas context (if needed) -> load knowledge base context (if enabled) -> Claude API (SSE stream) -> store in `ChatHistory` -> stream to frontend.
+
+The system prompt requires the model to emit a `<svarkilde>kursmateriale|canvas|kunnskapsbase|blandet|generell</svarkilde>` tag after every answer. Backend parses this in `extractAnswerAndSource` (in `aiClient.ts`) and frontend renders it as a visible source-badge over assistant messages so users do not confuse a free general answer with one anchored in their own course material.
 
 ### Search
 

@@ -11,7 +11,7 @@ pnpm test:auth         # Kun auth-tester
 pnpm test:ki           # Kun KI-tester
 pnpm test:canvas       # Kun Canvas-tester
 
-# Auth Matrix (54 scenarier definert i scenario-definitions.ts)
+# Auth Matrix (120 scenarier definert i scenario-definitions.ts)
 pnpm test:auth:matrix         # Kjør alle executable scenarier
 pnpm test:auth:matrix:basic   # Gruppe A: Basic signup uniqueness
 pnpm test:auth:matrix:oauth   # OAuth-scenarier
