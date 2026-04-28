@@ -24,6 +24,16 @@ import {
   pineconeDeleteByFilter,
   pineconeQuery,
 } from "./pinecone.service.js";
+import {
+  cohereRerank,
+  isCohereConfigured,
+  type RerankDocument,
+} from "./cohere-rerank.service.js";
+
+/** Overhent-faktor før Cohere-rerank — speiler hybrid-retrievalens overhent (15/8 ≈ 1.9×). */
+const KB_RERANK_OVERFETCH = 2;
+/** Hard øvre grense på antall kandidater sendt til Cohere (kostnad/latency). */
+const KB_RERANK_MAX_CANDIDATES = 24;
 
 // ─── Hjelpefunksjoner ──────────────────────────────��─────
 
@@ -431,10 +441,16 @@ export async function searchKBContent(
   const preferLinkResults = shouldPreferLinkResults(query);
   const queryWords = extractKBQueryTerms(query);
 
-  // Prøv Pinecone semantisk søk
+  // Prøv Pinecone semantisk søk. Overhent kandidater før Cohere-rerank slik at
+  // KB-søk får samme relevans-finpussing som Canvas (hybrid-retrievalens
+  // siste trinn). Faller tilbake til Pinecone-score når Cohere ikke er
+  // tilgjengelig.
   if (isPineconeConfigured()) {
     try {
-      const pineconeResults = await pineconeQuery(query, topK, {
+      const pineconeFetchK = isCohereConfigured()
+        ? Math.min(KB_RERANK_MAX_CANDIDATES, Math.max(topK, topK * KB_RERANK_OVERFETCH))
+        : topK;
+      const pineconeResults = await pineconeQuery(query, pineconeFetchK, {
         userId,
         courseIds: [courseId],
       });
@@ -479,8 +495,48 @@ export async function searchKBContent(
           })
           .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
 
-        const prioritized = prioritizeKBResults(mapped, topK, preferLinkResults);
+        // Cohere-rerank for å speile Canvas hybrid-retrieval. Hopper over
+        // hvis Cohere ikke er konfigurert; ved feil returneres rå
+        // Pinecone-rangering uten å bryte søket.
+        let postRerank = mapped;
+        let rerankedCount = 0;
+        if (isCohereConfigured() && mapped.length > 1) {
+          try {
+            const rerankInput: RerankDocument[] = mapped.map((doc, idx) => ({
+              docId: `${doc.sourceId ?? ""}:${idx}`,
+              text: doc.text,
+              originalScore: doc.score ?? 0,
+              meta: { idx },
+            }));
+            const reranked = await cohereRerank(query, rerankInput, topK);
+            if (reranked.length > 0) {
+              const rebuilt: typeof mapped = [];
+              for (const r of reranked) {
+                const idx = (r.meta as { idx?: number }).idx;
+                if (typeof idx !== "number") continue;
+                const orig = mapped[idx];
+                if (!orig) continue;
+                rebuilt.push({ ...orig, score: r.relevanceScore });
+              }
+              postRerank = rebuilt;
+              rerankedCount = rebuilt.length;
+            }
+          } catch (err) {
+            logger.warn(
+              { err, baseId },
+              "Cohere-rerank feilet for KB — bruker Pinecone-rangering",
+            );
+          }
+        }
+
+        const prioritized = prioritizeKBResults(postRerank, topK, preferLinkResults);
         await logOutcome("pinecone", prioritized.length);
+        if (rerankedCount > 0) {
+          logger.info(
+            { userId, baseId, candidateCount: mapped.length, rerankedCount, topK },
+            "KB-søk: Cohere-rerank anvendt",
+          );
+        }
         return prioritized;
       }
       // Pinecone kom tilbake med tomt resultat — fall videre til MongoDB-fallback

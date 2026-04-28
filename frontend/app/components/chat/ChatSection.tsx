@@ -6,7 +6,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback, useMemo, startTransition } from "react";
-import { Send, Square, Bot, Upload, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Send, Square, Bot, Upload, Copy, Share2, RefreshCw, Plus, User, GraduationCap, FileText, ThumbsUp, ThumbsDown, Database } from "lucide-react";
 import { LoadingSpinner, LoadingView } from "@/app/components/ui/Loading";
 import { RotatingStatusMessage } from "@/app/components/ui/RotatingStatusMessage";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -27,6 +28,8 @@ import { fetchApi, downloadAuthedFile } from "@/app/lib/apiClient";
 import { formaterTall } from "@/app/lib/dato";
 import { parseApiError } from "@/app/lib/errorUtils";
 import { useMeg } from "@/app/auth/auth-api";
+import { hentAlleKBBaser, KB_QUERY_KEYS } from "@/app/kunnskapsbase/kunnskapsbase-api";
+import type { KBBaseSummary } from "common/kunnskapsbase";
 
 const ALLOWED_CHAT_MODEL_IDS = new Set([
     "claude-sonnet-4-6",
@@ -64,6 +67,23 @@ function visFilnavn(fileName: string | null | undefined): string {
     } catch {
         return fileName;
     }
+}
+
+function matchKbBasePrefix(input: string, bases: KBBaseSummary[]): string | null {
+    const candidate = input.trim().toLowerCase();
+    if (!candidate) return null;
+    let best: string | null = null;
+    for (const base of bases) {
+        const name = base.navn.trim();
+        if (!name) continue;
+        const normalized = name.toLowerCase();
+        if (candidate === normalized || candidate.startsWith(`${normalized} `)) {
+            if (!best || normalized.length > best.length) {
+                best = name;
+            }
+        }
+    }
+    return best;
 }
 
 function hentVisbareKilder(melding: Melding): import("common/ki").KIChatSource[] {
@@ -256,6 +276,7 @@ export function ChatSection() {
     const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
     /** KI-feil fra reelt kall (chat/dokumentanalyse) – vises som banner; erstatter tidligere test-connection. */
     const [kiError, settKiError] = useState<Error | null>(null);
+    const [activeKbByChatId, setActiveKbByChatId] = useState<Record<string, string | null>>({});
 
     const meldingsContainerRef = useRef<HTMLDivElement>(null);
     const meldingerSluttRef = useRef<HTMLDivElement>(null);
@@ -264,6 +285,7 @@ export function ChatSection() {
     const modelMenuRef = useRef<HTMLDivElement>(null);
     const sendMeldingRef = useRef<(options?: SendMeldingOptions) => Promise<void>>(async () => {});
     const meldingerRef = useRef<Melding[]>([]);
+    const pendingKbKey = "pending";
     /** Promise-basert mutex for chat-opprettelse. Holder Promise mens chat opprettes for å forhindre race conditions. */
     const oppretterChatPromiseRef = useRef<Promise<string | undefined> | null>(null);
     const isMountedRef = useRef(true);
@@ -335,6 +357,48 @@ export function ChatSection() {
     const tomtilstandTittel = kontoFornavn
         ? t("chat.emptyStateTitleWithName", { name: kontoFornavn })
         : t("chat.emptyStateTitle");
+
+    const { data: kbData, isLoading: kbLoading } = useQuery({
+        queryKey: KB_QUERY_KEYS.bases,
+        queryFn: hentAlleKBBaser,
+        staleTime: 1000 * 60 * 2,
+        enabled: mounted,
+    });
+    const kbBases = useMemo<KBBaseSummary[]>(() => kbData?.baser ?? [], [kbData]);
+    const slashInputActive = tekstInput.trimStart().startsWith("/");
+    const slashQueryRaw = slashInputActive ? tekstInput.trimStart().slice(1) : "";
+    const slashQuery = slashQueryRaw.trim().toLowerCase();
+    const matchedBasePrefix = useMemo(
+        () => (slashInputActive ? matchKbBasePrefix(slashQueryRaw, kbBases) : null),
+        [kbBases, slashInputActive, slashQueryRaw],
+    );
+    const activeKbName = activeKbByChatId[aktivChatId ?? pendingKbKey] ?? null;
+    const hasPromptAfterBase = Boolean(
+        matchedBasePrefix && slashQueryRaw.slice(matchedBasePrefix.length).startsWith(" "),
+    );
+    const filteredKbBases = useMemo(() => {
+        if (!slashInputActive) return [];
+        if (!slashQuery) return kbBases;
+        return kbBases.filter((base) => base.navn.toLowerCase().includes(slashQuery));
+    }, [kbBases, slashInputActive, slashQuery]);
+    const [kbHighlightIndex, setKbHighlightIndex] = useState(0);
+    const kbMenuOpen = slashInputActive && !hasPromptAfterBase;
+    const kbMenuOptions = useMemo(() => {
+        if (!kbMenuOpen) return [] as Array<
+            | { type: "deactivate"; label: string; disabled: boolean }
+            | { type: "base"; base: KBBaseSummary }
+        >;
+        const options: Array<
+            | { type: "deactivate"; label: string; disabled: boolean }
+            | { type: "base"; base: KBBaseSummary }
+        > = [
+            { type: "deactivate", label: "/av", disabled: !activeKbName },
+        ];
+        for (const base of filteredKbBases) {
+            options.push({ type: "base", base });
+        }
+        return options;
+    }, [kbMenuOpen, filteredKbBases, activeKbName]);
 
     const settAktivSamtale = useCallback((chatId: string | null) => {
         setAktivChatId(chatId);
@@ -538,6 +602,35 @@ export function ChatSection() {
         }
     }, [tekstInput]);
 
+    useEffect(() => {
+        if (!kbMenuOpen) return;
+        // Auto-marker base som matcher det brukeren skriver (foretrekker
+        // eksakt match, så prefix-match, ellers første base-treff). Faller
+        // tilbake til index 0 (Deaktiver) når ingen baser er listet.
+        if (slashQuery) {
+            const exactIdx = kbMenuOptions.findIndex(
+                (o) => o.type === "base" && o.base.navn.toLowerCase() === slashQuery,
+            );
+            if (exactIdx !== -1) {
+                setKbHighlightIndex(exactIdx);
+                return;
+            }
+            const prefixIdx = kbMenuOptions.findIndex(
+                (o) => o.type === "base" && o.base.navn.toLowerCase().startsWith(slashQuery),
+            );
+            if (prefixIdx !== -1) {
+                setKbHighlightIndex(prefixIdx);
+                return;
+            }
+            const firstBaseIdx = kbMenuOptions.findIndex((o) => o.type === "base");
+            if (firstBaseIdx !== -1) {
+                setKbHighlightIndex(firstBaseIdx);
+                return;
+            }
+        }
+        setKbHighlightIndex(0);
+    }, [kbMenuOpen, slashQuery, kbMenuOptions]);
+
     /** Lagrer nåværende meldingsliste til backend (PUT ved aktivChatId, ellers POST med valgfri title). */
     const lagreSamtale = useCallback(async (oppdatert: Melding[], title?: string) => {
         const payload = oppdatert.map((m) => ({
@@ -599,6 +692,13 @@ export function ChatSection() {
                 setCurrentChatId(chatId);
             }
         }
+        setActiveKbByChatId((prev) => {
+            const pendingName = prev[pendingKbKey];
+            if (!pendingName) return prev;
+            const { [pendingKbKey]: _, ...rest } = prev;
+            if (rest[chatId]) return rest;
+            return { ...rest, [chatId]: pendingName };
+        });
         if (requestErFortsattAktiv) {
             try {
                 sessionStorage?.setItem("studywise_last_chat_id", chatId);
@@ -814,6 +914,11 @@ export function ChatSection() {
         pendingConversationState = null;
         docAnalysisChatIdRef.current = null;
         setRunningChatId(null);
+        setActiveKbByChatId((prev) => {
+            if (!(pendingKbKey in prev)) return prev;
+            const { [pendingKbKey]: _, ...rest } = prev;
+            return rest;
+        });
         settMeldinger([]);
         setRenderedMessageCount(0);
         settAktivSamtale(null);
@@ -973,6 +1078,20 @@ export function ChatSection() {
 
         const vedlagtNavn = vedlegg.map((f) => f.name).join(", ");
         const brukerMeldingInnhold = trimmetTekst || (harVedlegg ? t("chat.analyzeDocumentFallback", { name: vedlagtNavn }) : "");
+        const slashCandidate = trimmetTekst.startsWith("/") ? trimmetTekst.slice(1).trim() : "";
+        const chatKey = aktivChatId ?? pendingKbKey;
+        if (slashCandidate) {
+            const lowered = slashCandidate.toLowerCase();
+            if (lowered === "av" || lowered === "deaktiver") {
+                setActiveKbByChatId((prev) => ({ ...prev, [chatKey]: null }));
+            } else {
+                const matchedName = matchKbBasePrefix(slashCandidate, kbBases);
+                if (matchedName) {
+                    setActiveKbByChatId((prev) => ({ ...prev, [chatKey]: matchedName }));
+                }
+            }
+        }
+
         settTekstInput("");
 
         // Reset høyde
@@ -1381,8 +1500,63 @@ export function ChatSection() {
 
     sendMeldingRef.current = sendMelding;
 
+    const aktiverKunnskapsbase = useCallback((baseName: string) => {
+        const nextValue = `/${baseName} `;
+        settTekstInput(nextValue);
+        requestAnimationFrame(() => {
+            const el = tekstInputRef.current;
+            if (el) {
+                el.focus();
+                const pos = nextValue.length;
+                el.setSelectionRange(pos, pos);
+            }
+        });
+        setKbHighlightIndex(0);
+    }, [settTekstInput]);
+
+    const deaktiverKunnskapsbase = useCallback(() => {
+        const chatKey = aktivChatId ?? pendingKbKey;
+        setActiveKbByChatId((prev) => ({ ...prev, [chatKey]: null }));
+        // Bruker sendMeldingRef.current (samme mønster som ellers i filen) for å
+        // unngå at callback-en re-skapes hver render pga ikke-memoisert sendMelding.
+        void sendMeldingRef.current({ forcedText: "/av" });
+        setKbHighlightIndex(0);
+    }, [aktivChatId, pendingKbKey]);
+
     /** Enter sender melding; Shift+Enter gir ny linje. */
     const handterTastetrykk = (e: React.KeyboardEvent) => {
+        if (kbMenuOpen) {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                if (kbMenuOptions.length > 0) {
+                    setKbHighlightIndex((prev) => (prev + 1) % kbMenuOptions.length);
+                }
+                return;
+            }
+            if (e.key === "ArrowUp") {
+                e.preventDefault();
+                if (kbMenuOptions.length > 0) {
+                    setKbHighlightIndex((prev) => (prev - 1 + kbMenuOptions.length) % kbMenuOptions.length);
+                }
+                return;
+            }
+            if (e.key === "Enter" && !e.shiftKey) {
+                if (kbMenuOptions.length > 0) {
+                    e.preventDefault();
+                    const valgt = kbMenuOptions[Math.min(kbHighlightIndex, kbMenuOptions.length - 1)];
+                    if (valgt?.type === "deactivate") {
+                        if (!valgt.disabled) {
+                            deaktiverKunnskapsbase();
+                        }
+                        return;
+                    }
+                    if (valgt?.type === "base") {
+                        aktiverKunnskapsbase(valgt.base.navn);
+                        return;
+                    }
+                }
+            }
+        }
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
             sendMelding();
@@ -1771,6 +1945,20 @@ export function ChatSection() {
             />
             {/* Main Chat Area */}
             <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+                <div className="shrink-0 flex items-center justify-between px-4 md:px-6 pt-3">
+                    <div className="min-w-0" />
+                    <button
+                        type="button"
+                        onClick={() => setViserShareModal(true)}
+                        disabled={meldinger.length === 0 || skriver || analyserarDokument}
+                        className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                        title={t("chat.shareConversationTitle")}
+                        aria-label={t("chat.shareConversation")}
+                    >
+                        <Share2 className="h-4 w-4" />
+                        Del
+                    </button>
+                </div>
                 {/* Meldinger */}
                 <div
                     ref={meldingsContainerRef}
@@ -2061,8 +2249,78 @@ export function ChatSection() {
                   <div className="max-w-235 mx-auto">
                     {/* Vedleggsliste (kompakt stripe) */}
                     <AttachmentStrip vedlegg={vedlegg} onFjern={fjernVedlegg} />
-                    
-                    <div className="chat-input-shell flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-slate-200 dark:focus-within:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 focus-within:outline-none focus-within:ring-0">
+
+                    <div className="relative">
+                        {kbMenuOpen && (
+                            <div className="absolute bottom-full mb-2 w-full rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                                <div className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                    <span>Kunnskapsbaser</span>
+                                    <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                                        Skriv /navn og trykk Enter
+                                    </span>
+                                </div>
+                                <div className="max-h-56 overflow-y-auto px-2 pb-2">
+                                    {kbLoading ? (
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                                            Laster kunnskapsbaser…
+                                        </div>
+                                    ) : kbMenuOptions.length === 0 ? (
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-400">
+                                            Ingen kunnskapsbaser matcher.
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-1">
+                                            {kbMenuOptions.map((option, index) => {
+                                                const erValgt = index === kbHighlightIndex;
+                                                if (option.type === "deactivate") {
+                                                    return (
+                                                        <button
+                                                            key="kb-deactivate"
+                                                            type="button"
+                                                            onMouseEnter={() => setKbHighlightIndex(index)}
+                                                            onClick={() => {
+                                                                if (!option.disabled) deaktiverKunnskapsbase();
+                                                            }}
+                                                            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                                                                option.disabled
+                                                                    ? "cursor-not-allowed text-slate-300 dark:text-slate-600"
+                                                                    : erValgt
+                                                                        ? "bg-blue-600 text-white"
+                                                                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                                            }`}
+                                                        >
+                                                            <span className={`text-xs font-semibold ${erValgt ? "text-white" : "text-blue-500"}`}>
+                                                                {option.label}
+                                                            </span>
+                                                            <span className="text-xs text-slate-500 dark:text-slate-400">Deaktiver</span>
+                                                        </button>
+                                                    );
+                                                }
+                                                const base = option.base;
+                                                return (
+                                                    <button
+                                                        key={base.id}
+                                                        type="button"
+                                                        onMouseEnter={() => setKbHighlightIndex(index)}
+                                                        onClick={() => aktiverKunnskapsbase(base.navn)}
+                                                        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
+                                                            erValgt
+                                                                ? "bg-blue-600 text-white"
+                                                                : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+                                                        }`}
+                                                    >
+                                                        <Database className={`h-4 w-4 shrink-0 ${erValgt ? "text-white" : "text-blue-500"}`} />
+                                                        <span className="truncate">/{base.navn}</span>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="chat-input-shell flex items-end gap-2 rounded-2xl border border-slate-200 dark:border-slate-700 focus-within:border-slate-200 dark:focus-within:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 focus-within:outline-none focus-within:ring-0">
                         {/* Skjult fil-input - én fil om gangen for å matche backend */}
                         <input
                             ref={filInputRef}
@@ -2071,18 +2329,6 @@ export function ChatSection() {
                             onChange={handleFilValg}
                             className="hidden"
                         />
-
-                        {/* Del samtale */}
-                        <button
-                            type="button"
-                            onClick={() => setViserShareModal(true)}
-                            disabled={meldinger.length === 0 || skriver || analyserarDokument}
-                            className="chat-input-icon-btn shrink-0 w-9 h-9 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed hidden sm:flex items-center justify-center transition-colors"
-                            title={t("chat.shareConversationTitle")}
-                            aria-label={t("chat.shareConversation")}
-                        >
-                            <Share2 className="chat-input-icon w-5 h-5 text-slate-400 dark:text-slate-500" />
-                        </button>
 
                         {/* Eksporter samtale */}
                         <button
@@ -2202,6 +2448,7 @@ export function ChatSection() {
                                 <Send className="chat-input-icon w-4 h-4 text-slate-400 dark:text-slate-500" />
                             </button>
                         )}
+                        </div>
                     </div>
                     <div className="flex items-center justify-between mt-2 px-1">
                         <div className="flex items-center gap-1">

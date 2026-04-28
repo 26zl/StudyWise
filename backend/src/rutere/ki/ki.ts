@@ -717,6 +717,58 @@ function extractSlashKBBaseName(message: string): string | null {
   return candidate;
 }
 
+type SlashKbSelection = {
+  baseId: string | null;
+  baseName: string;
+  remainder: string;
+};
+
+function extractSlashKbCandidate(message: string): string | null {
+  const trimmed = message.trim();
+  if (!trimmed.startsWith("/")) return null;
+  const candidate = trimmed.slice(1).trim();
+  if (!candidate || candidate === "?" || candidate.toLowerCase() === "help") return null;
+  const lowered = candidate.toLowerCase();
+  if (lowered === "av" || lowered === "deaktiver") return null;
+  if (candidate.startsWith("http://") || candidate.startsWith("https://")) return null;
+  return candidate;
+}
+
+function matchSlashKbSelection(
+  message: string,
+  bases: Array<{ _id: unknown; navn: string }>,
+): SlashKbSelection | null {
+  const candidate = extractSlashKbCandidate(message);
+  if (!candidate) return null;
+
+  const normalizedCandidate = candidate.toLowerCase();
+  let bestMatch: { id: string; name: string } | null = null;
+  for (const base of bases) {
+    const baseName = base.navn.trim();
+    if (!baseName) continue;
+    const normalizedBase = baseName.toLowerCase();
+    if (
+      normalizedCandidate === normalizedBase ||
+      normalizedCandidate.startsWith(`${normalizedBase} `)
+    ) {
+      if (!bestMatch || normalizedBase.length > bestMatch.name.length) {
+        bestMatch = { id: String(base._id), name: baseName };
+      }
+    }
+  }
+
+  if (bestMatch) {
+    const remainder = candidate.slice(bestMatch.name.length).trim();
+    return { baseId: bestMatch.id, baseName: bestMatch.name, remainder };
+  }
+
+  const firstToken = candidate.split(/\s+/)[0] ?? "";
+  const remainder = candidate.slice(firstToken.length).trim();
+  return firstToken
+    ? { baseId: null, baseName: firstToken, remainder }
+    : null;
+}
+
 /** True hvis bruker sendte /av eller /deaktiver for å deaktivere aktiv KB. */
 function isKBDeactivateCommand(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
@@ -2041,6 +2093,27 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     let enhancedSystemPrompt = STUDYWISE_SYSTEM_PROMPT;
     const hasAssistantMessages = messages.some((m) => m.role === "assistant");
     const firstUserMessage = messages.find((m) => m.role === "user")?.content ?? "";
+    const lastUserIndex = (() => {
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        if (messages[i]?.role === "user") return i;
+      }
+      return -1;
+    })();
+    const lastUserMessageRaw = lastUserIndex >= 0 ? messages[lastUserIndex]!.content : "";
+    const shouldCheckSlashKb = Boolean(extractSlashKbCandidate(lastUserMessageRaw));
+    const availableKbBases = shouldCheckSlashKb
+      ? await KnowledgeBase.find({ userId: req.user.id }).select("_id navn").lean()
+      : [];
+    const slashKbSelection = shouldCheckSlashKb
+      ? matchSlashKbSelection(lastUserMessageRaw, availableKbBases)
+      : null;
+    const effectiveMessages = slashKbSelection && slashKbSelection.remainder
+      ? messages.map((m, idx) =>
+          idx === lastUserIndex
+            ? { ...m, content: slashKbSelection.remainder }
+            : m,
+        )
+      : messages;
     const normalizedFirstUserMessage = normaliserSkrivefeil(firstUserMessage).trim();
 
     // Stabil chat-identifikator. Brukes som suffix i sesjonslås-nøkkelen slik
@@ -2063,6 +2136,24 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
         ? createHash("sha256").update(firstUserMessage).digest("hex").slice(0, 16)
         : "default";
     })();
+
+    // KB-lås per chat: når brukeren har en aktiv kunnskapsbase i denne samtalen
+    // (enten via tidligere /basenavn eller inline /basenavn i denne meldingen),
+    // skal KI utelukkende bruke KB-kontekst. Canvas-kontekst hoppes over til
+    // brukeren skriver /av. Låsen er strengt per chat (kbSessionKey er
+    // chat-scoped) — andre eller nye chatter påvirkes ikke.
+    const kbLockIsDeactivation = isKBDeactivateCommand(lastUserMessageRaw);
+    const kbInlineActivation = Boolean(slashKbSelection?.baseId);
+    let kbLockActive = false;
+    if (!kbLockIsDeactivation) {
+      if (kbInlineActivation) {
+        kbLockActive = true;
+      } else {
+        const existingKbSession = await getCache(kbSessionKey(req.user.id, chatLockId));
+        kbLockActive = Boolean(existingKbSession);
+      }
+    }
+
     const isFirstUserGreetingOnly =
       /^(?:hei|heisann|hallo|hallais|hello|hi|god\s*dag|god\s*morgen|god\s*kveld|hey|yo)[\s!,.?]*$/iu
         .test(normalizedFirstUserMessage);
@@ -2135,7 +2226,7 @@ Never guess or invent a name from email, username, or other profile fields.
     }
 
     // ——— Sammenligningsverktøy ———
-    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const lastUserMessage = [...effectiveMessages].reverse().find((m) => m.role === "user")?.content ?? "";
     const isComparison = isComparisonQuery(lastUserMessage);
     if (isComparison) {
       enhancedSystemPrompt += STUDYWISE_COMPARISON_PROMPT;
@@ -2143,7 +2234,7 @@ Never guess or invent a name from email, username, or other profile fields.
     }
 
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
-    let intent = detectIntent(messages);
+    let intent = detectIntent(effectiveMessages);
 
     // Timeplan-override: Når brukeren eksplisitt spør om timeplan/kalender
     // ("oppgi alle timene mine i mai", "neste forelesning") må intent IKKE
@@ -2245,7 +2336,7 @@ Never guess or invent a name from email, username, or other profile fields.
 
     const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(lastMessageNormalized);
     const hasDirectUrlInLastMessage = extractFirstHttpUrl(lastUserMessage) !== null;
-    const hasSlashKbCommandInLastMessage = extractSlashKBBaseName(lastUserMessage) !== null;
+    const hasSlashKbCommandInLastMessage = extractSlashKbCandidate(lastUserMessage) !== null;
     const shouldPrioritizeDirectUrl = hasDirectUrlInLastMessage && !hasSlashKbCommandInLastMessage;
 
     if (shouldPrioritizeDirectUrl && intent !== "general_chat") {
@@ -2439,7 +2530,7 @@ Never guess or invent a name from email, username, or other profile fields.
     // modell-valg (Haiku for rask respons) og av system-prompt (sync-hint).
     let syncJustWaited = false;
 
-    if (intent !== "general_chat" && req.canvasToken && req.user?.id) {
+    if (intent !== "general_chat" && req.canvasToken && req.user?.id && !kbLockActive) {
       const baseUrl = req.canvasBaseUrl;
 
       // Hent brukerens Canvas-kontekstpreferanser og skjulte emner
@@ -3329,7 +3420,7 @@ chapters/topics in this course material.
       MAX_CONTEXT_TOKENS - systemPromptTokens - baseMaxTokens,
       MIN_HISTORY_TOKENS,
     );
-    const tokenTrimmedMessages = trimToTokenLimit(messages, historyBudget);
+    const tokenTrimmedMessages = trimToTokenLimit(effectiveMessages, historyBudget);
     const trimmedMessages = capHistoryMessageSizes(tokenTrimmedMessages.slice(-8));
 
     // ——— Studiekontekst fra tidligere samtaler ———
@@ -3348,7 +3439,6 @@ chapters/topics in this course material.
     let kbFullDocumentMode = false;
     let kbFullDocTriggerWord: string | null = null;
     const lastUserMessageForKB = trimmedMessages.filter((m) => m.role === "user").at(-1)?.content ?? "";
-    const slashBaseName = extractSlashKBBaseName(lastUserMessageForKB);
 
     // /av og /deaktiver deaktiverer aktiv KB for gjeldende chat.
     if (isKBDeactivateCommand(lastUserMessageForKB)) {
@@ -3384,23 +3474,17 @@ chapters/topics in this course material.
       return;
     }
 
-    if (slashBaseName) {
-      const escaped = escapeRegex(slashBaseName);
-      const base = await KnowledgeBase.findOne({
-        userId: req.user!.id,
-        // eslint-disable-next-line security/detect-non-literal-regexp -- escaped via escapeRegex()
-        navn: { $regex: new RegExp(`^${escaped}$`, "i") },
-      }).lean();
-
-      if (!base) {
+    let inlineKbSessionPayload: string | null = null;
+    if (slashKbSelection) {
+      if (!slashKbSelection.baseId) {
         const availableBases = await KnowledgeBase.find({ userId: req.user!.id })
           .select("navn")
           .sort({ navn: 1 })
           .lean();
         const names = availableBases.map((b) => b.navn);
         const responseText = names.length > 0
-          ? `Fant ikke kunnskapsbasen "${slashBaseName}". Tilgjengelige baser: ${names.join(", ")}`
-          : `Fant ikke kunnskapsbasen "${slashBaseName}". Du har ingen kunnskapsbaser ennå.`;
+          ? `Fant ikke kunnskapsbasen "${slashKbSelection.baseName}". Tilgjengelige baser: ${names.join(", ")}`
+          : `Fant ikke kunnskapsbasen "${slashKbSelection.baseName}". Du har ingen kunnskapsbaser ennå.`;
         const payload = KIChatResponseSchema.parse({
           suksess: true,
           response: responseText,
@@ -3410,19 +3494,23 @@ chapters/topics in this course material.
         return;
       }
 
-      const sessionPayload = JSON.stringify({ id: String(base._id), navn: base.navn });
-      // KUN per-chat-nøkkel — ingen user-scoped speiling, så /Algoritmer i
-      // én chat lekker ikke til andre chatter.
-      await setCache(kbSessionKey(req.user!.id, chatLockId), sessionPayload, KB_SESSION_TTL);
-
-      const responseText = `Kunnskapsbasen "${base.navn}" er nå aktivert. Still et spørsmål om innholdet — alle videre meldinger i denne samtalen bruker basen automatisk. Skriv /av for å deaktivere.`;
-      const payload = KIChatResponseSchema.parse({
-        suksess: true,
-        response: responseText,
-        model: resolvedRequestedModel,
+      const sessionPayload = JSON.stringify({
+        id: slashKbSelection.baseId,
+        navn: slashKbSelection.baseName,
       });
-      if (writeSSE(res, payload)) res.end();
-      return;
+      await setCache(kbSessionKey(req.user!.id, chatLockId), sessionPayload, KB_SESSION_TTL);
+      inlineKbSessionPayload = sessionPayload;
+
+      if (!slashKbSelection.remainder) {
+        const responseText = `Kunnskapsbasen "${slashKbSelection.baseName}" er nå aktivert. Still et spørsmål om innholdet — alle videre meldinger i denne samtalen bruker basen automatisk. Skriv /av for å deaktivere.`;
+        const payload = KIChatResponseSchema.parse({
+          suksess: true,
+          response: responseText,
+          model: resolvedRequestedModel,
+        });
+        if (writeSSE(res, payload)) res.end();
+        return;
+      }
     }
 
     // Bruker-scope-fallback skal IKKE blande KB inn i en chat som tydelig
@@ -3434,7 +3522,9 @@ chapters/topics in this course material.
     // KB-sesjon er strengt per-chat. (Tidligere fallt vi tilbake til en
     // user-scoped nøkkel når meldingen ikke hadde Canvas-signal — det førte
     // til at /Algoritmer i én chat lekket inn i andre chatter.)
-    const activeKbRaw = await getCache(kbSessionKey(req.user!.id, chatLockId));
+    const activeKbRaw = inlineKbSessionPayload
+      ? inlineKbSessionPayload
+      : await getCache(kbSessionKey(req.user!.id, chatLockId));
     if (activeKbRaw) {
       // Re-prim chat-scoped key så senere lookups i samme samtale er raske.
       await setCache(
