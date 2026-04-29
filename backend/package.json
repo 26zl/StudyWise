@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.71",
-    "@anthropic-ai/sdk": "^0.88.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "@clerk/backend": "^3.4.1",
     "@mozilla/readability": "^0.6.0",
     "@napi-rs/canvas": "^0.1.100",
