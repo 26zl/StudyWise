@@ -543,7 +543,7 @@ const EnrollmentDataSchema = z
     course_section_id: z.preprocess(
       (value) => (value == null ? undefined : value),
       z.number().optional(),
-    ),
+    ).optional(),
   })
   .loose();
 

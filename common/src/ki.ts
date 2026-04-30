@@ -178,7 +178,7 @@ const multerStringField = z
 const optionalNullableDateSchema = z.preprocess(
   (value) => (value == null || value === "" ? undefined : value),
   z.coerce.date().optional(),
-);
+).optional();
 
 // Request-body for dokumentanalyse (question/sporsmaal, model) – multer sender ofte string eller string[]
 export const KIDocumentAnalyseRequestSchema = z.object({

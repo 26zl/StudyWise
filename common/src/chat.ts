@@ -20,13 +20,13 @@ function normalizeOptionalText(value: unknown): unknown {
 
 const OptionalNullableChatTitleSchema = z.preprocess(
   normalizeOptionalText,
-  z.string().max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`).nullable().optional(),
-);
+  z.string().max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`).nullable(),
+).optional();
 
 const OptionalNullableChatTopicSchema = z.preprocess(
   normalizeOptionalText,
-  z.string().max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`).nullable().optional(),
-);
+  z.string().max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`).nullable(),
+).optional();
 
 export const CHAT_SHARE_ACCESS_TYPES = ["public", "private"] as const;
 export const ChatShareAccessTypeSchema = z.enum(CHAT_SHARE_ACCESS_TYPES);
