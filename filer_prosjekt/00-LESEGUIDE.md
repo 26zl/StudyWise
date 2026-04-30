@@ -18,7 +18,7 @@ Vi har estimert ca. 30 minutter for en grundig orientering før selve hovedrappo
 | Steg | Dokument | Tid | Hva du får ut av det |
 |------|----------|-----|----------------------|
 | 1 | [`BSc/BScThesis.pdf`](BSc/BScThesis.pdf) | – | Selve hovedrapporten (LaTeX-kompilert). |
-| 2 | [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) | 10 min | 13 mermaid-diagrammer som dokumenterer arkitekturen, med anbefalt rekkefølge. |
+| 2 | [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) | 10 min | 20 mermaid-diagrammer som dokumenterer arkitekturen, med anbefalt rekkefølge. |
 | 3 | [`Prosjektbeskrivelse_gruppe3.pdf`](Prosjektbeskrivelse_gruppe3.pdf) | 5 min | Opprinnelig prosjektbeskrivelse — viser ambisjonsnivå og avgrensning ved oppstart. |
 | 4 | [`BOP-Prosjektskisse-Gruppe3-1.pdf`](BOP-Prosjektskisse-Gruppe3-1.pdf) | 5 min | Tidlig prosjektskisse — viser at de tekniske valgene er begrunnet og forankret. |
 | 5 | [`brukertest-skjema.md`](brukertest-skjema.md) | 5 min | Brukertest-instrument: 53 spørsmål inkludert SUS-skala. Viser metodisk arbeid. |
@@ -34,14 +34,17 @@ LaTeX-kilden til selve bacheloroppgaven, inkludert kompilert PDF (`BScThesis.pdf
 
 ### `diagrammer/`
 
-13 mermaid-diagrammer som dokumenterer den tekniske arkitekturen — eksportert som både `.md` (kilde), `.png` (høy oppløsning, opptil 15700 px) og `.svg` (vektor). Se [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) for full leseguide.
+20 mermaid-diagrammer som dokumenterer den tekniske arkitekturen — eksportert som både `.md` (kilde) og `.png` (høy oppløsning). Se [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) for full leseguide.
 
 | Område | Diagrammer |
 |--------|-----------|
-| Arkitektur | 01, 02, 10, 13 |
-| Funksjonelle flyter | 03, 04, 05 |
+| Arkitektur | 01, 02, 10 |
+| Funksjonelle flyter (sekvens) | 03, 04, 05 |
 | Data og lagring | 06, 07, 12 |
-| Kvalitet og sikkerhet | 08, 09, 11 |
+| Sikkerhet og personvern | 08, 09, 11, 20 |
+| Brukersentrert design | 13, 14 |
+| Kvalitet og prosjekt | 15, 16, 18, 19 |
+| UML | 03, 04, 13, 17 |
 
 ### Prosjektledelse og metode
 

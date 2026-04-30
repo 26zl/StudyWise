@@ -31,6 +31,7 @@ flowchart LR
         POSTHOG["PostHog<br/>analytics"]
         DD["Datadog<br/>APM"]
         LANG["LangSmith<br/>tracing"]
+        GRAF["Grafana<br/>sikkerhets-dashboard"]
         CFW["Cloudflare Worker<br/>Resend e-post"]
     end
 
@@ -53,11 +54,12 @@ flowchart LR
 
     BE -.->|traces| DD
     BE -.->|KI-traces| LANG
+    BE -.->|sikkerhets-metrikker| GRAF
 
     classDef ext fill:#fde68a,stroke:#92400e,color:#1f2937
     classDef data fill:#bfdbfe,stroke:#1e3a8a,color:#1f2937
     classDef app fill:#bbf7d0,stroke:#166534,color:#1f2937
-    class CLERK,CANVAS,ANTH,COHERE,TURN,POSTHOG,DD,LANG,CFW ext
+    class CLERK,CANVAS,ANTH,COHERE,TURN,POSTHOG,DD,LANG,GRAF,CFW ext
     class MONGO,REDIS,PINE data
     class FE,BE,UI app
 ```

@@ -39,6 +39,7 @@ flowchart LR
         PH["PostHog"]
         DD["Datadog"]
         LS["LangSmith"]
+        GR["Grafana<br/>(security-dashboard)"]
     end
 
     WWW --> FE
@@ -58,6 +59,7 @@ flowchart LR
     FE --> PH
     BE -.-> DD
     BE -.-> LS
+    BE -.-> GR
 
     REPO -->|push| ACT
     ACT -->|deploy| FE
