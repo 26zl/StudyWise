@@ -3,14 +3,14 @@
   "description": "StudyWise Backend - Bachelor i IT 2026",
   "type": "module",
   "scripts": {
-    "dev": "cross-env NODE_OPTIONS=--use-system-ca tsx watch src/index.ts",
-    "prebuild": "tsx scripts/validate-env.ts",
     "build": "tsc",
-    "start": "node --use-system-ca dist/index.js",
+    "dev": "cross-env NODE_OPTIONS=--use-system-ca tsx watch src/index.ts",
     "lint": "eslint src/**/*.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prebuild": "tsx scripts/validate-env.ts",
+    "start": "node --use-system-ca dist/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.72",

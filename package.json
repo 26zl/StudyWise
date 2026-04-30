@@ -3,81 +3,70 @@
   "description": "STUDYWISE. En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas Instructure. Bachelor i IT 2026.",
   "private": true,
   "scripts": {
-    "predev": "pnpm --filter common build",
+    "build": "pnpm --filter common build && pnpm --filter backend build && pnpm --filter frontend build && pnpm --filter docs build",
+    "build:backend": "pnpm --filter common build && pnpm --filter backend build",
+    "build:common": "pnpm --filter common build",
+    "build:docs": "pnpm --filter docs build",
+    "build:frontend": "pnpm --filter common build && pnpm --filter frontend build",
+    "clean:all": "node scripts/clean.mjs",
+    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm syncpack:list && pnpm build",
+    "db:reset-encrypted": "node scripts/reset-encrypted-data.mjs",
     "dev": "concurrently -k \"pnpm dev:backend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:frontend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:docs\"",
-    "dev:frontend": "pnpm --filter frontend dev",
     "dev:backend": "pnpm --filter backend dev",
-    "dev:docs": "pnpm --filter docs dev",
     "dev:common": "pnpm --filter common typecheck --watch",
-    "kill:dev": "node scripts/kill-dev.mjs",
-    "lint": "pnpm -r lint",
-    "lint:md": "remark . --ignore-path .remarkignore --use remark-preset-lint-recommended",
+    "dev:docs": "pnpm --filter docs dev",
+    "dev:frontend": "pnpm --filter frontend dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky",
-    "lint:frontend": "pnpm --filter frontend lint",
-    "lint:backend": "pnpm --filter backend lint",
-    "typecheck": "pnpm --filter common build && pnpm -r typecheck",
-    "typecheck:frontend": "pnpm --filter frontend typecheck",
-    "typecheck:backend": "pnpm --filter backend typecheck",
-    "typecheck:common": "pnpm --filter common typecheck",
-    "typecheck:tests": "pnpm --filter tests typecheck",
-    "build": "pnpm --filter common build && pnpm --filter backend build && pnpm --filter frontend build && pnpm --filter docs build",
-    "build:common": "pnpm --filter common build",
-    "build:frontend": "pnpm --filter common build && pnpm --filter frontend build",
-    "build:backend": "pnpm --filter common build && pnpm --filter backend build",
-    "build:docs": "pnpm --filter docs build",
-    "start": "pnpm run start:parallel",
-    "start:parallel": "pnpm --parallel start:frontend start:backend",
-    "start:frontend": "pnpm --filter frontend start",
-    "start:backend": "pnpm --filter backend start",
-    "update": "pnpm -r update && pnpm install",
-    "update:frontend": "pnpm --filter frontend update && pnpm install",
-    "update:backend": "pnpm --filter backend update && pnpm install",
-    "update:common": "pnpm --filter common update && pnpm install",
-    "update:docs": "pnpm --filter docs update && pnpm install",
-    "update:tests": "pnpm --filter tests update && pnpm install",
-    "outdated": "pnpm -r outdated",
-    "clean:all": "node scripts/clean.mjs",
-    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm build",
     "heroku-postbuild": "pnpm --filter common build && pnpm --filter backend build",
-    "test:unit": "pnpm --filter common test && pnpm --filter backend test && pnpm --filter frontend test",
-    "test:unit:common": "pnpm --filter common test",
-    "test:unit:backend": "pnpm --filter backend test",
-    "test:unit:frontend": "pnpm --filter frontend test",
+    "kill:dev": "node scripts/kill-dev.mjs",
+    "knip": "knip",
+    "knip:fix": "knip --fix --allow-remove-files",
+    "lint": "pnpm -r lint",
+    "lint:backend": "pnpm --filter backend lint",
+    "lint:frontend": "pnpm --filter frontend lint",
+    "lint:md": "remark . --ignore-path .remarkignore --use remark-preset-lint-recommended",
+    "lint:soft-delete": "node scripts/lint-soft-delete.mjs",
+    "outdated": "pnpm -r outdated",
+    "predev": "pnpm --filter common build",
+    "prepare": "husky",
+    "start": "pnpm run start:parallel",
+    "start:backend": "pnpm --filter backend start",
+    "start:frontend": "pnpm --filter frontend start",
+    "start:parallel": "pnpm --parallel start:frontend start:backend",
+    "syncpack:fix": "syncpack fix && syncpack format",
+    "syncpack:list": "syncpack lint",
     "test": "pnpm --filter tests exec tsx run.ts",
     "test:auth": "pnpm --filter tests exec tsx run.ts auth",
     "test:auth:db": "pnpm --filter tests exec tsx auth/check-db.ts",
-    "test:auth:smoke": "pnpm --filter tests exec tsx auth/smoke.ts",
     "test:auth:e2e": "pnpm --filter tests exec playwright test --config playwright.config.ts",
     "test:auth:matrix": "pnpm --filter tests exec tsx auth/expanded-matrix.ts full",
     "test:auth:matrix:basic": "pnpm --filter tests exec tsx auth/expanded-matrix.ts basic",
-    "test:auth:matrix:oauth": "pnpm --filter tests exec tsx auth/expanded-matrix.ts oauth",
-    "test:auth:matrix:update": "pnpm --filter tests exec tsx auth/expanded-matrix.ts update",
     "test:auth:matrix:delete": "pnpm --filter tests exec tsx auth/expanded-matrix.ts delete",
-    "test:auth:matrix:session": "pnpm --filter tests exec tsx auth/expanded-matrix.ts session",
+    "test:auth:matrix:oauth": "pnpm --filter tests exec tsx auth/expanded-matrix.ts oauth",
     "test:auth:matrix:race": "pnpm --filter tests exec tsx auth/expanded-matrix.ts race",
-    "test:ki": "pnpm --filter tests exec tsx run.ts ki",
-    "test:ki:smoke": "pnpm --filter tests exec tsx ki/smoke.ts",
+    "test:auth:matrix:session": "pnpm --filter tests exec tsx auth/expanded-matrix.ts session",
+    "test:auth:matrix:update": "pnpm --filter tests exec tsx auth/expanded-matrix.ts update",
+    "test:auth:smoke": "pnpm --filter tests exec tsx auth/smoke.ts",
     "test:canvas": "pnpm --filter tests exec tsx run.ts canvas",
     "test:canvas:smoke": "pnpm --filter tests exec tsx canvas/smoke.ts",
-    "syncpack:list": "syncpack lint",
-    "syncpack:fix": "syncpack fix-mismatches && syncpack format",
-    "lint:soft-delete": "node scripts/lint-soft-delete.mjs",
-    "db:reset-encrypted": "node scripts/reset-encrypted-data.mjs",
-    "knip": "knip",
-    "knip:fix": "knip --fix --allow-remove-files"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "prettier --write"
-    ],
-    "*.{js,mjs,cjs,jsx}": [
-      "prettier --write"
-    ],
-    "*.{json,md,yml,yaml,css}": [
-      "prettier --write"
-    ]
+    "test:ki": "pnpm --filter tests exec tsx run.ts ki",
+    "test:ki:smoke": "pnpm --filter tests exec tsx ki/smoke.ts",
+    "test:unit": "pnpm --filter common test && pnpm --filter backend test && pnpm --filter frontend test",
+    "test:unit:backend": "pnpm --filter backend test",
+    "test:unit:common": "pnpm --filter common test",
+    "test:unit:frontend": "pnpm --filter frontend test",
+    "typecheck": "pnpm --filter common build && pnpm -r typecheck",
+    "typecheck:backend": "pnpm --filter backend typecheck",
+    "typecheck:common": "pnpm --filter common typecheck",
+    "typecheck:frontend": "pnpm --filter frontend typecheck",
+    "typecheck:tests": "pnpm --filter tests typecheck",
+    "update": "pnpm -r update && pnpm install && pnpm syncpack:fix && pnpm install",
+    "update:backend": "pnpm --filter backend update && pnpm install && pnpm syncpack:fix && pnpm install",
+    "update:common": "pnpm --filter common update && pnpm install && pnpm syncpack:fix && pnpm install",
+    "update:docs": "pnpm --filter docs update && pnpm install && pnpm syncpack:fix && pnpm install",
+    "update:frontend": "pnpm --filter frontend update && pnpm install && pnpm syncpack:fix && pnpm install",
+    "update:tests": "pnpm --filter tests update && pnpm install && pnpm syncpack:fix && pnpm install"
   },
   "devDependencies": {
     "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15",
@@ -94,6 +83,18 @@
     "wait-on": "^9.0.5",
     "wrangler": "^4.86.0"
   },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write"
+    ],
+    "*.{js,mjs,cjs,jsx}": [
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,css}": [
+      "prettier --write"
+    ]
+  },
+  "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8",
   "pnpm": {
     "overrides": {
       "dompurify": ">=3.3.2",
@@ -128,6 +129,5 @@
       "tesseract.js",
       "unrs-resolver"
     ]
-  },
-  "packageManager": "pnpm@10.33.2+sha512.a90faf6feeab71ad6c6e57f94e0fe1a12f5dcc22cd754db40ae9593eb6a3e0b6b12e3540218bb37ae083404b1f2ce6db2a4121e979829b4aff94b99f49da1cf8"
+  }
 }

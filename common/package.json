@@ -1,9 +1,23 @@
 {
   "name": "common",
   "description": "StudyWise Common Types - Bachelor i IT 2026",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
   "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "tsc --noEmit --pretty false",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.4.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  },
   "exports": {
     "./canvas": {
       "types": "./dist/canvas.d.ts",
@@ -85,19 +99,5 @@
       "types": "./dist/activity.d.ts",
       "import": "./dist/activity.js"
     }
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "lint": "tsc --noEmit --pretty false",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "zod": "^4.4.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
   }
 }

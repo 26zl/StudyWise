@@ -1,20 +1,20 @@
 {
-    "name": "docs",
-    "version": "1.0.0",
-    "description": "Prosjektdokumentasjon for StudyWise",
-    "private": true,
-    "type": "module",
-    "scripts": {
-        "dev": "vitepress dev docs",
-        "build": "vitepress build docs",
-        "preview": "vitepress preview docs",
-        "lint:md": "pnpm -w run lint:md"
-    },
-    "dependencies": {
-        "vitepress": "^1.6.4",
-        "vue": "^3.5.33"
-    },
-    "optionalDependencies": {
-        "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15"
-    }
+  "name": "docs",
+  "description": "Prosjektdokumentasjon for StudyWise",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vitepress build docs",
+    "dev": "vitepress dev docs",
+    "lint:md": "pnpm -w run lint:md",
+    "preview": "vitepress preview docs"
+  },
+  "dependencies": {
+    "vitepress": "^1.6.4",
+    "vue": "^3.5.33"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15"
+  }
 }

@@ -5,14 +5,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "NEXT_DISABLE_TURBOPACK=1 next build",
     "dev": "next dev --turbopack",
-    "prebuild": "tsx scripts/validate-env.ts",
-    "build": "next build",
-    "start": "next start",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit",
+    "prebuild": "tsx scripts/validate-env.ts",
+    "start": "next start",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@clerk/localizations": "^4.5.6",
