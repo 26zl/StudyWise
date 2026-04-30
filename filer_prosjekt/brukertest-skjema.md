@@ -2,6 +2,10 @@
 
 **Bacheloroppgave 2026 – Brukertest av StudyWise**
 
+> **Om dette dokumentet**
+>
+> Dette er den fullstendige spørreundersøkelsen som ble brukt i brukertestingen av StudyWise. Skjemaet ble bygget programmatisk i Google Forms via skriptet `brukertest-skjema-bygg.gs`, og distribuert anonymt til testdeltakere. Dokumentet er tatt med i prosjektmappen for å gi innsyn i metodisk grunnlag (oppgaver, SUS-måling, kvalitative spørsmål) og slik at testen kan reproduseres. Resultatene fra brukertesten dokumenteres i hovedrapporten (`BSc/BScThesis.pdf`).
+
 ---
 
 ## Til deg som deltar

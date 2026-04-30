@@ -1,10 +1,14 @@
 # CLAUDE.md
 
+> **For human readers (e.g. evaluators of the bachelor thesis):** this file is primarily an instruction document for AI coding assistants (Claude Code, Cursor, Copilot, etc.) working in this repository, but it doubles as a compact technical reference. It documents the architectural ground rules, security guardrails, and project conventions in one place. The English language is intentional — it ensures any AI assistant interprets the rules consistently regardless of the developer's editor language settings. The application code itself, including variable names and comments, is in Norwegian (see the glossary in the _Project Overview_ section).
+>
+> For a higher-level orientation in the project, see [`README.md`](./README.md), [`filer_prosjekt/00-LESEGUIDE.md`](./filer_prosjekt/00-LESEGUIDE.md) and the diagrams in [`filer_prosjekt/diagrammer/`](./filer_prosjekt/diagrammer/).
+
 This file provides guidance to Claude Code (claude.ai/code) and other AI coding assistants when working with code in this repository. Read the **Guardrails** section below before making any changes.
 
 ## Guardrails for AI assistants (READ FIRST)
 
-These guardrails exist because StudyWise handles personal data, Canvas tokens, chat history and KI-pipeline secrets. The codebase is published as a bachelor thesis (USN, 2026) and is intentionally constructed so a misstep is hard to merge by accident. AI assistants must respect that — uncertainty is resolved by **asking the human reviewer**, not by guessing or bypassing checks.
+These guardrails exist because StudyWise handles personal data, Canvas tokens, chat history and KI-pipeline secrets. The codebase is published as a bachelor thesis (USN, 2026) and is intentionally constructed so that an unsafe change is hard to merge by accident. AI assistants must respect that — uncertainty is resolved by **asking the human developer driving the session**, not by guessing or bypassing checks.
 
 ### Hard prohibitions — never do these without explicit human approval
 
@@ -34,13 +38,13 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 
 ### When in doubt
 
-If a task seems to require breaking one of these rules, **stop and ask the human reviewer** before proceeding. Phrasings like "I'll just disable this temporarily" or "we can fix the test later" are red flags — they tend to ship to production. Better to surface the conflict explicitly than to merge a workaround.
+If a task seems to require breaking one of these rules, **stop and ask the human developer** before proceeding. Phrasings like "I'll just disable this temporarily" or "we can fix the test later" are red flags — they tend to ship to production. Better to surface the conflict explicitly than to merge a workaround.
 
-These guardrails are an explicit part of the bachelor thesis's contribution on safe AI-assisted coding. They are not aspirational — they are enforced through code review, CI checks, and (after `main` is bulk-formatted) the pre-commit hook.
+These guardrails are an explicit part of the bachelor thesis's contribution on safe AI-assisted coding. They are not aspirational — they are enforced through code review and CI checks. The pre-commit hook is currently disabled while the codebase is being formatted in bulk; once that one-time formatting commit has landed on `main`, the hook will be re-enabled and run the same checks locally before each commit.
 
 ## Project Overview
 
-StudyWise is an AI-powered study assistant for higher education with Canvas LMS integration. Built as a Bachelor's thesis project (2026). Production: <https://www.studwize.page>. The codebase uses Norwegian for variable names, comments, and error messages.
+StudyWise is an AI-powered study assistant for higher education with Canvas LMS integration. Built as a Bachelor's thesis project at the University of South-Eastern Norway (USN), 2026. Production: <https://www.studwize.page>. The codebase uses Norwegian for variable names, comments, and error messages — a deliberate choice that aligns the code with the user-facing language and the report.
 
 ### Norwegian glossary (common directory/concept names)
 
@@ -201,7 +205,7 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
-The Husky pre-commit hook is **currently disabled** — see the comment in `.husky/pre-commit`. It will be reactivated after `main` has been bulk-formatted to avoid noisy diffs. Until then, run `pnpm format` and the checklist above manually before commit. CI enforces the same checks on pull requests. The `lint-staged` config in `package.json` is kept ready for reactivation.
+The Husky pre-commit hook is currently disabled — see the comment in `.husky/pre-commit`. It will be reactivated after the codebase has been formatted in one batch on `main`, so future commits get small focused diffs rather than large reformatting churn. Until then, the same checks are enforced automatically by CI on pull requests, and developers run `pnpm format` plus the checklist above manually before each commit. The `lint-staged` config in `package.json` is kept ready for reactivation.
 
 ## Deployment
 

@@ -2,6 +2,31 @@ Teknisk Kanban — StudyWise
 ==========================
 Alle 187 issues opprettet i GitHub Projects (#25) med status: Done.
 
+------------------------------------------------------------------------------
+OM DOKUMENTET
+------------------------------------------------------------------------------
+Dette er en eksport av prosjektets tekniske Kanban-tavle fra GitHub Projects.
+Mens brukerhistorie-tavlen (kanban-brukerhistorier.txt) beskriver "hva" og
+"hvorfor" sett fra studentens perspektiv, viser denne tavlen "hvordan" — de
+konkrete utviklingsoppgavene som måtte løses for å realisere hver historie.
+
+Listen er delt i to:
+  * ORIGINALE ITEMS (1–144) — den opprinnelige planlagte arbeidsmengden,
+    organisert tematisk per delsystem (infrastruktur, database, KI-pipeline,
+    Canvas-integrasjon, UI/UX, sikkerhet, drift, m.m.).
+  * TILLEGG (145–187) — oppgaver som dukket opp underveis, blant annet etter
+    kodegjennomgang, brukertesting, sikkerhetsskanning og produksjons-
+    erfaringer.
+
+Av dokumentet fremgår:
+  * Omfanget av implementasjonen — 187 fullførte issues.
+  * Sporbarhet — tematisk gruppering gjør det enkelt å koble en arkitektur-
+    beslutning i hovedrapporten til de faktiske utviklingsoppgavene som
+    realiserte den.
+  * Dybden i ikke-funksjonelle krav — egne seksjoner for sikkerhet,
+    observabilitet, ytelse, GDPR og CI/CD.
+------------------------------------------------------------------------------
+
 ==============================================================================
 ORIGINALE ITEMS (1-144) — Fra opprinnelig liste
 ==============================================================================

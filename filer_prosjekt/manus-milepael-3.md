@@ -1,11 +1,15 @@
 # Manus – Milepæl 3: Presentasjon av resultat
 
+> **Om dette dokumentet**
+>
+> Dette er det interne presentasjonsmanuset gruppa brukte under sluttpresentasjonen av bacheloroppgaven (milepæl 3). Manuset er tatt med i prosjektmappen for å vise hvordan vi forberedte oss på presentasjonen, hvordan taletiden var fordelt mellom de fire gruppemedlemmene, og hvilket innhold vi prioriterte å formidle. Det er **ikke** et selvstendig fagdokument — selve faglige resonnementene er dokumentert i hovedrapporten (`BSc/BScThesis.pdf`).
+
 **Tema:** StudyWise – KI-basert studieassistent basert på Canvas
-**Lengde:** 6–7 minutter (manuset er litt fyldig som buffer — dere kan kutte underveis)
+**Lengde:** 6–7 minutter (manuset er litt fyldig som buffer — gruppa kunne kutte underveis)
 **Antall presentatører:** 4 (Laurent, Abdinasir, Anwar, Ylli)
 **Antall slides:** 10
 
-> Tips før dere starter: snakk rolig, hold blikket mot publikum, og pek konkret på elementer på lysbildene. Hver person har ca. 1,5–2 minutter taletid. Manuset er bevisst litt fyldigere enn nødvendig — det gir dere noe å holde dere til hvis dere snakker fort, og gjør at dere har materiale å trekke fra hvis dere får ekstra tid.
+> Interne tips brukt av gruppa: snakk rolig, hold blikket mot publikum, og pek konkret på elementer på lysbildene. Hver person hadde ca. 1,5–2 minutter taletid. Manuset er bevisst litt fyldigere enn nødvendig — det ga gruppa noe å holde seg til hvis de snakket fort, og gjorde at de hadde materiale å trekke fra hvis de fikk ekstra tid.
 
 ---
 

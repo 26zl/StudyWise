@@ -7,9 +7,13 @@
 [![OWASP Dependency-Check](https://github.com/26zl/StudyWise/actions/workflows/owasp-dependency-check.yml/badge.svg)](https://github.com/26zl/StudyWise/actions/workflows/owasp-dependency-check.yml)
 
 En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas LMS.
-Bacheloroppgave 2026.
+Bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026 — gruppe 3.
 
-**Produksjon:** <https://www.studwize.page>
+- **Produksjon:** <https://www.studwize.page>
+- **Dokumentasjon:** <https://26zl.github.io/StudyWise/>
+- **Statusside:** <https://www.studwize.page/status>
+
+> For en raskere orientering i prosjektet, se `filer_prosjekt/00-LESEGUIDE.md` og diagrammene i `filer_prosjekt/diagrammer/`.
 
 ## Teknologi
 
@@ -43,12 +47,12 @@ pnpm build
 pnpm dev
 ```
 
-| Tjeneste    | URL                             |
-| ----------- | ------------------------------- |
-| Frontend    | <http://localhost:3000>         |
-| Backend API | <http://localhost:4000>         |
-| API-docs    | <http://localhost:4000/api-docs>|
-| Docs        | <http://localhost:5173>         |
+| Tjeneste    | URL                              |
+| ----------- | -------------------------------- |
+| Frontend    | <http://localhost:3000>          |
+| Backend API | <http://localhost:4000>          |
+| API-docs    | <http://localhost:4000/api-docs> |
+| Docs        | <http://localhost:5173>          |
 
 ## Kommandoer
 
@@ -86,11 +90,16 @@ cp docker.env.example .env    # Fyll inn verdier
 docker compose up --build     # Start MongoDB, Redis, backend, frontend
 ```
 
-## Git hooks
+## Git hooks og kvalitetssjekker
 
-Pre-commit-hook (Husky + lint-staged) er **midlertidig deaktivert** — se kommentar i `.husky/pre-commit`. Hooken planlegges reaktivert etter at teamet har kjørt `pnpm format` samlet på `main` slik at framtidige commits får små, fokuserte differ i stedet for store reformateringer.
+Pre-commit-hook (Husky + lint-staged) er midlertidig deaktivert mens kodebasen reformateres samlet, slik at fremtidige commits får små, fokuserte differ. Frem til reaktivering kjøres pre-commit-sjekkene manuelt:
 
-Inntil da: kjør `pnpm format` og `pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build` manuelt før commit. CI håndhever det samme i pull requests.
+```bash
+pnpm format
+pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
+```
+
+De samme sjekkene håndheves automatisk i pull requests via GitHub Actions, slik at kvalitetskravet er likt uansett om hooken er aktiv lokalt.
 
 ## Testing
 
@@ -118,3 +127,14 @@ Dependabot kjører ukentlig (mandager 06:00 CET) og åpner grupperte pull reques
 ## Lisens
 
 MIT — se [LICENSE](./LICENSE).
+
+## Bachelorgruppen
+
+| Medlem        | Rolle                                                                     |
+| ------------- | ------------------------------------------------------------------------- |
+| Laurent Zogaj | Prosjektleder, fullstack, KI/Canvas-integrasjon, arkitektur, UI/UX, CI/CD |
+| Abdinasir     | Fullstack, KI-integrasjon, UI/UX                                          |
+| Anwar         | Fullstack, KI-integrasjon, UI/UX                                          |
+| Ylli Ujkani   | Dokumentasjon, oversettelse                                               |
+
+Veileder: USN — Bachelor i IT, 2026.

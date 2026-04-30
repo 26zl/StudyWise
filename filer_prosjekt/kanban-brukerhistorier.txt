@@ -3,6 +3,29 @@ Kanban — StudyWise Brukerhistorier
 Alle 55 brukerhistorier fra GitHub Projects (#21).
 Eksportert: 2026-04-10
 
+------------------------------------------------------------------------------
+OM DOKUMENTET
+------------------------------------------------------------------------------
+Dette er en eksport av prosjektets brukerhistorie-tavle fra GitHub Projects og
+viser hvordan vi har jobbet brukerorientert gjennom hele utviklingsløpet. Hver
+historie er formulert i standard "Som [rolle] vil jeg [handling] slik at
+[verdi]"-format, og er knyttet til en GitHub-issue (#-nummer i hakeparenteser).
+
+Av dokumentet fremgår:
+  * Bredden i funksjonalitet — 55 historier dekker Canvas-integrasjon,
+    KI-chat, kunnskapsbase, quiz/flashcards, kalender, kontoadministrasjon
+    og UX-detaljer.
+  * Prioritering og status — historiene er gruppert i IN PROGRESS, IN REVIEW
+    og DONE, slik at det er tydelig hva som ble fullført og hva som ble lagt
+    til side.
+  * Rolledeling — "Tildelt"-feltet viser hvem som hadde ansvar for hver
+    historie (totalt 4 utviklere på gruppa).
+
+Brukerhistoriene utgjør input til den tekniske Kanban-tavlen
+(teknisk-kanban-issues.txt), som viser hvordan hver historie ble brutt ned
+til konkrete utviklingsoppgaver.
+------------------------------------------------------------------------------
+
 ==============================================================================
 IN PROGRESS (1)
 ==============================================================================
