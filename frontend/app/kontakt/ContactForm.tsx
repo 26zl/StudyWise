@@ -7,8 +7,7 @@
 
 import { useEffect, useState, useRef, useCallback, useMemo, type ChangeEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type Resolver } from "react-hook-form";
 import { z } from "zod";
 import { showToast } from "@/app/components/ui/Toaster";
 import { Send, Loader2, ImagePlus, X, AlertCircle } from "lucide-react";
@@ -145,18 +144,34 @@ export function ContactForm() {
     [t],
   );
 
+  // Lokal Zod-til-react-hook-form-resolver. Tidligere brukte vi
+  // @hookform/resolvers/zod, men den importerer fra `zod/v4/core` som
+  // Turbopack ikke klarer å resolve via zod sin conditional exports —
+  // se Vercel-build-feil 2026-04-30 for kontekst.
+  const resolver: Resolver<KontaktFormData> = useCallback(
+    async (values) => {
+      const result = KontaktFormSchema.safeParse(values);
+      if (result.success) {
+        return { values: result.data, errors: {} };
+      }
+      const errors: Record<string, { type: string; message: string }> = {};
+      for (const issue of result.error.issues) {
+        const path = issue.path.join(".") || "_root";
+        if (!errors[path]) {
+          errors[path] = { type: "validation", message: issue.message };
+        }
+      }
+      return { values: {}, errors: errors as never };
+    },
+    [KontaktFormSchema],
+  );
+
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors },
-  } = useForm<KontaktFormData>({
-    // @hookform/resolvers@5.2.2 sin type-stamp ligger bak Zod 4.3.x sin
-    // interne `_zod.version.minor`-bump (minor=3 vs forventet 0). Runtime
-    // fungerer perfekt — kun et TS-overload-mismatch. Cast bypasser sjekken
-    // til en oppstrøms-fix lander. Kan fjernes når @hookform/resolvers > 5.2.2.
-    resolver: zodResolver(KontaktFormSchema as never),
-  });
+  } = useForm<KontaktFormData>({ resolver });
 
   const resetTurnstile = useCallback(() => {
     setTurnstileToken(null);
