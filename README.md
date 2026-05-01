@@ -137,4 +137,4 @@ MIT — se [LICENSE](./LICENSE).
 | Anwar         | Fullstack, KI-integrasjon, UI/UX                                          |
 | Ylli Ujkani   | Dokumentasjon, oversettelse                                               |
 
-Veileder: USN — Bachelor i IT, 2026.
+Veileder: USN – Bachelor i IT, 2026.
