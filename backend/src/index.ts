@@ -71,6 +71,7 @@ import { publicStatusRouter } from "./rutere/publicStatus.js";
 import { beskytteMotCsrf } from "./middleware/csrf.js";
 import { noCache } from "./middleware/no-cache.js";
 import { rateLimitMe } from "./middleware/rate-limit.js";
+import { requireCloudflare } from "./middleware/cloudflare-only.js";
 import { apiError, sendError } from "./utils/apiError.js";
 import { requestTimeout } from "./middleware/request-timeout.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "./utils/webOrigins.js";
@@ -151,7 +152,8 @@ if (isProd) {
       .map((h) => h.trim().toLowerCase())
       .filter(Boolean),
   );
-  const publicHealthPaths = new Set(["/health", "/ready", "/health/dependencies"]);
+  // Kun ren liveness/readiness — /health/dependencies er admin-only og må gå via normal host
+  const publicHealthPaths = new Set(["/health", "/ready"]);
   app.use((req, res, next) => {
     const host = req.get("host");
     const requestHost = host?.split(":")[0]?.trim().toLowerCase();
@@ -163,6 +165,14 @@ if (isProd) {
     }
     next();
   });
+
+  // Cloudflare-only enforcement: peer-IP fra siste X-Forwarded-For-hop må være i Cloudflare-range og
+  // CF-Connecting-IP-header må være satt. Forhindrer Heroku-direct WAF bypass
+  // (ref. pentest F-14). Aktiveres når ENFORCE_CLOUDFLARE_ONLY=true.
+  if (process.env.ENFORCE_CLOUDFLARE_ONLY === "true") {
+    app.use(requireCloudflare);
+    logger.info("Cloudflare-only enforcement aktivert");
+  }
 }
 
 // Sikkerhets-headere via Helmet
@@ -170,7 +180,7 @@ if (isProd) {
 // I development: Mer liberal, men fortsatt aktiv, CSP for å støtte Swagger UI
 app.use(
   helmet({
-    hsts: isProd ? { maxAge: 31536000, includeSubDomains: true } : false,
+    hsts: isProd ? { maxAge: 63072000, includeSubDomains: true, preload: true } : false,
     contentSecurityPolicy: isProd
       ? {
           directives: {
