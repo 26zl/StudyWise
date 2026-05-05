@@ -56,13 +56,24 @@ jobs:
         run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
 
       # dependency-check/Dependency-Check_Action: bruk @1.1.0 (v5 finnes ikke); input heter 'others' ikke 'args'
+      # Workspace-package.json ekskluderes fra Node Package Analyzer fordi pnpm har kun én
+      # root-lockfile (pnpm-lock.yaml) som Pnpm Audit Analyzer scanner — dekker alle workspace-deps.
+      # Uten exclude får vi "[WARN] No lock file exists" per workspace og false negatives.
       - name: OWASP Dependency-Check
         uses: dependency-check/Dependency-Check_Action@75ba02d6183445fe0761d26e836bde58b1560600 # 1.1.0
         with:
           project: "StudyWise"
           path: "."
           format: "HTML"
-          others: "--enableRetired"
+          others: >-
+            --enableRetired
+            --exclude "**/node_modules/**"
+            --exclude "**/.next/**"
+            --exclude "backend/package.json"
+            --exclude "frontend/package.json"
+            --exclude "common/package.json"
+            --exclude "docs/package.json"
+            --exclude "tests/package.json"
 
       - name: Upload OWASP Dependency-Check report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
