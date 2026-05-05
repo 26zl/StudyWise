@@ -2116,7 +2116,7 @@ export const nbMessages = {
   },
   personvern: {
     title: "Personvernerklæring",
-    updatedAt: "18. april 2026",
+    updatedAt: "6. mai 2026",
     controllerTitle: "Hvem står bak StudyWise?",
     controllerBody:
       "StudyWise er utviklet som bacheloroppgave ved Universitetet i Sørøst-Norge (USN). Studentene bak prosjektet er behandlingsansvarlige for personopplysningene i tjenesten — det betyr at vi bestemmer hvordan dataene dine brukes og har ansvar for å følge personvernreglene. Har du spørsmål, innspill eller vil utøve rettighetene dine, er det bare å ta kontakt via kontaktskjemaet. Vi svarer gjerne.",
@@ -2201,7 +2201,7 @@ export const nbMessages = {
       "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Dokumenter du laster opp saniteres automatisk for strukturert PII (epost, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) før de brukes som AI-kontekst. Canvas-innhold anonymiseres der det er mulig. AI-modellen er i tillegg instruert om å ikke gjengi personnavn fra dokumenter i svar.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
-      "Vi bruker kun ditt API-token for å hente data på dine vegne mot din institusjons Canvas. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
+      "StudyWise bruker en personlig API-nøkkel som du selv genererer i Canvas. Nøkkelen gir StudyWise tilgang til de samme dataene du allerede har tilgang til i Canvas — ikke mer. StudyWise henter kun data (lese-tilgang) og oppretter, endrer eller sletter ingenting i Canvas på dine vegne. StudyWise har ikke administrativ tilgang, institusjonstilgang eller tilgang til andre brukeres data. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
     thirdPartyPineconeLabel: "Søketjeneste for kunnskapsbase (Pinecone):",
     thirdPartyPineconeBody:
       "Når du bruker KI-funksjoner med Canvas-innhold eller egne notater, sender vi tekstbiter (uten navn, e-post eller andre personopplysninger) til en søketjeneste som hjelper KI-en å finne de mest relevante delene av det du har lastet opp. Innholdet er knyttet til en anonym bruker-ID og slettes når du fjerner basen eller kontoen din.",

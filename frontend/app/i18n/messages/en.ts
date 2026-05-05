@@ -2120,7 +2120,7 @@ export const enMessages = {
   },
   personvern: {
     title: "Privacy Policy",
-    updatedAt: "18 April 2026",
+    updatedAt: "6 May 2026",
     controllerTitle: "Who is behind StudyWise?",
     controllerBody:
       "StudyWise is developed as a bachelor's thesis project at the University of South-Eastern Norway (USN). The students behind the project are the data controllers for personal information in the service — meaning we decide how your data is used and are responsible for following privacy rules. If you have questions, feedback, or want to exercise your rights, just reach out via the contact form. We'll be happy to respond.",
@@ -2205,7 +2205,7 @@ export const enMessages = {
       "Content you write and context (e.g., assignment text) is sent to AI to generate responses. Documents you upload are automatically sanitized for structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) before being used as AI context. Canvas content is anonymized where possible. The AI model is additionally instructed not to repeat personal names from documents in its responses.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
-      "We only use your API token to fetch data on your behalf from your institution's Canvas. The token is stored encrypted with us and is not sent to other third parties.",
+      "StudyWise uses a personal API key that you generate yourself in Canvas. The key grants StudyWise access to the same data you already have access to in Canvas — nothing more. StudyWise only reads data (read-only access) and never creates, modifies, or deletes anything in Canvas on your behalf. StudyWise has no administrative access, institutional access, or access to other users' data. The token is stored encrypted with us and is not sent to other third parties.",
     thirdPartyPineconeLabel: "Knowledge base search service (Pinecone):",
     thirdPartyPineconeBody:
       "When you use AI features with Canvas content or your own notes, we send text snippets (without names, emails, or other personal data) to a search service that helps the AI find the most relevant parts of what you've uploaded. The content is linked to an anonymous user ID and deleted when you remove the base or your account.",
