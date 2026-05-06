@@ -26,7 +26,7 @@ function rateLimitAuthTurnstileSkippableNaarDeaktivert(
     next();
     return;
   }
-  rateLimitAuthTurnstile(req, res, next);
+  void rateLimitAuthTurnstile(req, res, next);
 }
 import { logger } from "../../utils/logger.js";
 import { isTurnstileConfigured, verifyTurnstileToken } from "../../services/turnstile.service.js";
