@@ -3,9 +3,7 @@
 import type { ReactNode } from "react";
 import { Loader2, AlertCircle, ShieldCheck } from "lucide-react";
 
-/* ------------------------------------------------------------------ */
 /*  Shared timeout helper                                             */
-/* ------------------------------------------------------------------ */
 
 /**
  * Dedikert feilklasse for timeouts fra withAuthTimeout. Kallesteder kan
@@ -50,9 +48,9 @@ export function withAuthTimeout<T>(
   });
 }
 
-/* ------------------------------------------------------------------ */
+
 /*  Shared Clerk error parser                                         */
-/* ------------------------------------------------------------------ */
+
 
 /**
  * Trekk ut lesbar feilmelding fra Clerk-feil.
@@ -247,9 +245,7 @@ export function classifyClerkSignUpError(
   return null;
 }
 
-/* ------------------------------------------------------------------ */
 /*  Shared styling constants                                          */
-/* ------------------------------------------------------------------ */
 
 export const AUTH_INPUT_CLASSES =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-800";
@@ -257,9 +253,8 @@ export const AUTH_INPUT_CLASSES =
 export const AUTH_LABEL_CLASSES =
   "block text-sm font-medium text-slate-700 dark:text-slate-300";
 
-/* ------------------------------------------------------------------ */
+
 /*  AuthCard                                                          */
-/* ------------------------------------------------------------------ */
 
 export function AuthCard({ children }: { children: ReactNode }) {
   return (
@@ -269,9 +264,7 @@ export function AuthCard({ children }: { children: ReactNode }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
 /*  AuthHeader                                                        */
-/* ------------------------------------------------------------------ */
 
 export function AuthHeader({
   title,
@@ -294,9 +287,7 @@ export function AuthHeader({
   );
 }
 
-/* ------------------------------------------------------------------ */
 /*  AuthOAuthButtons                                                  */
-/* ------------------------------------------------------------------ */
 
 export function AuthOAuthButtons({
   onGoogle,
@@ -356,9 +347,7 @@ export function AuthOAuthButtons({
   );
 }
 
-/* ------------------------------------------------------------------ */
 /*  AuthDivider                                                       */
-/* ------------------------------------------------------------------ */
 
 export function AuthDivider({ text }: { text: string }) {
   return (
@@ -375,9 +364,7 @@ export function AuthDivider({ text }: { text: string }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
 /*  AuthError                                                         */
-/* ------------------------------------------------------------------ */
 
 export function AuthError({ message }: { message: string | null }) {
   if (!message) return null;
@@ -389,9 +376,7 @@ export function AuthError({ message }: { message: string | null }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
 /*  AuthPrimaryButton                                                 */
-/* ------------------------------------------------------------------ */
 
 export function AuthPrimaryButton({
   children,
@@ -427,13 +412,9 @@ export function AuthPrimaryButton({
   );
 }
 
-/* ------------------------------------------------------------------ */
 /*  AuthFooterLink                                                    */
-/* ------------------------------------------------------------------ */
 
-/* ------------------------------------------------------------------ */
 /*  SecuredByClerk                                                    */
-/* ------------------------------------------------------------------ */
 
 /**
  * Liten "Sikret av Clerk"-merke til bunn av custom auth-sider.
