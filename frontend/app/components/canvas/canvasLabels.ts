@@ -5,6 +5,7 @@ import { useLanguage, type Language } from "@/app/i18n";
 
 export type CanvasVisning = "announcements" | "courses" | "assignments";
 
+// Bygger Canvas-tekstene for aktivt språk.
 export function getCanvasLabels(language: Language) {
     if (language === "en") {
         return {
@@ -201,6 +202,7 @@ export function getCanvasLabels(language: Language) {
     };
 }
 
+// Enkel hook som gir tekster og locale for gjeldende språk.
 export function useCanvasLabels() {
     const { language } = useLanguage();
 
