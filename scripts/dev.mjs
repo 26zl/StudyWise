@@ -58,10 +58,8 @@ process.on("SIGTERM", shutdown);
 // Finn pnpm
 const pnpm = isWin ? "pnpm.cmd" : "pnpm";
 
-// 1. Start backend
 spawnProc("backend", pnpm, ["dev:backend"]);
 
-// 2. Vent på backend health, deretter start frontend og docs
 function waitForHealth(url, timeout) {
   return new Promise((resolve, reject) => {
     const start = Date.now();

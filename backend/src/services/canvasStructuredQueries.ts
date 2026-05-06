@@ -1,3 +1,9 @@
+/**
+ * Regex-mønstre for å gjenkjenne strukturelle Canvas-spørsmål
+ * (kursoversikter, frister, moduler, kunngjøringer) på norsk og engelsk.
+ * Brukes til å rute spørsmål til Canvas-kontekst i stedet for ren KI-svar.
+ */
+
 const COURSE_OVERVIEW_PATTERNS = [
   // Norsk
   /\b(?:hvilke|alle|mine|oversikt|liste|list opp|vis)\b.*\b(?:emner|fag|kurs)\b/i,

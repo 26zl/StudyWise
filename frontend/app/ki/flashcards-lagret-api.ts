@@ -66,8 +66,7 @@ async function registrerOkt(
   return data.sett;
 }
 
-// ─── React Query hooks ───────────────────────────────────
-
+// React Query hooks
 export function useLagredeFlashcardSett() {
   return useQuery({
     queryKey: FLASHCARDS_LAGRET_QUERY_KEY,

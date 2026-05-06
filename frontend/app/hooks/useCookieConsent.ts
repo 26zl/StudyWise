@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * Hook for cookie-samtykke. Lagrer i en cookie for gjester og i UI-preferanser
+ * for innloggede brukere, og kringkaster endringer via custom event.
+ */
+
 import { useAuth } from "@clerk/nextjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMeg, useOppdaterUIPreferanser } from "@/app/auth/auth-api";

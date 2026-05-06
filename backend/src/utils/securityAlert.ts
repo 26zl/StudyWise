@@ -5,8 +5,7 @@
 import { logger } from "./logger.js";
 import { audit, AUDIT_ACTIONS } from "./auditLog.js";
 
-// ── Konfigurasjon ────────────────────────────────────────────────────────────
-
+// Konfigurasjon
 interface ThresholdConfig {
   /** Maks antall hendelser før alarm */
   maxEvents: number;
@@ -34,8 +33,7 @@ const THRESHOLDS: Record<string, ThresholdConfig> = {
   },
 };
 
-// ── Sliding window ───────────────────────────────────────────────────────────
-
+// Sliding window
 /** Map<nøkkel, timestamps[]> for sliding window-tracking */
 const windows = new Map<string, number[]>();
 
@@ -54,8 +52,7 @@ function pruneWindow(key: string, windowMs: number, now: number): number[] {
   return pruned;
 }
 
-// ── Offentlig API ────────────────────────────────────────────────────────────
-
+// Offentlig API
 export interface SecurityEvent {
   type: "brute_force" | "rbac_abuse" | "admin_storm";
   /** Identifikator for gruppereing (IP for brute_force, userId for andre) */

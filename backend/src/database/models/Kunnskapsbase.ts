@@ -9,8 +9,7 @@
 import mongoose, { Schema, type Document, type Types } from "mongoose";
 import type { KBCrawlStatus } from "common/kunnskapsbase";
 
-// ─── Lenke (URL) ─────────────────────────────────────────
-
+// Lenke (URL)
 export interface IKBLink {
   _id?: Types.ObjectId;
   url: string;
@@ -71,8 +70,7 @@ const KBLinkSchema = new Schema<IKBLink>(
   { _id: true },
 );
 
-// ─── Fil (opplastet dokument) ────────────────────────────
-
+// Fil (opplastet dokument)
 export interface IKBFile {
   _id?: Types.ObjectId;
   filnavn: string;
@@ -101,8 +99,7 @@ const KBFileSchema = new Schema<IKBFile>(
   { _id: true },
 );
 
-// ─── Kunnskapsbase ───────────────────────────────────────
-
+// Kunnskapsbase
 export interface IKnowledgeBase extends Document {
   userId: string;
   navn: string;

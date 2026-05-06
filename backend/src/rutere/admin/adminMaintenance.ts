@@ -155,7 +155,7 @@ async function failOperation(op: MaintenanceOp, errorMessage: string): Promise<v
   await deleteCacheKeys([runningKey(op)]);
 }
 
-// ── GET /maintenance/status ────────────────────────────────────────────────
+// GET /maintenance/status
 // Returnerer running/cooldown-status for alle operasjoner.
 // Frontend poller dette for å vise global status til alle admins.
 
@@ -195,7 +195,7 @@ router.get("/maintenance/status", async (req, res) => {
   }
 });
 
-// ── GET /maintenance/result/:op ──────────────────────────────────────────
+// GET /maintenance/result/:op
 // Henter lagret resultat for en vedlikeholdsoperasjon.
 
 router.get("/maintenance/result/:op", async (req, res) => {
@@ -219,8 +219,7 @@ router.get("/maintenance/result/:op", async (req, res) => {
   }
 });
 
-// ── POST /maintenance/backfill-fulltext ─────────────────────────────────────
-
+// POST /maintenance/backfill-fulltext
 router.post("/maintenance/backfill-fulltext", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -259,8 +258,7 @@ router.post("/maintenance/backfill-fulltext", requireRecentAuth, async (req, res
   })();
 });
 
-// ── POST /maintenance/cleanup-orphaned ─────────────────────────────────────
-
+// POST /maintenance/cleanup-orphaned
 router.post("/maintenance/cleanup-orphaned", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -356,8 +354,7 @@ router.post("/maintenance/cleanup-orphaned", requireRecentAuth, async (req, res)
   })();
 });
 
-// ── POST /maintenance/rebuild-embeddings ───────────────────────────────────
-
+// POST /maintenance/rebuild-embeddings
 router.post("/maintenance/rebuild-embeddings", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -437,8 +434,7 @@ router.post("/maintenance/rebuild-embeddings", requireRecentAuth, async (req, re
   })();
 });
 
-// ── POST /maintenance/force-canvas-resync ──────────────────────────────────
-
+// POST /maintenance/force-canvas-resync
 router.post("/maintenance/force-canvas-resync", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -498,8 +494,7 @@ router.post("/maintenance/force-canvas-resync", requireRecentAuth, async (req, r
   })();
 });
 
-// ── POST /maintenance/clean-expired-shares ─────────────────────────────────
-
+// POST /maintenance/clean-expired-shares
 router.post("/maintenance/clean-expired-shares", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -536,8 +531,7 @@ router.post("/maintenance/clean-expired-shares", requireRecentAuth, async (req, 
   })();
 });
 
-// ── POST /maintenance/clean-old-chats ──────────────────────────────────────
-
+// POST /maintenance/clean-old-chats
 router.post("/maintenance/clean-old-chats", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -595,8 +589,7 @@ router.post("/maintenance/clean-old-chats", requireRecentAuth, async (req, res) 
   })();
 });
 
-// ── GET /maintenance/encryption-status ─────────────────────────────────────
-
+// GET /maintenance/encryption-status
 router.get("/maintenance/encryption-status", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -654,8 +647,7 @@ router.get("/maintenance/encryption-status", async (req, res) => {
   }
 });
 
-// ── POST /maintenance/reencrypt-tokens ─────────────────────────────────────
-
+// POST /maintenance/reencrypt-tokens
 router.post("/maintenance/reencrypt-tokens", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -729,8 +721,7 @@ router.post("/maintenance/reencrypt-tokens", requireRecentAuth, async (req, res)
   })();
 });
 
-// ── GET /maintenance/database-health ───────────────────────────────────────
-
+// GET /maintenance/database-health
 router.get("/maintenance/database-health", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -822,7 +813,7 @@ router.get("/maintenance/database-health", async (req, res) => {
   }
 });
 
-// ── POST /maintenance/retry-failed-crawls ──────────────────────────────────
+// POST /maintenance/retry-failed-crawls
 // Nullstiller crawl-state for ExternalUrl-items som faller inn under
 // canvas-sync sine retry-kriterier (never_crawled, empty_crawl >24t, stale >7d).
 // Neste gang hver berørte bruker trigger sync, vil eksisterende retry-logikk
@@ -966,7 +957,7 @@ router.post("/maintenance/retry-failed-crawls", requireRecentAuth, async (req, r
   })();
 });
 
-// ── POST /maintenance/reindex-missing-files ────────────────────────────────
+// POST /maintenance/reindex-missing-files
 // Finner Canvas-filer uten ContentEmbedding-rader (ekstraksjonen hoppet over
 // filen eller produserte 0 chunks). Canvas-sync sjekker fileHash per fil —
 // uten lagret fileHash vil sync kjøre full ekstraksjon neste gang brukeren
@@ -1065,7 +1056,7 @@ router.post("/maintenance/reindex-missing-files", requireRecentAuth, async (req,
   })();
 });
 
-// ── POST /maintenance/reextract-truncated-files ────────────────────────────
+// POST /maintenance/reextract-truncated-files
 // Finner alle filer der lagringen stille kuttet teksten (charCount >
 // fullText.length), nuller fileHash på deres chunk-rader slik at neste
 // Canvas-sync trigger full re-ekstraksjon — denne gangen med den aktive

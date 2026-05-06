@@ -165,8 +165,7 @@ export async function loadStudyContextForUser(
   }
 }
 
-// ─── Hjelpefunksjoner ─────────────────────────────────────
-
+// Hjelpefunksjoner
 /**
  * Detekterer implisitt signal om ønsket forklaringsnivå fra brukerens melding.
  * Returnerer null hvis ingen tydelig signal funnet.

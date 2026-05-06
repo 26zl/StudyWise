@@ -158,7 +158,6 @@ router.post(
     const requestId =
       typeof rawId === "string" ? rawId : typeof rawId === "number" ? String(rawId) : undefined;
 
-    // Valider request body
     const parseResult = KontaktRequestSchema.safeParse(extractKontaktPayload(req));
     if (!parseResult.success) {
       return sendZodError(res, parseResult.error, "Kontaktskjema");
@@ -212,7 +211,6 @@ router.post(
       }
     }
 
-    // Send kontaktmelding
     try {
       const result = await sendKontaktmelding({
         navn,

@@ -17,8 +17,7 @@ import mammoth from "mammoth";
 import AdmZip from "adm-zip";
 import { logger } from "../utils/logger.js";
 
-// ─── Konstanter ────────────────────────────────────────────
-
+// Konstanter
 /** Maks filstørrelse for ekstraksjon (10 MB) */
 export const MAX_EXTRACT_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -38,8 +37,7 @@ const MAX_CONTENT_LENGTH = 2_000_000;
 /** Maks dekomprimert størrelse per intern XML-fil for å forhindre Zip-bomber (50 MB) */
 const MAX_DECOMPRESSED_ENTRY_SIZE = 50 * 1024 * 1024;
 
-// ─── Filtype-klassifisering ─────────────────────────────────
-
+// Filtype-klassifisering
 /** Kodefil-endelser → språknavn for AI-kontekst */
 export const CODE_EXTENSIONS: Record<string, string> = {
   ".java": "Java",
@@ -111,8 +109,7 @@ export function getCodeLanguage(filename: string): string | null {
   return CODE_EXTENSIONS[getExtension(filename)] ?? null;
 }
 
-// ─── Tekstutvinning ────────────────────────────────────────
-
+// Tekstutvinning
 export interface ExtractResult {
   content: string;
   truncated: boolean;
@@ -185,8 +182,7 @@ export async function extractTextFromFile(
   return null;
 }
 
-// ─── Office-parsere ─────────────────────────────────────────
-
+// Office-parsere
 async function extractDocx(buffer: Buffer, filename: string): Promise<ExtractResult | null> {
   try {
     const result = await mammoth.extractRawText({ buffer });

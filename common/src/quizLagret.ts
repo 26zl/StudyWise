@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { QuizQuestionSchema } from "./ki.js";
 
-// ─── Konstanter ───────────────────────────────────────────
+// Konstanter
 
 /** Maks antall forsøk som lagres per quiz (eldste droppes) */
 export const LAGRET_QUIZ_MAX_FORSOK = 50;
@@ -31,7 +31,7 @@ export const LAGRET_QUIZ_SCORE_TERSKLER = {
   MIDDELS: 50,
 } as const;
 
-// ─── Forsøk (attempt) ─────────────────────────────────────
+// Forsøk
 
 /** Ett enkelt svar gitt under et quiz-forsøk. */
 export const QuizForsokSvarSchema = z.object({
@@ -50,7 +50,7 @@ export const QuizForsokSchema = z.object({
   answers: z.array(QuizForsokSvarSchema).min(1),
 });
 
-// ─── Lagret quiz (hoveddokument) ─────────────────────────
+// Lagret quiz 
 
 export const LagretQuizSchema = z.object({
   id: z.string().min(1),
@@ -61,7 +61,7 @@ export const LagretQuizSchema = z.object({
   attempts: z.array(QuizForsokSchema),
 });
 
-// ─── API-schemas ─────────────────────────────────────────
+// API-schemas
 
 /** POST /api/quiz/lagrede — body for å lagre en ny quiz. */
 export const LagreQuizRequestSchema = z.object({
@@ -88,7 +88,7 @@ export const RegistrerQuizForsokRequestSchema = z.object({
   answers: z.array(QuizForsokSvarSchema).min(1),
 });
 
-// ─── Typer ───────────────────────────────────────────────
+// Typer
 
 export type QuizForsokSvar = z.infer<typeof QuizForsokSvarSchema>;
 export type QuizForsok = z.infer<typeof QuizForsokSchema>;

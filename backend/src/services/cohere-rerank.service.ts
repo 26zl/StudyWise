@@ -11,8 +11,7 @@
 import { logger } from "../utils/logger.js";
 import { CircuitBreaker } from "../utils/circuitBreaker.js";
 
-// ─── Konfigurasjon ─────────────────────────────────────────
-
+// Konfigurasjon
 const COHERE_API_KEY = process.env.COHERE_API_KEY?.trim();
 const COHERE_RERANK_MODEL = "rerank-v3.5";
 /** Stabil Cohere v2 endepunkt — hardkodet fordi URL-en er fast og versjonert. */
@@ -21,15 +20,13 @@ const COHERE_RERANK_URL = "https://api.cohere.com/v2/rerank";
 /** Timeout for Cohere API-kall (ms) */
 const COHERE_TIMEOUT_MS = 12_000;
 
-// ─── Circuit breaker ───────────────────────────────────────
-
+// Circuit breaker
 const cohereCircuit = new CircuitBreaker("Cohere Rerank", {
   failureThreshold: 3,
   resetTimeoutMs: 60_000,
 });
 
-// ─── Typer ─────────────────────────────────────────────────
-
+// Typer
 export interface RerankDocument {
   /** Identifikator for dokumentet (f.eks. MongoDB _id) */
   docId: string;
@@ -50,8 +47,7 @@ export interface RerankResult {
   meta: Record<string, unknown>;
 }
 
-// ─── Cohere API-respons ────────────────────────────────────
-
+// Cohere API-respons
 interface CohereRerankResponse {
   results: Array<{
     index: number;
@@ -59,8 +55,7 @@ interface CohereRerankResponse {
   }>;
 }
 
-// ─── Eksporterte funksjoner ────────────────────────────────
-
+// Eksporterte funksjoner
 /** Sjekker om Cohere reranking er tilgjengelig */
 export function isCohereConfigured(): boolean {
   return !!COHERE_API_KEY;

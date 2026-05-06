@@ -11,8 +11,7 @@ export function normalizeCanvasBaseUrl(url: string): string {
   return url.trim().replace(/\/$/, "").toLowerCase();
 }
 
-/** E-post canonicalisert: trim + lowercase, så backend ikke trenger egen normalisering.
- * Bruker Zod v4 top-level z.email() (.email() på ZodString er deprecated). */
+/** E-post canonicalisert: trim + lowercase, så backend ikke trenger egen normalisering. */
 export const EmailSchema = z
   .string()
   .trim()

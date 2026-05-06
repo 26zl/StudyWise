@@ -35,7 +35,7 @@ function serialiser(doc: LagretFlashcardSettDocument) {
   });
 }
 
-// ─── POST /api/flashcards/lagrede — lagre et nytt sett ──────
+// POST /api/flashcards/lagrede — lagre et nytt sett
 router.post("/", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -67,7 +67,7 @@ router.post("/", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── GET /api/flashcards/lagrede — list ──────────────────────
+// GET /api/flashcards/lagrede — list
 router.get("/", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -86,7 +86,7 @@ router.get("/", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── GET /api/flashcards/lagrede/:id ─────────────────────────
+// GET /api/flashcards/lagrede/:id
 router.get("/:id", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -115,7 +115,7 @@ router.get("/:id", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── DELETE /api/flashcards/lagrede/:id ──────────────────────
+// DELETE /api/flashcards/lagrede/:id
 router.delete("/:id", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -141,7 +141,7 @@ router.delete("/:id", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── PATCH /api/flashcards/lagrede/:id/okt — registrer en økt ──
+// PATCH /api/flashcards/lagrede/:id/okt — registrer en økt
 router.patch("/:id/okt", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;

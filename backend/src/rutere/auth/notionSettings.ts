@@ -1,6 +1,6 @@
 /**
- * notionSettings.ts - Notion integration settings
- * GET/PUT /notion - Get/save Notion API settings for current user.
+ * Notion-integrasjonsinnstillinger.
+ * GET/PUT /notion — hent/lagre Notion API-nøkkel og standard side-ID for innlogget bruker.
  */
 import { Router } from "express";
 import { NotionSettingsRequestSchema, NotionSettingsResponseSchema } from "common/export";
@@ -86,11 +86,10 @@ async function verifiserNotionPageId(apiKey: string, pageId: string): Promise<st
     }
 }
 
-/** Request schema for saving Notion settings. */
-// Schemas importert fra common/export
+// Skjemaer importert fra common/export
 
 /**
- * GET /notion - Check if user has Notion API key and get default page ID.
+ * GET /notion — sjekk om bruker har Notion API-nøkkel og hent standard side-ID.
  */
 router.get("/notion", async (req, res) => {
     try {
@@ -122,7 +121,7 @@ router.get("/notion", async (req, res) => {
 });
 
 /**
- * PUT /notion - Save or update Notion settings.
+ * PUT /notion — lagre eller oppdater Notion-innstillinger.
  */
 router.put("/notion", rateLimitToken, async (req, res) => {
     try {
@@ -151,9 +150,9 @@ router.put("/notion", rateLimitToken, async (req, res) => {
             notionDefaultPageId?: 1;
         } = {};
 
-        // Handle API key
+        // Håndter API-nøkkel
         if (clearApiKey) {
-            // Clear existing key (applies atomically below)
+            // Fjern eksisterende nøkkel (appliseres atomisk lenger ned)
             unsetFields.notionApiKey = 1;
             logger.info({ userId }, "Notion API-nøkkel slettet");
             await audit({
@@ -172,7 +171,7 @@ router.put("/notion", rateLimitToken, async (req, res) => {
                 return apiError.badRequest(res, verifikasjonsFeil);
             }
 
-            // Encrypt and save new key
+            // Krypter og lagre ny nøkkel
             const kryptertKey = encrypt(apiKey);
             setFields.notionApiKey = kryptertKey;
             logger.info({ userId }, "Notion API-nøkkel lagret");
@@ -187,7 +186,7 @@ router.put("/notion", rateLimitToken, async (req, res) => {
             });
         }
 
-        // Handle default page ID
+        // Håndter standard side-ID
         if (defaultPageId !== undefined) {
             if (!defaultPageId.trim()) {
                 unsetFields.notionDefaultPageId = 1;
@@ -249,7 +248,7 @@ router.put("/notion", rateLimitToken, async (req, res) => {
 });
 
 /**
- * DELETE /notion - Remove Notion API key.
+ * DELETE /notion — fjern Notion API-nøkkel.
  */
 router.delete("/notion", rateLimitToken, async (req, res) => {
     try {

@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { FlashcardSchema } from "./ki.js";
 
-// ─── Konstanter ───────────────────────────────────────────
+// Konstanter
 
 /** Maks antall økter som lagres per sett (eldste droppes) */
 export const LAGRET_FLASHCARD_MAX_OKTER = 50;
@@ -28,7 +28,7 @@ export const LAGRET_FLASHCARD_SCORE_TERSKLER = {
   MIDDELS: 50,
 } as const;
 
-// ─── Økt (session) ────────────────────────────────────────
+// Økt (session)
 
 /** Én fullført flashcard-øvelsesøkt. */
 export const FlashcardOktSchema = z.object({
@@ -39,7 +39,7 @@ export const FlashcardOktSchema = z.object({
   didNotKnowCount: z.number().int().min(0),
 });
 
-// ─── Lagret flashcard-sett ───────────────────────────────
+// Lagret flashcard-sett
 
 export const LagretFlashcardSettSchema = z.object({
   id: z.string().min(1),
@@ -50,7 +50,7 @@ export const LagretFlashcardSettSchema = z.object({
   sessions: z.array(FlashcardOktSchema),
 });
 
-// ─── API-schemas ─────────────────────────────────────────
+// API-schemas
 
 /** POST /api/flashcards/lagrede — body for å lagre et nytt sett. */
 export const LagreFlashcardSettRequestSchema = z.object({
@@ -76,7 +76,7 @@ export const RegistrerFlashcardOktRequestSchema = z.object({
   didNotKnowCount: z.number().int().min(0),
 });
 
-// ─── Typer ───────────────────────────────────────────────
+// Typer
 
 export type FlashcardOkt = z.infer<typeof FlashcardOktSchema>;
 export type LagretFlashcardSett = z.infer<typeof LagretFlashcardSettSchema>;

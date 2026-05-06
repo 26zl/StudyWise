@@ -25,8 +25,8 @@ type StoredDoc = {
   isFullDocument?: boolean;
 };
 
-// In-memory mock store for ContentEmbedding. Supports deleteMany, insertMany,
-// find, aggregate — akkurat det upsertStoredFullText + readere bruker.
+// In-memory mock-store for ContentEmbedding. Støtter deleteMany, insertMany,
+// find og aggregate — akkurat det upsertStoredFullText + readere bruker.
 const store: StoredDoc[] = [];
 
 vi.mock("../../database/models/ContentEmbedding.js", () => {

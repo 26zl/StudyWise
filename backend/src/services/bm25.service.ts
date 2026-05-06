@@ -18,8 +18,7 @@ import { logger } from "../utils/logger.js";
 import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
 import { extractSearchTerms } from "./semantic-search.service.js";
 
-// ─── BM25-parametre ────────────────────────────────────────
-
+// BM25-parametre
 /** Term-frekvens metning — høyere verdi → TF-boost flater ut saktere */
 const K1 = 1.2;
 
@@ -29,8 +28,7 @@ const B = 0.75;
 /** Maks antall chunks å hente fra MongoDB for scoring — redusert for bedre ytelse */
 const MAX_CANDIDATE_CHUNKS = 800;
 
-// ─── Typer ─────────────────────────────────────────────────
-
+// Typer
 export interface BM25Result {
   /** MongoDB _id som streng */
   docId: string;
@@ -50,8 +48,7 @@ export interface BM25SearchResponse {
   results: BM25Result[];
 }
 
-// ─── Intern hjelpefunksjon ─────────────────────────────────
-
+// Intern hjelpefunksjon
 interface DocCandidate {
   _id: string;
   text: string;
@@ -125,8 +122,7 @@ function beregnBM25Scorer(docs: DocCandidate[], termer: string[]): Map<string, n
   return scorer;
 }
 
-// ─── Eksportert funksjon ───────────────────────────────────
-
+// Eksportert funksjon
 /**
  * Søker i MongoDB ContentEmbedding med BM25-scoring.
  * Bruker MongoDB text index for pre-filtering når tilgjengelig.

@@ -272,7 +272,7 @@ export const AsyncJobStatusSchema = z.discriminatedUnion("status", [
 export type AsyncJobAccepted = z.infer<typeof AsyncJobAcceptedSchema>;
 export type AsyncJobStatus = z.infer<typeof AsyncJobStatusSchema>;
 
-// Subtask schema for task breakdown API.
+// Skjema for deloppgave i oppgaveoppdelings-API-et.
 // SubTaskSchema og TaskBreakdownResponseSchema brukes av både backend og frontend-hooker
 // for å holde generering, lagring og visning i sync.
 export const SubTaskSchema = z.object({
@@ -295,7 +295,7 @@ export const GeneratedSubTaskSchema = z.object({
 });
 export type GeneratedSubTask = z.infer<typeof GeneratedSubTaskSchema>;
 
-// Task breakdown response schema for KI task breakdown API
+// Responsskjema for KI-oppgaveoppdeling
 export const TaskBreakdownResponseSchema = z.object({
   subtasks: z.array(SubTaskSchema),
 });

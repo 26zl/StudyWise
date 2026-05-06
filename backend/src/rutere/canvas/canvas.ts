@@ -147,7 +147,6 @@ function parseNumericParam(
 
 type CanvasUserSynkResult = unknown;
 
-// Oppretter express router
 const router = Router();
 // Bruk middleware på alle ruter
 router.use(noCache);
@@ -710,7 +709,6 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
   const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
   const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API
   const cacheTimestampKey = `${cacheKey}:timestamp`;
-  // Parse og valider query params
   const queryParsed = z.object({
     refresh: z.enum(["true", "false"]).optional(),
     page: z.coerce.number().int().min(1).default(1).catch(1),

@@ -9,8 +9,7 @@ import Link from "next/link";
 import { Home, LayoutDashboard, Gamepad2 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 
-/* ── Snake-spillogikk ─────────────────────────────────────────── */
-
+/* Snake-spillogikk */
 type Direction = "UP" | "DOWN" | "LEFT" | "RIGHT";
 type Point = { x: number; y: number };
 
@@ -138,12 +137,10 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
         s.snake.pop();
       }
 
-      /* Draw */
       const isDark = document.documentElement.classList.contains("dark");
       ctx.fillStyle = isDark ? "#0f172a" : "#f1f5f9";
       ctx.fillRect(0, 0, CANVAS_PX, CANVAS_PX);
 
-      /* Grid lines */
       ctx.strokeStyle = isDark ? "#1e293b" : "#e2e8f0";
       ctx.lineWidth = 0.5;
       for (let i = 0; i <= GRID; i++) {
@@ -157,7 +154,6 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
         ctx.stroke();
       }
 
-      /* Snake */
       for (let i = 0; i < s.snake.length; i++) {
         const p = s.snake[i];
         const isHead = i === 0;
@@ -175,7 +171,6 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
       }
       ctx.globalAlpha = 1;
 
-      /* Food */
       const fx = s.food.x * CELL + CELL / 2;
       const fy = s.food.y * CELL + CELL / 2;
       ctx.fillStyle = isDark ? "#f87171" : "#dc2626";
@@ -213,8 +208,7 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
   );
 }
 
-/* ── 404-side ─────────────────────────────────────────────────── */
-
+/* 404-side */
 export default function NotFound() {
   const { t } = useLanguage();
   const [playing, setPlaying] = useState(false);

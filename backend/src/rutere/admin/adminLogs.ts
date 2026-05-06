@@ -47,7 +47,7 @@ const FrontendLogBatchSchema = z.object({
   entries: z.array(FrontendLogPayloadSchema).min(1).max(50),
 });
 
-// ── GET /logs/recent ────────────────────────────────────────────────────────
+// GET /logs/recent
 router.get("/logs/recent", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -80,7 +80,7 @@ router.get("/logs/recent", async (req, res) => {
   return res.json({ entries, bufferSize });
 });
 
-// ── POST /logs/frontend ─────────────────────────────────────────────────────
+// POST /logs/frontend
 // Tar imot frontend-feil-rapporter fra admin-bruker sin nettleser slik at de
 // dukker opp i samme buffer som backend-logger.
 router.post("/logs/frontend", async (req, res) => {

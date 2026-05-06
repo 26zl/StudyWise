@@ -63,8 +63,7 @@ import { fetchApi } from "@/app/lib/apiClient";
 import { useProgressStats } from "@/app/arbeidsplan/arbeidsplan-api";
 
 
-// ─── Studiestatistikk ───────────────────────────────────────────────
-
+// Studiestatistikk
 interface StudyStatsToday {
   chatSessions: number;
   tasksCompleted: number;
@@ -620,8 +619,7 @@ function QuickActionCard({
   );
 }
 
-// ─── Studieaktivitetskort ───────────────────────────────────────────
-
+// Studieaktivitetskort
 interface ActivityItemProps {
   icon: React.ComponentType<{ size?: number; className?: string }>;
   label: string;

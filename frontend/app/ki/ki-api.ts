@@ -114,7 +114,6 @@ function trimMessages(
 ): Array<{ role: string; content: string }> {
   if (messages.length === 0) return messages;
 
-  // Beregn total lengde
   const totalLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
   if (totalLength <= maxLength) return messages;
 
@@ -511,7 +510,6 @@ async function requestKI<T>(
 
 // Timeout for langvarige KI-kall (ukeplangenerator kan ta 1–2 min)
 
-// API funksjoner
 // POST funksjon for chat (støtter SSE-streaming fra backend)
 async function postKI<T>(
   endpoint: string,
@@ -650,14 +648,12 @@ export async function streamKIChat(
   options.signal?.addEventListener("abort", onAbort, { once: true });
 
   try {
-    // Les HTTP body incrementalt chunk for chunk
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Prosesser alle komplette SSE-linjer i nåværende buffer
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
 
@@ -703,7 +699,6 @@ export function useKIModels() {
   });
 }
 
-// React query hooks
 
 const TASK_BREAKDOWN_QUERY_KEY = ["ki", "task-breakdown"] as const;
 
@@ -922,7 +917,6 @@ async function submitAndPollJob<T>(
   }
   const { jobId } = submitParsed.data;
 
-  // 2) Poll for resultat
   const startTime = Date.now();
 
   while (Date.now() - startTime < JOB_POLL_TIMEOUT_MS) {
@@ -950,7 +944,6 @@ async function submitAndPollJob<T>(
       throw new Error(jobState.error ?? "Genereringen feilet. Prøv igjen.");
     }
 
-    // status === "pending" → fortsett polling
   }
 
   throw new Error("Genereringen tok for lang tid. Prøv igjen.");

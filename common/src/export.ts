@@ -18,7 +18,7 @@ export const EXPORT_TARGETS = [
 export const ExportTargetSchema = z.enum(EXPORT_TARGETS);
 export type ExportTarget = z.infer<typeof ExportTargetSchema>;
 
-// --- Internt dokumentformat (mellomformat) ---
+// Internt dokumentformat (mellomformat)
 
 export const InlineStyleSchema = z.enum(["bold", "italic", "code", "link"]);
 export type InlineStyle = z.infer<typeof InlineStyleSchema>;

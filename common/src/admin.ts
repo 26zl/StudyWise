@@ -315,7 +315,7 @@ export const AdminLangsmithRunDetailSchema = AdminLangsmithRunSchema.extend({
   errorMessage: z.string().optional(),
 });
 
-// ── Vedlikehold (admin) ─────────────────────────────────────────────────────
+// Vedlikehold (admin)
 
 export const AdminMaintenanceFullTextBackfillResponseSchema = z.object({
   suksess: z.literal(true),
@@ -399,8 +399,7 @@ export const AdminMaintenanceDatabaseHealthResponseSchema = z.object({
   totalIndexSizeBytes: CountSchema,
 });
 
-// ── KI-feedback (admin) ─────────────────────────────────────────────────────
-
+// KI-feedback (admin)
 export const AdminFeedbackRatingSchema = z.enum(["up", "down"]);
 
 export const AdminFeedbackQuerySchema = z.object({
@@ -439,7 +438,7 @@ export const AdminFeedbackResponseSchema = z.object({
 export type AdminBrukereQuery = z.infer<typeof AdminBrukereQuerySchema>;
 export type AdminBrukereStatusFilter = z.infer<typeof AdminBrukereStatusFilterSchema>;
 
-// ── Kontakt-innboks (admin) ─────────────────────────────────────────────────
+// Kontakt-innboks (admin)
 
 export const ContactMessageStatusSchema = z.enum(["unread", "read", "replied"]);
 
@@ -500,7 +499,7 @@ export type AdminContactMessageQuery = z.infer<typeof AdminContactMessageQuerySc
 export type AdminContactMessageUpdate = z.infer<typeof AdminContactMessageUpdateSchema>;
 export type ContactMessageStatus = z.infer<typeof ContactMessageStatusSchema>;
 
-// ── Brukerdetalj-modal (admin) ──────────────────────────────────────────────
+// Brukerdetalj-modal (admin)
 // Privacy-prinsipp: ALDRI innhold (chat, dokumenter, Canvas-data, tokens).
 // Kun aggregerte tall + status + tidsstempel + de siste audit-handlingene.
 
@@ -513,7 +512,7 @@ export const AdminBrukerDetaljAuditEntrySchema = z.object({
 });
 
 export const AdminBrukerDetaljSchema = z.object({
-  // ── Identitet ─────────────────────────────────────────────────────────────
+  // Identitet
   id: z.string(),
   email: z.string().trim().pipe(z.email()),
   brukernavn: z.string().optional(),
@@ -523,7 +522,7 @@ export const AdminBrukerDetaljSchema = z.object({
   opprettet: z.coerce.date(),
   oppdatert: z.coerce.date(),
 
-  // ── Auth-status ───────────────────────────────────────────────────────────
+  // Auth-status
   clerkId: z.string().optional(),
   clerkEnv: z.string().optional(),
   clerkProfileSyncedAt: z.coerce.date().optional(),
@@ -531,7 +530,7 @@ export const AdminBrukerDetaljSchema = z.object({
   mfaEnabled: z.boolean(),
   oauthAccountCount: z.number().int().min(0),
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
+  // Lifecycle
   locked: z.boolean(),
   lockedAt: z.coerce.date().optional(),
   lockedReason: z.string().optional(),
@@ -539,12 +538,12 @@ export const AdminBrukerDetaljSchema = z.object({
   deleted: z.boolean(),
   deletedAt: z.coerce.date().optional(),
 
-  // ── Canvas-tilkobling (status, IKKE token eller data) ─────────────────────
+  // Canvas-tilkobling (status, IKKE token eller data)
   canvasConnected: z.boolean(),
   canvasBaseUrl: z.string().optional(),
   canvasUserCached: z.boolean(),
 
-  // ── Aktivitetstellinger (privacy-trygt — null innhold) ────────────────────
+  // Aktivitetstellinger (privacy-trygt — null innhold)
   counts: z.object({
     chatHistory: z.number().int().min(0),
     sharedChats: z.number().int().min(0),
@@ -557,7 +556,7 @@ export const AdminBrukerDetaljSchema = z.object({
     webPushSubscriptions: z.number().int().min(0),
   }),
 
-  // ── Aktiv tid (målt via heartbeats + chat-intervaller, siste 30 dager) ────
+  // Aktiv tid (målt via heartbeats + chat-intervaller, siste 30 dager)
   // Enhetlig merge-algoritme med /study-stats/today, men over 30-dagers vindu.
   // Antall dager der brukeren har minst ett intervall registrert.
   activity: z.object({
@@ -565,18 +564,18 @@ export const AdminBrukerDetaljSchema = z.object({
     activeDaysLast30d: z.number().int().min(0),
   }),
 
-  // ── Sync-konflikter (typer + tidspunkt, ikke detaljer) ────────────────────
+  // Sync-konflikter (typer + tidspunkt, ikke detaljer)
   syncConflictCount: z.number().int().min(0),
   syncConflictTypes: z.array(z.string()).optional(),
 
-  // ── Siste 20 audit-rader (privacy-fri shape) ─────────────────────────────
+  // Siste 20 audit-rader (privacy-fri shape)
   recentAuditEntries: z.array(AdminBrukerDetaljAuditEntrySchema),
   auditFailureCount30d: z.number().int().min(0),
 
-  // ── Notion-eksport-status (kun "har konfigurert", ikke nøkkel) ────────────
+  // Notion-eksport-status (kun "har konfigurert", ikke nøkkel)
   notionConfigured: z.boolean(),
 
-  // ── Cookie/UI-preferanser (kun konfigurasjon, ikke historikk) ─────────────
+  // Cookie/UI-preferanser (kun konfigurasjon, ikke historikk)
   language: z.string().optional(),
   theme: z.string().optional(),
 });
@@ -616,7 +615,7 @@ export const AdminCrawlerStatsResponseSchema = z.object({
 export type AdminCrawlerStaleItem = z.infer<typeof AdminCrawlerStaleItemSchema>;
 export type AdminCrawlerStatsResponse = z.infer<typeof AdminCrawlerStatsResponseSchema>;
 
-// ── Admin-triggerte vedlikeholdsoperasjoner ─────────────────────────────────
+// Admin-triggerte vedlikeholdsoperasjoner
 // Disse jobbene resetter *tilstand* — selve crawlingen/ekstraheringen skjer
 // neste gang hver bruker trigger Canvas-sync. Derfor eksponerer vi både
 // `affectedUsers` (hvor mange brukere som vil få re-prosessering) og
@@ -655,7 +654,7 @@ export type AdminMaintenanceReindexMissingResponse = z.infer<
   typeof AdminMaintenanceReindexMissingResponseSchema
 >;
 
-// ── Retrieval debug (query replay) ──────────────────────────────────────────
+// Retrieval debug (query replay)
 export const AdminRetrievalDebugRequestSchema = z.object({
   query: z.string().trim().min(1).max(2000),
   courseId: z.string().trim().min(1).max(64).optional(),
@@ -695,7 +694,7 @@ export const AdminRetrievalDebugResponseSchema = z.object({
 export type AdminRetrievalDebugRequest = z.infer<typeof AdminRetrievalDebugRequestSchema>;
 export type AdminRetrievalDebugResponse = z.infer<typeof AdminRetrievalDebugResponseSchema>;
 
-// ── Ekstraksjons-audit ───────────────────────────────────────────────────────
+// Ekstraksjons-audit
 /**
  * Merk: Enheten er per-bruker-fil. StudyWise lagrer separate
  * ContentEmbedding-rader per bruker for hver Canvas-fil, så en fil som
@@ -742,7 +741,7 @@ export type AdminExtractionAuditItem = z.infer<typeof AdminExtractionAuditItemSc
 export type AdminExtractionTruncatedItem = z.infer<typeof AdminExtractionTruncatedItemSchema>;
 export type AdminExtractionAuditResponse = z.infer<typeof AdminExtractionAuditResponseSchema>;
 
-// ── KB-helse ────────────────────────────────────────────────────────────────
+// KB-helse
 export const AdminKbHealthItemSchema = z.object({
   id: z.string(),
   navn: z.string(),
@@ -762,7 +761,7 @@ export const AdminKbHealthResponseSchema = z.object({
 export type AdminKbHealthItem = z.infer<typeof AdminKbHealthItemSchema>;
 export type AdminKbHealthResponse = z.infer<typeof AdminKbHealthResponseSchema>;
 
-// ── Feedback-triage ─────────────────────────────────────────────────────────
+// Feedback-triage
 export const AdminFeedbackTriageGroupSchema = z.object({
   intent: z.string(),
   downCount: z.number().int().min(0),
@@ -828,8 +827,7 @@ export type AdminFeedbackUser = z.infer<typeof AdminFeedbackUserSchema>;
 export type AdminFeedbackItem = z.infer<typeof AdminFeedbackItemSchema>;
 export type AdminFeedbackResponse = z.infer<typeof AdminFeedbackResponseSchema>;
 
-// ── BullMQ-køer (admin) ─────────────────────────────────────────────────────
-
+// BullMQ-køer (admin)
 export const QueueJobStatusSchema = z.enum([
   "waiting",
   "active",
@@ -913,8 +911,7 @@ export type AdminQueueJobsResponse = z.infer<typeof AdminQueueJobsResponseSchema
 export type AdminQueueJobsQuery = z.infer<typeof AdminQueueJobsQuerySchema>;
 export type AdminQueueStateResponse = z.infer<typeof AdminQueueStateResponseSchema>;
 
-// ── Redis-admin ─────────────────────────────────────────────────────────────
-
+// Redis-admin
 export const AdminRedisInfoResponseSchema = z.object({
   connected: z.boolean(),
   dbSizes: z.record(z.string(), z.number().int().min(0)),
@@ -972,8 +969,7 @@ export type AdminRedisFlushResponse = z.infer<typeof AdminRedisFlushResponseSche
 export type AdminRedisRelinkStateItem = z.infer<typeof AdminRedisRelinkStateItemSchema>;
 export type AdminRedisRelinkStatesResponse = z.infer<typeof AdminRedisRelinkStatesResponseSchema>;
 
-// ── Admin mutasjons-responser ───────────────────────────────────────────────
-
+// Admin mutasjons-responser
 export const AdminRevokeSessionsResponseSchema = z.object({
   success: z.literal(true),
   revoked: z.number().int().min(0),
@@ -1003,8 +999,7 @@ export const AdminRedisFlushResultSchema = z.object({
 });
 export type AdminRedisFlushResult = z.infer<typeof AdminRedisFlushResultSchema>;
 
-// ── Admin extraction failures ───────────────────────────────────────────────
-
+// Admin extraction failures
 export const AdminExtractionStatusEnum = z.enum([
   "empty",
   "sparse",

@@ -1,12 +1,6 @@
 /**
  * StudyWise – Brukertest Google Forms-bygger
  * Bacheloroppgave 2026
- *
- * Slik bruker du:
- *  1. Lim inn hele denne filen i et nytt Apps Script-prosjekt (script.google.com).
- *  2. Velg funksjonen "byggBrukertestSkjema" og klikk Run.
- *  3. Godkjenn tilganger første gang.
- *  4. Det ferdige skjemaet havner i rotmappen din på Google Drive.
  */
 
 function byggBrukertestSkjema() {

@@ -199,8 +199,7 @@ function visBekreftelsesToast({
   });
 }
 
-// ── Statistikk-fane ─────────────────────────────────────────────────────────
-
+// Statistikk-fane
 type StatKortData = {
   label: string;
   verdi: number;
@@ -998,8 +997,7 @@ function MaintenanceFane() {
   );
 }
 
-// ── Service Status Panel ─────────────────────────────────────────────────────
-
+// Service Status Panel
 type ServiceKey = "mongo" | "redis" | "bullmq" | "anthropic" | "cohere" | "clerk" | "pinecone";
 
 function statusClasses(status: "up" | "down" | "unknown"): string {
@@ -1110,8 +1108,7 @@ function ServiceStatusPanel() {
   );
 }
 
-// ── Global Announcement Panel ────────────────────────────────────────────────
-
+// Global Announcement Panel
 function AnnouncementPanel() {
   const { t } = useLanguage();
   const { data: current } = useAdminAnnouncement();
@@ -1770,8 +1767,7 @@ function StatistikkFane() {
   );
 }
 
-// ── Observability-fane ───────────────────────────────────────────────────────
-
+// Observability-fane
 function ObservabilityFane() {
   const { language, t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<LangsmithStatusFilter>("all");
@@ -2145,8 +2141,7 @@ function ObservabilityFane() {
   );
 }
 
-// ── Brukerdetalj-modal (privacy-respekterende oversikt) ─────────────────────
-
+// Brukerdetalj-modal (privacy-respekterende oversikt)
 function BrukerDetaljModal({
   brukerId,
   onClose,
@@ -2497,8 +2492,7 @@ function KountKort({
   );
 }
 
-// ── Brukere-fane ────────────────────────────────────────────────────────────
-
+// Brukere-fane
 function BrukereFane() {
   const { language, t } = useLanguage();
   const megQuery = useMeg();
@@ -3072,8 +3066,7 @@ function BrukereFane() {
   );
 }
 
-// ── Revisjonslogg-fane ──────────────────────────────────────────────────────
-
+// Revisjonslogg-fane
 function RevisjonsloggFane() {
   const { language, t } = useLanguage();
   const [offset, setOffset] = useState(0);
@@ -3443,8 +3436,7 @@ function RevisjonsloggFane() {
   );
 }
 
-// ── Feedback-fane ──────────────────────────────────────────────────────────
-
+// Feedback-fane
 function FeedbackFane() {
   const { language, t } = useLanguage();
   const [rating, setRating] = useState<AdminFeedbackRating>("down");
@@ -3612,8 +3604,7 @@ function FeedbackFane() {
   );
 }
 
-// ── Køer-fane (BullMQ) ──────────────────────────────────────────────────────
-
+// Køer-fane (BullMQ)
 function KøerFane() {
   const { language, t } = useLanguage();
   const [valgtKø, setValgtKø] = useState<string | null>(null);
@@ -4098,8 +4089,7 @@ function KøCount({
   );
 }
 
-// ── Redis-fane ──────────────────────────────────────────────────────────────
-
+// Redis-fane
 function formatUptime(seconds: number): string {
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -4375,8 +4365,7 @@ function RedisInfoItem({
   );
 }
 
-// ── Logger-fane (live-tail backend + frontend) ──────────────────────────────
-
+// Logger-fane (live-tail backend + frontend)
 type LogEntry = {
   // Redis Stream-ID (`<ms>-<seq>`) — strengt monotont stigende, brukes som cursor
   id: string;
@@ -4551,8 +4540,7 @@ function LoggerFane() {
   );
 }
 
-// ── Innboks-fane (kontaktskjema-meldinger) ──────────────────────────────────
-
+// Innboks-fane (kontaktskjema-meldinger)
 function InnboksFane() {
   const { language, t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<ContactMessageStatus | "all">("all");
@@ -5024,8 +5012,7 @@ function InnboksFane() {
   );
 }
 
-// ── Crawler-vedlikehold ─────────────────────────────────────────────────────
-
+// Crawler-vedlikehold
 function CrawlerFane() {
   const { language, t } = useLanguage();
   const { data, isLoading, error } = useAdminCrawlerStats();
@@ -5218,8 +5205,7 @@ function CrawlerFane() {
   );
 }
 
-// ── Retrieval-debug (query replay) ──────────────────────────────────────────
-
+// Retrieval-debug (query replay)
 function RetrievalDebugFane() {
   const { t } = useLanguage();
   const [query, setQuery] = useState("");
@@ -5422,8 +5408,7 @@ function RetrievalDebugFane() {
   );
 }
 
-// ── Ekstraksjons-audit ──────────────────────────────────────────────────────
-
+// Ekstraksjons-audit
 function ExtractionAuditFane() {
   const { language, t } = useLanguage();
   const { data, isLoading, error } = useAdminExtractionAudit();
@@ -5696,8 +5681,7 @@ function ExtractionAuditFane() {
   );
 }
 
-// ── Ekstraksjons-feil (filer som ikke kunne leses) ──────────────────────────
-
+// Ekstraksjons-feil (filer som ikke kunne leses)
 function ExtractionFailuresFane() {
   const { t } = useLanguage();
   const [statusFilter, setStatusFilter] = useState<
@@ -5917,8 +5901,7 @@ function ExtractionFailuresFane() {
   );
 }
 
-// ── KB-helse ────────────────────────────────────────────────────────────────
-
+// KB-helse
 function KbHealthFane() {
   const { language, t } = useLanguage();
   const { data, isLoading, error } = useAdminKbHealth();
@@ -6031,8 +6014,7 @@ function KbHealthFane() {
   );
 }
 
-// ── Hovedkomponent ──────────────────────────────────────────────────────────
-
+// Hovedkomponent
 const FANER: {
   id: AdminFane;
   ikon: React.ElementType;

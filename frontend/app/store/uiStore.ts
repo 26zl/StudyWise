@@ -1,3 +1,9 @@
+/**
+ * UI-store: global Zustand-tilstand for brukergrensesnittet.
+ * Erstatter prop-drilling av sidebar-status. Canvas-kontekst og varslerstatus
+ * synkroniseres med backend via /api/user/me og /api/user/preferences.
+ */
+
 import { create } from "zustand";
 import {
     type CanvasContextPreferences,
@@ -6,14 +12,6 @@ import {
     normalizeVarslerState,
 } from "common/auth";
 import type { ExplanationLevel } from "common/ki";
-
-/**
- * UI Store - Global tilstand for brukergrensesnitt
- * Bruker Zustand for enkel state management på tvers av komponenter.
- * Dette erstatter behovet for "prop drilling" av sidebar-status.
- * Canvas-kontekst og varslerstatus synkroniseres med backend via /api/user/me
- * og /api/user/preferences.
- */
 
 function toVarslerIdSet(ids: readonly string[]): Set<string> {
     return new Set(ids);

@@ -21,8 +21,7 @@ import {
   type RerankDocument,
 } from "./cohere-rerank.service.js";
 
-// ─── Konfigurasjon ─────────────────────────────────────────
-
+// Konfigurasjon
 /** RRF-konstant (typisk 60) — demper rankeringsforskjeller */
 const RRF_K = 60;
 
@@ -49,8 +48,7 @@ function adaptiveTopK(query: string, baseLimit: number): number {
   return baseLimit;
 }
 
-// ─── Multi-concept splitting ───────────────────────────────
-
+// Multi-concept splitting
 /**
  * Splitter en spørring i distinkte begreper for parallelle søk.
  * Returnerer null hvis spørringen ikke bør splittes (kun ett begrep).
@@ -98,8 +96,7 @@ function splitQueryIntoConcepts(query: string): string[] | null {
   return parts.slice(0, MAX_CONCEPT_SPLITS);
 }
 
-// ─── Typer ─────────────────────────────────────────────────
-
+// Typer
 export interface HybridSearchResult {
   text: string;
   score: number;
@@ -159,8 +156,7 @@ export interface HybridSearchResponse {
   debug?: HybridSearchDebug;
 }
 
-// ─── Intern: RRF-fusjon ────────────────────────────────────
-
+// Intern: RRF-fusjon
 interface FusedDoc {
   /** Unik nøkkel for deduplisering */
   key: string;
@@ -227,8 +223,7 @@ function reciprocalRankFusion(
   return Array.from(docMap.values()).sort((a, b) => b.rrfScore - a.rrfScore);
 }
 
-// ─── Eksportert funksjon ───────────────────────────────────
-
+// Eksportert funksjon
 /**
  * Utfører parallelle søk for en enkelt query.
  * Intern hjelpefunksjon for hybridSearch.
@@ -294,7 +289,7 @@ export async function hybridSearch(
   const perSourceLimit = adaptiveTopK(trimmedQuery, PER_SOURCE_LIMIT_BASE);
   const startTime = Date.now();
 
-  // ── Trinn 0: Sjekk om query bør splittes i flere begreper ──
+  // Trinn 0: Sjekk om query bør splittes i flere begreper
   const concepts = splitQueryIntoConcepts(trimmedQuery);
   const isMultiConcept = concepts !== null && concepts.length > 1;
 
@@ -415,10 +410,10 @@ export async function hybridSearch(
     );
   }
 
-  // ── Trinn 2: RRF-fusjon ──
+  // Trinn 2: RRF-fusjon
   const fused = reciprocalRankFusion(allVectorResults, allBm25Results);
 
-  // ── Trinn 3: Cohere Rerank ──
+  // Trinn 3: Cohere Rerank
   // For multi-concept queries, rerank mot hele originalspørringen for best sammenheng
   const rerankQuery = trimmedQuery;
   let finalResults: HybridSearchResult[];

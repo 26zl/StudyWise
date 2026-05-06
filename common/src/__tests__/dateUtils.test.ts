@@ -11,8 +11,7 @@ import {
   TWO_WEEKS_MS,
 } from "../dateUtils.js";
 
-// ─── getWeekNumber ──────────────────────────────────────────────────────────
-
+// getWeekNumber
 describe("getWeekNumber", () => {
   it("returnerer uke 1 for 1. januar 2024 (mandag)", () => {
     // 1. januar 2024 er en mandag → ISO uke 1
@@ -39,8 +38,7 @@ describe("getWeekNumber", () => {
   });
 });
 
-// ─── getIsoWeekInfo ─────────────────────────────────────────────────────────
-
+// getIsoWeekInfo
 describe("getIsoWeekInfo", () => {
   it("returnerer korrekt ukenummer og ukeår", () => {
     const info = getIsoWeekInfo(new Date(2024, 0, 1));
@@ -62,8 +60,7 @@ describe("getIsoWeekInfo", () => {
   });
 });
 
-// ─── parseTimerStreng ───────────────────────────────────────────────────────
-
+// parseTimerStreng
 describe("parseTimerStreng", () => {
   it("parser '2 timer' til 2", () => {
     expect(parseTimerStreng("2 timer")).toBe(2);
@@ -126,16 +123,14 @@ describe("parseTimerStreng", () => {
   });
 });
 
-// ─── TWO_WEEKS_MS konstant ──────────────────────────────────────────────────
-
+// TWO_WEEKS_MS konstant
 describe("TWO_WEEKS_MS", () => {
   it("er 14 dager i millisekunder", () => {
     expect(TWO_WEEKS_MS).toBe(14 * 24 * 60 * 60 * 1000);
   });
 });
 
-// ─── startOfTodayInOslo ─────────────────────────────────────────────────────
-
+// startOfTodayInOslo
 describe("startOfTodayInOslo", () => {
   it("returnerer 00:00 Europe/Oslo som UTC for sommertid (CEST, +02:00)", () => {
     // 2026-07-15 er sommertid i Oslo (UTC+2). 00:00 Oslo = 22:00 UTC dagen før.

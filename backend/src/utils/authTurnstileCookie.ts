@@ -1,3 +1,8 @@
+/**
+ * Cookie- og nonce-håndtering for auth-Turnstile (sign-up/sign-in-gate).
+ * Bruker Redis (med in-memory fallback) for å hindre gjenbruk av samme nonce.
+ */
+
 import crypto from "crypto";
 import type { Response, CookieOptions } from "express";
 import {

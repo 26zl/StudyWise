@@ -99,29 +99,24 @@ export function selectChunksForExpansion(
     }
   }
 
-  // Sorter begge grupper etter dokumentrekkefølge
   nearbyChunks.sort((a, b) => a.index - b.index);
   otherChunks.sort((a, b) => a.index - b.index);
 
-  // Velg chunks innenfor budsjett
   const selectedChunks: ContentChunk[] = [];
   let totalLength = 0;
 
-  // Først nærliggende chunks
   for (const chunk of nearbyChunks) {
     if (totalLength + chunk.text.length > maxChars) break;
     selectedChunks.push(chunk);
     totalLength += chunk.text.length;
   }
 
-  // Deretter andre chunks hvis det er plass
   for (const chunk of otherChunks) {
     if (totalLength + chunk.text.length > maxChars) break;
     selectedChunks.push(chunk);
     totalLength += chunk.text.length;
   }
 
-  // Sorter endelig utvalg etter dokumentrekkefølge
   selectedChunks.sort((a, b) => a.index - b.index);
 
   return selectedChunks;

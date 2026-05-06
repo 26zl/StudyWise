@@ -1,3 +1,8 @@
+/**
+ * Init av LangSmith-klient og hjelpere for KI-tracing.
+ * Tracing er opt-in via LANGCHAIN_API_KEY — backend starter normalt uten den.
+ */
+
 import { randomUUID } from "crypto";
 import { Client } from "langsmith";
 import type { ChatMessage } from "../rutere/ki/aiClient.js";

@@ -14,8 +14,7 @@ import {
   KI_MAX_MESSAGE_LENGTH_FRONTEND,
 } from "../ki.js";
 
-// ─── KIMessageSchema ────────────────────────────────────────────────────────
-
+// KIMessageSchema
 describe("KIMessageSchema", () => {
   it("godtar gyldig melding med role 'user'", () => {
     const resultat = KIMessageSchema.safeParse({
@@ -62,8 +61,7 @@ describe("KIMessageSchema", () => {
   });
 });
 
-// ─── KIChatRequestSchema ────────────────────────────────────────────────────
-
+// KIChatRequestSchema
 describe("KIChatRequestSchema", () => {
   it("godtar gyldig forespørsel med én melding", () => {
     const resultat = KIChatRequestSchema.safeParse({
@@ -117,8 +115,7 @@ describe("KIChatRequestSchema", () => {
   });
 });
 
-// ─── SubTaskSchema ──────────────────────────────────────────────────────────
-
+// SubTaskSchema
 describe("SubTaskSchema", () => {
   it("godtar gyldig subtask", () => {
     const resultat = SubTaskSchema.safeParse({
@@ -175,8 +172,7 @@ describe("SubTaskSchema", () => {
   });
 });
 
-// ─── TaskBreakdownGenerateRequestSchema ─────────────────────────────────────
-
+// TaskBreakdownGenerateRequestSchema
 describe("TaskBreakdownGenerateRequestSchema", () => {
   it("godtar gyldig forespørsel", () => {
     const resultat = TaskBreakdownGenerateRequestSchema.safeParse({
@@ -211,8 +207,7 @@ describe("TaskBreakdownGenerateRequestSchema", () => {
   });
 });
 
-// ─── KIOppsummeringRequestSchema ────────────────────────────────────────────
-
+// KIOppsummeringRequestSchema
 describe("KIOppsummeringRequestSchema", () => {
   it("godtar gyldig forespørsel med type 'tldr'", () => {
     const resultat = KIOppsummeringRequestSchema.safeParse({
@@ -266,8 +261,7 @@ describe("KIOppsummeringRequestSchema", () => {
   });
 });
 
-// ─── QuizQuestionSchema ─────────────────────────────────────────────────────
-
+// QuizQuestionSchema
 describe("QuizQuestionSchema", () => {
   it("godtar gyldig quiz-spørsmål", () => {
     const resultat = QuizQuestionSchema.safeParse({
@@ -317,8 +311,7 @@ describe("QuizQuestionSchema", () => {
   });
 });
 
-// ─── Konstanter ─────────────────────────────────────────────────────────────
-
+// Konstanter
 describe("KI-konstanter", () => {
   it("KI_MAX_MESSAGE_LENGTH_BACKEND er 50000", () => {
     expect(KI_MAX_MESSAGE_LENGTH_BACKEND).toBe(50000);

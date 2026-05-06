@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * React-hook for browser push: håndterer permission, abonnement og preferanser.
+ * Synkroniserer subscription mot backend og leser/skriver pref via /api/user.
+ */
+
 import { useEffect, useState } from "react";
 import { useOppdaterBrowserPushPreferanser } from "@/app/auth/auth-api";
 import { showToast } from "@/app/components/ui/Toaster";

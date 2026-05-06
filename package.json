@@ -127,7 +127,8 @@
       "protobufjs",
       "sharp",
       "tesseract.js",
-      "unrs-resolver"
+      "unrs-resolver",
+      "workerd"
     ]
   }
 }

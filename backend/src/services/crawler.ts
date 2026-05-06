@@ -40,8 +40,7 @@ import {
   getParseWorkerRuntimeError,
 } from "./documentParserWorker.js";
 
-// ─── Konstanter ────────────────────────────────────────────
-
+// Konstanter
 /** Timeout for HTTP-forespørsler (ms) */
 const FETCH_TIMEOUT_MS = 15000;
 // Maks tillatt størrelse for kontordokumenter (DOCX/PPTX/XLSX m.fl.) hentet via live-URL.
@@ -72,8 +71,7 @@ const MAX_SUBPAGES_PER_ITEM = 20;
 /** Maks antall PDF-er funnet via undersider per item */
 const MAX_SUBPAGE_PDFS_PER_ITEM = 5;
 
-// ─── Eksporterte hjelpefunksjoner for KB-crawl ────────────
-
+// Eksporterte hjelpefunksjoner for KB-crawl
 /**
  * Re-eksporterer findContentLinks for bruk i KB deep crawl.
  * Finner interne lenker (samme domene) som sannsynligvis peker til innholdssider.
@@ -110,8 +108,7 @@ const REDIRECT_STATUS_CODES = new Set([301, 302, 303, 307, 308]);
 /** User-Agent for crawler-forespørsler */
 const CRAWLER_USER_AGENT = "StudyWise/1.0 Crawler";
 
-// ─── Domene-basert crawling-logikk ───────────────────────
-
+// Domene-basert crawling-logikk
 /**
  * URL-mønstre som krever innlogging — hopp over for å unngå 403/login-sider.
  * Matcher på hostname (og evt. sti-prefiks).
@@ -201,8 +198,7 @@ function getDomainSelectors(urlStr: string): string[] | null {
   }
 }
 
-// ─── Typer ─────────────────────────────────────────────────
-
+// Typer
 export interface CrawlResult {
   /** Antall URL-er som ble crawlet */
   crawled: number;
@@ -297,8 +293,7 @@ class BodyTooLargeError extends Error {
   }
 }
 
-// ─── Hjelpefunksjoner ──────────────────────────────────────
-
+// Hjelpefunksjoner
 /**
  * Sjekker om en ekstern URL er trygg for crawling.
  * Forhindrer SSRF mot lokale tjenester og vanlige AWS metadata-endepunkter.
@@ -970,8 +965,7 @@ async function parsePdfBuffer(
   }
 }
 
-// ─── Hovedfunksjoner ───────────────────────────────────────
-
+// Hovedfunksjoner
 /**
  * Crawler alle ExternalUrl-items i et kurs og indekserer innhold til Pinecone.
  *
@@ -1068,8 +1062,7 @@ export async function crawlCourseExternalUrls(
   return result;
 }
 
-// ─── Undersider (shallow crawl) ──────────────────────────
-
+// Undersider (shallow crawl)
 /** URL-stier som aldri inneholder faginnhold */
 const EXCLUDED_PATH_PATTERNS = [
   /\/(?:login|signin|signup|register|auth|logout|account|admin|search|cart|checkout)\b/i,
@@ -1203,8 +1196,7 @@ function findContentLinks(html: string, baseUrl: string): Array<{ url: string; t
   return links;
 }
 
-// ─── GitHub-spesifikk håndtering ─────────────────────────
-
+// GitHub-spesifikk håndtering
 /**
  * Sjekker om en URL er en GitHub-repo-side og konverterer til rå README-innhold.
  * Returnerer null hvis ikke GitHub-repo, ellers README-URL-er å prøve.

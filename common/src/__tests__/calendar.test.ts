@@ -5,8 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { CalendarSourceSchema, CalendarItemSchema } from "../calendar.js";
 
-// ─── CalendarSourceSchema ───────────────────────────────────────────────────
-
+// CalendarSourceSchema
 describe("CalendarSourceSchema", () => {
   it("godtar 'assignment'", () => {
     expect(CalendarSourceSchema.safeParse("assignment").success).toBe(true);
@@ -30,8 +29,7 @@ describe("CalendarSourceSchema", () => {
   });
 });
 
-// ─── CalendarItemSchema ─────────────────────────────────────────────────────
-
+// CalendarItemSchema
 describe("CalendarItemSchema", () => {
   it("godtar gyldig kalender-element", () => {
     const resultat = CalendarItemSchema.safeParse({

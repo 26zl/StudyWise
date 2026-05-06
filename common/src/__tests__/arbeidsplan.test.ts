@@ -10,8 +10,7 @@ import {
   ArbeidsplanProgressSchema,
 } from "../arbeidsplan.js";
 
-// ─── UKEDAGER ───────────────────────────────────────────────────────────────
-
+// UKEDAGER
 describe("UKEDAGER", () => {
   it("inneholder 7 dager", () => {
     expect(UKEDAGER).toHaveLength(7);
@@ -30,8 +29,7 @@ describe("UKEDAGER", () => {
   });
 });
 
-// ─── StudyBlockSchema ───────────────────────────────────────────────────────
-
+// StudyBlockSchema
 describe("StudyBlockSchema", () => {
   it("godtar gyldig studieblokk", () => {
     const resultat = StudyBlockSchema.safeParse({
@@ -174,8 +172,7 @@ describe("StudyBlockSchema", () => {
   });
 });
 
-// ─── CreateArbeidsplanSchema ────────────────────────────────────────────────
-
+// CreateArbeidsplanSchema
 describe("CreateArbeidsplanSchema", () => {
   it("godtar gyldig arbeidsplan", () => {
     const resultat = CreateArbeidsplanSchema.safeParse({
@@ -267,8 +264,7 @@ describe("CreateArbeidsplanSchema", () => {
   });
 });
 
-// ─── ArbeidsplanProgressSchema ──────────────────────────────────────────────
-
+// ArbeidsplanProgressSchema
 describe("ArbeidsplanProgressSchema", () => {
   it("godtar gyldig progresjon", () => {
     const resultat = ArbeidsplanProgressSchema.safeParse({

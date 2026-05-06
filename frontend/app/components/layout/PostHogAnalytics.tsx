@@ -216,8 +216,7 @@ export function PostHogAnalytics(): null {
   return null;
 }
 
-// ── Eksterne helper-funksjoner (kallbare fra hooks, services, catch-blokker) ──
-
+// Eksterne helper-funksjoner (kallbare fra hooks, services, catch-blokker)
 /**
  * Rapporter et produkt-event (f.eks. "chat_message_sent", "quiz_generated").
  *

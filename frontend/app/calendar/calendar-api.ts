@@ -195,9 +195,7 @@ export function mapCalendarItems(items: CalendarItem[]): {
     // Hopp over elementer uten forfallsdato
     const dueDate = new Date(item.due_at);
     if (Number.isNaN(dueDate.getTime())) return;
-    // Parse sluttdato
     const endDate = item.end_at ? new Date(item.end_at) : undefined;
-    // Legg til oppgaven
     assignments.push({
       id: item.id,
       title: item.title,

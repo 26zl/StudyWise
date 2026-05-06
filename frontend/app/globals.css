@@ -290,10 +290,9 @@ body {
     animation: fade-in 0.2s ease-out;
 }
 
-/*
-   Calendar Styles - Mobile First
+/* Kalender-stiler — mobil-først */
 
-/* Calendar page layout - mobile first padding */
+/* Kalender-side: padding (mobil-først) */
 .calendar-page {
     padding: 1rem;
     min-height: fit-content;
@@ -306,7 +305,7 @@ body {
     }
 }
 
-/* Calendar grid layout - single column on mobile, side panel on xl */
+/* Kalender-grid: én kolonne på mobil, sidepanel på xl */
 .calendar-layout {
     display: grid;
     grid-template-columns: 1fr;

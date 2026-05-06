@@ -1,3 +1,8 @@
+/**
+ * Kjerne-i18n: språk-typer, oversettelses-oppslag og enkel interpolering.
+ * Felles for klient og server (LanguageProvider og resolveRequestLanguage).
+ */
+
 import { enMessages } from "./messages/en";
 import { nbMessages } from "./messages/nb";
 import type { Language, MessageKey, PartialMessages, TranslationValues } from "./types";

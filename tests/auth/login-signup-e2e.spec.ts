@@ -5,16 +5,16 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Group B: Login vs Signup Confusion Tests
+ * Gruppe B: Tester for forvirring mellom innlogging og registrering
  *
- * Tests scenarios where users might confuse login and signup flows,
- * and verifies that the system handles these cases correctly.
+ * Tester scenarier der brukere kan blande sammen innloggings- og registreringsflyter,
+ * og verifiserer at systemet håndterer disse riktig.
  *
- * Scenarios:
- * B01: Login after signup - verify same user returned
- * B02: Signup again with same identity - verify blocked
- * B03: Signup redirected to login - verify UX is clear
- * B04: Silent reuse check - verify no frontend illusion
+ * Scenarier:
+ * B01: Innlogging etter registrering — verifiser at samme bruker returneres
+ * B02: Registrere igjen med samme identitet — verifiser at det blokkeres
+ * B03: Registrering omdirigert til innlogging — verifiser tydelig UX
+ * B04: Stille gjenbrukssjekk — verifiser at det ikke er noen frontend-illusjon
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

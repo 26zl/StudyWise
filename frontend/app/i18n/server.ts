@@ -1,3 +1,8 @@
+/**
+ * Server-side språkdeteksjon: leser cookie først, fall-backer til Accept-Language.
+ * Brukes av RSC-render for å sette riktig språk før hydrering.
+ */
+
 import { cookies, headers } from "next/headers";
 import {
   getPreferredLanguageFromAcceptLanguage,

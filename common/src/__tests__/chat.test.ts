@@ -11,8 +11,7 @@ import {
   ChatTitleUpdateSchema,
 } from "../chat.js";
 
-// ─── ChatMessageSchema ──────────────────────────────────────────────────────
-
+// ChatMessageSchema
 describe("ChatMessageSchema", () => {
   it("godtar gyldig brukermelding", () => {
     const resultat = ChatMessageSchema.safeParse({
@@ -67,8 +66,7 @@ describe("ChatMessageSchema", () => {
   });
 });
 
-// ─── ChatSaveSchema ─────────────────────────────────────────────────────────
-
+// ChatSaveSchema
 describe("ChatSaveSchema", () => {
   it("godtar gyldig lagring med meldinger", () => {
     const resultat = ChatSaveSchema.safeParse({
@@ -125,8 +123,7 @@ describe("ChatSaveSchema", () => {
   });
 });
 
-// ─── ChatShareCreateSchema ──────────────────────────────────────────────────
-
+// ChatShareCreateSchema
 describe("ChatShareCreateSchema", () => {
   it("godtar tomt objekt", () => {
     const resultat = ChatShareCreateSchema.safeParse({});
@@ -140,8 +137,7 @@ describe("ChatShareCreateSchema", () => {
   });
 });
 
-// ─── ChatTopicUpdateSchema ──────────────────────────────────────────────────
-
+// ChatTopicUpdateSchema
 describe("ChatTopicUpdateSchema", () => {
   it("godtar gyldig topic", () => {
     const resultat = ChatTopicUpdateSchema.safeParse({ topic: "Canvas" });
@@ -173,8 +169,7 @@ describe("ChatTopicUpdateSchema", () => {
   });
 });
 
-// ─── ChatTitleUpdateSchema ──────────────────────────────────────────────────
-
+// ChatTitleUpdateSchema
 describe("ChatTitleUpdateSchema", () => {
   it("godtar gyldig tittel", () => {
     const resultat = ChatTitleUpdateSchema.safeParse({ title: "Min samtale" });

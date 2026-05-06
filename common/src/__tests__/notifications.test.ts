@@ -13,8 +13,7 @@ import {
   BROWSER_PUSH_SENT_IDS_MAX,
 } from "../notifications.js";
 
-// ─── BrowserPushPreferencesSchema ───────────────────────────────────────────
-
+// BrowserPushPreferencesSchema
 describe("BrowserPushPreferencesSchema", () => {
   it("bruker standardverdier (enabled=false, resten true)", () => {
     const resultat = BrowserPushPreferencesSchema.safeParse({});
@@ -54,8 +53,7 @@ describe("BrowserPushPreferencesSchema", () => {
   });
 });
 
-// ─── WebPushSubscriptionSchema ──────────────────────────────────────────────
-
+// WebPushSubscriptionSchema
 describe("WebPushSubscriptionSchema", () => {
   const gyldigAbonnement = {
     endpoint: "https://fcm.googleapis.com/fcm/send/abc123",
@@ -146,8 +144,7 @@ describe("DeleteWebPushSubscriptionRequestSchema", () => {
   });
 });
 
-// ─── createDefaultBrowserPushPreferences ────────────────────────────────────
-
+// createDefaultBrowserPushPreferences
 describe("createDefaultBrowserPushPreferences", () => {
   it("returnerer korrekte standardverdier", () => {
     const prefs = createDefaultBrowserPushPreferences();
@@ -168,8 +165,7 @@ describe("createDefaultBrowserPushPreferences", () => {
   });
 });
 
-// ─── normalizeBrowserPushPreferences ────────────────────────────────────────
-
+// normalizeBrowserPushPreferences
 describe("normalizeBrowserPushPreferences", () => {
   it("returnerer standardverdier for null", () => {
     const prefs = normalizeBrowserPushPreferences(null);
@@ -200,8 +196,7 @@ describe("normalizeBrowserPushPreferences", () => {
   });
 });
 
-// ─── normalizeBrowserPushSentState ──────────────────────────────────────────
-
+// normalizeBrowserPushSentState
 describe("normalizeBrowserPushSentState", () => {
   it("returnerer tom tilstand for null", () => {
     expect(normalizeBrowserPushSentState(null)).toEqual({ sentIds: [] });

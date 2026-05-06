@@ -64,8 +64,7 @@ import type { IFileExtractionStatus } from "../database/models/FileExtractionSta
 
 import { z } from "zod";
 
-// ─── Typer ─────────────────────────────────────────────────
-
+// Typer
 export type IntentType = "general_chat" | "canvas_light" | "canvas_full";
 
 /** Kildereferanse — duplisert lokalt for å unngå sirkulær avhengighet med common/ki. */
@@ -1487,8 +1486,7 @@ async function finnRelevanteEmner(
   return [];
 }
 
-// ─── MongoDB fallback-hjelpere ───────────────────────────────
-
+// MongoDB fallback-hjelpere
 /** Nøkkelord som indikerer at brukeren spør om kunngjøringer.
  * Bruker regex for å fange vanlige skrivefeil (f.eks. "kungjøring" uten 'n'). */
 const ANNOUNCEMENT_PATTERN = /ku+n{1,2}gj[øo]ring|beskjed|announcements?|nyhet|varsel|endring|notifications?|news|updates?|notice/i;
@@ -2439,7 +2437,7 @@ async function byggKontekstFraHybridSearch(
 
     const coursesPinned = courseIds.length > 0;
 
-    // ── Kursomfattende oversikt: "forklar forelesningene"/"hva har lectures dekket" ──
+    // Kursomfattende oversikt: "forklar forelesningene"/"hva har lectures dekket"
     // Når brukeren spør bredt om alle forelesninger/leksjoner i ett spesifikt kurs,
     // last alle fulle dokumenter for kurset i stedet for kun top-K hybrid-chunks.
     // Dette løser at KI ellers hopper over forelesninger som ikke traff retrieval.
@@ -2577,7 +2575,7 @@ async function byggKontekstFraHybridSearch(
       return null;
     }
 
-    // ── Full dokument-mode ──
+    // Full dokument-mode
     const fullDocumentDecision = shouldUseFullDocumentMode(
       message,
       target,
@@ -3262,7 +3260,7 @@ async function byggKontekstFraHybridSearch(
       );
     }
 
-    // ── Sparsity-sjekk på chunks ──
+    // Sparsity-sjekk på chunks
     // Oppdager PowerPoint-kulepunkter og lignende sparse innhold
     let hasSparseChunks = false;
     for (const result of filteredResults) {
@@ -3280,7 +3278,7 @@ async function byggKontekstFraHybridSearch(
       }
     }
 
-    // ── File-aware context expansion ──
+    // File-aware context expansion
     // Hent full innhold fra matchede filer (ikke bare oppsummering)
     const MAX_EXPANDED_CHARS = 14000; // topFile opptil 11k + sekundære opptil 1.5k
     const MAX_TOPFILE_EXPANDED_CHARS = 11000;
@@ -3455,8 +3453,7 @@ async function byggKontekstFraHybridSearch(
   }
 }
 
-// ─── On-demand filhenting ────────────────────────────────────
-
+// On-demand filhenting
 /** Maks filer å hente on-demand per forespørsel */
 const ON_DEMAND_MAX_FILES = 5;
 /** Maks filstørrelse for on-demand henting (10 MB) */
@@ -3640,8 +3637,7 @@ async function hentModulFilerOnDemand(
   }
 }
 
-// ─── Hovedfunksjoner ───────────────────────────────────────
-
+// Hovedfunksjoner
 /**
  * Finner FileExtractionStatus-rader som matcher target.fileHint/moduleHint
  * innenfor brukerens kurs-scope. Brukes til å injisere et SYSTEM-NOTAT
@@ -3916,7 +3912,7 @@ async function loadCanvasContextCore(
   // Bruk sanitert target for alle videre oppslag
   target = sanitizedTarget;
 
-  // ── Vent på sync hvis brukeren peker på et spesifikt kurs som ikke er indeksert ──
+  // Vent på sync hvis brukeren peker på et spesifikt kurs som ikke er indeksert
   // Dette løser racet der chat svarer "ingen tilgang til lærestoff" fordi sync av det
   // aktuelle kurset enda ikke er ferdig. Vi triggrer sync med priority og venter
   // inntil kurset har minst én chunk i MongoDB, eller timeout.
@@ -4236,7 +4232,7 @@ async function loadCanvasContextCore(
   // Sjekk abort-signal før tyngre søkeoperasjoner
   if (signal?.aborted) return ABORTED_RESULT;
 
-  // ── Hybrid søk når chunkHint finnes (uavhengig av intent) ──
+  // Hybrid søk når chunkHint finnes (uavhengig av intent)
   // chunkHint indikerer at brukeren spør om spesifikt faginnhold, selv om
   // intent er canvas_light (f.eks. "forklar kvantitativ metode").
   // Resultatet huskes i hybridAlreadyAttempted slik at Trinn 0 ikke gjentar identisk søk.
@@ -4291,7 +4287,7 @@ async function loadCanvasContextCore(
     );
   }
 
-  // ── canvas_light ──
+  // canvas_light
   if (intent === "canvas_light") {
     // Faglige spørsmål havner av og til feilaktig i canvas_light uten chunkHint.
     // Prøv hybrid-søk også her når vi har lagret AI-innhold.
@@ -4420,7 +4416,7 @@ async function loadCanvasContextCore(
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
-  // ── canvas_full ──
+  // canvas_full
   // Kunngjøringer/timeplan ble pre-bygget tidligere i funksjonen (se
   // `announcementBlockEarly` / `timetableBlockEarly`) slik at også chunkHint-
   // pathen kan injisere dem. Bruk samme variabler her under canvas_full.

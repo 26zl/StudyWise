@@ -30,8 +30,7 @@ import {
   USERNAME_MAX_LENGTH,
 } from "../auth.js";
 
-// ─── EmailSchema ────────────────────────────────────────────────────────────
-
+// EmailSchema
 describe("EmailSchema", () => {
   it("godtar gyldig e-post", () => {
     const resultat = EmailSchema.safeParse("bruker@example.com");
@@ -77,8 +76,7 @@ describe("EmailSchema", () => {
   });
 });
 
-// ─── StoredCanvasBaseUrlSchema / CanvasBaseUrlSchema ────────────────────────
-
+// StoredCanvasBaseUrlSchema / CanvasBaseUrlSchema
 describe("StoredCanvasBaseUrlSchema", () => {
   it("godtar gyldig https Canvas-URL", () => {
     const resultat = StoredCanvasBaseUrlSchema.safeParse("https://mitt.uib.no");
@@ -157,8 +155,7 @@ describe("CanvasTokenResponseSchema", () => {
   });
 });
 
-// ─── normalizeCanvasBaseUrl ─────────────────────────────────────────────────
-
+// normalizeCanvasBaseUrl
 describe("normalizeCanvasBaseUrl", () => {
   it("trimmer mellomrom", () => {
     expect(normalizeCanvasBaseUrl("  https://mitt.uib.no  ")).toBe("https://mitt.uib.no");
@@ -177,8 +174,7 @@ describe("normalizeCanvasBaseUrl", () => {
   });
 });
 
-// ─── isValidFirstName / isValidLastName ─────────────────────────────────────
-
+// isValidFirstName / isValidLastName
 describe("isValidFirstName", () => {
   it("godtar navn med flere tegn", () => {
     expect(isValidFirstName("Ola")).toBe(true);
@@ -219,8 +215,7 @@ describe("isValidLastName", () => {
   });
 });
 
-// ─── isProfileIncomplete ────────────────────────────────────────────────────
-
+// isProfileIncomplete
 describe("isProfileIncomplete", () => {
   it("returnerer true for null bruker", () => {
     expect(isProfileIncomplete(null)).toBe(true);
@@ -247,8 +242,7 @@ describe("isProfileIncomplete", () => {
   });
 });
 
-// ─── isValidUsernameFormat ──────────────────────────────────────────────────
-
+// isValidUsernameFormat
 describe("isValidUsernameFormat", () => {
   it("godtar gyldig brukernavn med bokstaver og tall", () => {
     expect(isValidUsernameFormat("bruker123")).toBe(true);
@@ -290,8 +284,7 @@ describe("isValidUsernameFormat", () => {
   });
 });
 
-// ─── RoleSchema ─────────────────────────────────────────────────────────────
-
+// RoleSchema
 describe("RoleSchema", () => {
   it("godtar 'user'", () => {
     expect(RoleSchema.safeParse("user").success).toBe(true);
@@ -307,8 +300,7 @@ describe("RoleSchema", () => {
   });
 });
 
-// ─── createDefaultCanvasContextPreferences ──────────────────────────────────
-
+// createDefaultCanvasContextPreferences
 describe("createDefaultCanvasContextPreferences", () => {
   it("returnerer objekt med alle felter satt til true", () => {
     const prefs = createDefaultCanvasContextPreferences();
@@ -327,8 +319,7 @@ describe("createDefaultCanvasContextPreferences", () => {
   });
 });
 
-// ─── normalizeVarslerState ──────────────────────────────────────────────────
-
+// normalizeVarslerState
 describe("normalizeVarslerState", () => {
   it("returnerer tom tilstand for null", () => {
     expect(normalizeVarslerState(null)).toEqual({
@@ -360,8 +351,7 @@ describe("normalizeVarslerState", () => {
   });
 });
 
-// ─── normalizeManuellInnleveringState ───────────────────────────────────────
-
+// normalizeManuellInnleveringState
 describe("normalizeManuellInnleveringState", () => {
   it("returnerer tom tilstand for null", () => {
     expect(normalizeManuellInnleveringState(null)).toEqual({ ferdigeIds: [] });
@@ -379,8 +369,7 @@ describe("normalizeManuellInnleveringState", () => {
   });
 });
 
-// ─── normalizeHiddenCourseIds ───────────────────────────────────────────────
-
+// normalizeHiddenCourseIds
 describe("normalizeHiddenCourseIds", () => {
   it("returnerer tom tilstand for null", () => {
     expect(normalizeHiddenCourseIds(null)).toEqual({ courseIds: [] });
@@ -410,8 +399,7 @@ describe("HiddenCourseIdsSchema", () => {
   });
 });
 
-// ─── PreferencesUpdateSchema ────────────────────────────────────────────────
-
+// PreferencesUpdateSchema
 describe("PreferencesUpdateSchema", () => {
   it("godtar gyldig oppdatering med canvasContextPreferences", () => {
     const resultat = PreferencesUpdateSchema.safeParse({
@@ -441,8 +429,7 @@ describe("PreferencesUpdateSchema", () => {
   });
 });
 
-// ─── ProfileUpdateSchema ────────────────────────────────────────────────────
-
+// ProfileUpdateSchema
 describe("ProfileUpdateSchema", () => {
   it("godtar fornavn med flere tegn", () => {
     const resultat = ProfileUpdateSchema.safeParse({ firstName: "Ola" });
@@ -468,8 +455,7 @@ describe("ProfileUpdateSchema", () => {
   });
 });
 
-// ─── Konstanter ─────────────────────────────────────────────────────────────
-
+// Konstanter
 describe("Konstanter", () => {
   it("AUTH_CHANNEL_NAME er definert", () => {
     expect(AUTH_CHANNEL_NAME).toBe("studywise_auth_sync");

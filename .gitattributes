@@ -24,7 +24,7 @@ pnpm-lock.yaml linguist-generated=true
 # språkstatistikk så Repo-insights ikke teller den som kodebasen vår.
 filer_prosjekt/** linguist-vendored=true
 
-# ─── Git LFS for tunge bachelor-leveranser ─────────────────────────────────
+# Git LFS for tunge bachelor-leveranser
 # Mappa filer_prosjekt/ inneholder PDF-er, bilder og presentasjonsfiler som
 # kan bli store (eksempel: 4 MB+ Google Forms-eksport av brukertest). Vi
 # router slike filtyper i denne mappa gjennom Git LFS slik at .git ikke

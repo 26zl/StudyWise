@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * API-klient for browser push: registrerer/avregistrerer ServiceWorker-abonnement
+ * og synkroniserer det med backend via /api/notifications/web-push.
+ */
+
 import { fetchApi } from "@/app/lib/apiClient";
 import { parseApiJson, createApiError } from "@/app/lib/errorUtils";
 import {

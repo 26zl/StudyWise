@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * React-context for valgt språk (nb/en).
+ * Eksponerer `t()` for oversettelser og persisterer valget i en cookie.
+ */
+
 import {
   createContext,
   useCallback,
@@ -29,7 +34,7 @@ function setLanguageCookie(language: Language) {
     return;
   }
 
-  // SSR language persistence is only needed in deployed secure contexts.
+  // SSR-språkpersistens trengs kun i deployed sikre kontekster.
   if (!window.isSecureContext) {
     return;
   }

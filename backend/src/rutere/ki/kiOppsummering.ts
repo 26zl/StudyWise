@@ -43,7 +43,6 @@ router.post(
   "/oppsummering",
   rateLimitOppsummering,
   async (req: Request, res: Response) => {
-    // Valider request body
     const parsed = KIOppsummeringRequestSchema.safeParse(req.body);
     if (!parsed.success) {
       return sendZodError(
@@ -144,7 +143,6 @@ Respond in the same language as the input text.`;
 
       const responseText = result.text;
 
-      // Parse respons basert på type
       let oppsummering: string | undefined;
       let handlinger: string[] | undefined;
 
@@ -161,7 +159,6 @@ Respond in the same language as the input text.`;
           )
           .filter((l) => l.length > 0);
       } else {
-        // Parse "begge" format
         const oppsummeringMatch = responseText.match(
           /OPPSUMMERING:\s*([\s\S]*?)(?=HANDLINGER:|$)/i,
         );

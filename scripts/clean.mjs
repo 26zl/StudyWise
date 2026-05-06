@@ -1,3 +1,9 @@
+/*
+* Dette skriptet sletter alle node_modules mapper og build mapper i prosjektet, samt pnpm-lock.yaml og pnpm store.
+* En del av package skriptet "clean-all" som er ment å brukes
+*/ 
+
+
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";

@@ -6,13 +6,13 @@
 # Vercel deployer kun frontend (prosjekt: studywise-frontend). Alt som ikke
 # trengs for å bygge Next.js-frontenden kan trygt holdes utenfor.
 
-# ── Bachelor- og prosjekt-artefakter ─────────────────────────────────────
+# Bachelor- og prosjekt-artefakter
 # filer_prosjekt/ er en del av bachelor-leveransen og må stå i git for
 # veileder/sensor, men har ingen plass på prod-frontend.
 filer_prosjekt/
 prompts/
 
-# ── Andre workspace-pakker frontend ikke trenger ─────────────────────────
+# Andre workspace-pakker frontend ikke trenger
 # Leading slash på /scripts/ matcher KUN root-nivå (ikke frontend/scripts/)
 # — sistnevnte inneholder validate-env.ts som prebuild trenger.
 backend/
@@ -22,7 +22,7 @@ grafana/
 /scripts/
 tests/
 
-# ── Lokal utvikling og tooling ───────────────────────────────────────────
+# Lokal utvikling og tooling
 .husky/
 .claude/
 .github/
@@ -31,17 +31,17 @@ tests/
 .idea/
 .windsurf/
 
-# ── Docker (kun lokal dev) ───────────────────────────────────────────────
+# Docker (kun lokal dev)
 Dockerfile
 docker-compose.yml
 docker.env.example
 .dockerignore
 
-# ── Heroku-spesifikke filer ──────────────────────────────────────────────
+# Heroku-spesifikke filer
 Procfile
 .slugignore
 
-# ── Logger og midlertidige filer ─────────────────────────────────────────
+# Logger og midlertidige filer
 *.log
 tmp-*
 backend-*.log

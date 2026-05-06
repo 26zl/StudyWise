@@ -1290,7 +1290,7 @@ router.post("/push-subscriptions/test", rateLimitMe, async (req, res) => {
   }
 });
 
-// POST /logout (Clerk session cleared on frontend; backend clears Canvas runtime cache + token cache)
+// POST /logout (Clerk-sesjon tømmes på frontend; backend tømmer Canvas runtime-cache + token-cache)
 router.post("/logout", rateLimitMe, async (req, res) => {
   const userId = req.user?.id;
   try {
@@ -1388,7 +1388,7 @@ router.delete("/account", requireRecentAuth, rateLimitAccountDeletion, async (re
   }
 });
 
-// ─── Aktivitets-heartbeat ───────────────────────────────────────────
+// Aktivitets-heartbeat
 /**
  * POST /api/user/activity/heartbeat
  * Mottar 60-sekunders heartbeats fra frontend mens brukeren er aktiv i appen.
@@ -1448,8 +1448,7 @@ router.post("/activity/heartbeat", rateLimitActivity, async (req: Request, res: 
   }
 });
 
-// ─── Studiestatistikk ───────────────────────────────────────────────
-
+// Studiestatistikk
 /**
  * GET /api/user/study-stats/today
  * Aggregerer dagens studieaktivitet fra ChatHistory, TaskBreakdown, Arbeidsplan og StudyContext.

@@ -77,7 +77,6 @@ export const createRateLimiter = ({
         useRedisPackage: true,
         rejectIfRedisNotReady: true,
     });
-    // Returnerer middleware-funksjon
     const middleware = async (req: Request, res: Response, next: NextFunction) => {
         const key = keyGenerator(req);
         const useRedis = isRedisReady();

@@ -5,15 +5,15 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Group J: Session / Cross-Tab Consistency Tests
+ * Gruppe J: Tester for sesjon og konsistens på tvers av faner
  *
- * Tests scenarios involving session management and cross-tab behavior:
- * J01: Logout in one tab while another protected tab is open
- * J02: Delete account in one tab while another protected tab is open
- * J03: In-flight request during logout
- * J05: Expired token handling
- * J07: Cross-tab logout broadcast
- * J08: Stale /me cache cleared on logout
+ * Tester scenarier som involverer sesjonshåndtering og oppførsel på tvers av faner:
+ * J01: Logge ut i én fane mens en annen beskyttet fane er åpen
+ * J02: Slette konto i én fane mens en annen beskyttet fane er åpen
+ * J03: Forespørsel underveis ved utlogging
+ * J05: Håndtering av utløpt token
+ * J07: Kringkasting av utlogging mellom faner
+ * J08: Foreldet /me-cache tømmes ved utlogging
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

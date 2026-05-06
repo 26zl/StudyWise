@@ -5,7 +5,7 @@
 
 import { z } from "zod";
 
-// ─── Konstantar ───────────────────────────────────────────
+// Konstanter
 
 /** Maks antal baser per bruker */
 export const KB_MAX_BASES_PER_USER = 20;
@@ -28,7 +28,7 @@ export const KB_MAX_LINK_TITLE_LENGTH = 200;
 /** Maks lengde på URL */
 export const KB_MAX_URL_LENGTH = 2000;
 
-// ─── Crawl-konfigurasjon ──────────────────────────────────
+// Crawl-konfigurasjon
 
 /** Maks crawl-dybde (0 = kun seed-URL) */
 export const KB_CRAWL_MAX_DEPTH = 2;
@@ -45,7 +45,7 @@ export const KB_CRAWL_REQUEST_TIMEOUT_MS = 15_000;
 /** Maks total tid for en crawl-jobb (ms) */
 export const KB_CRAWL_TOTAL_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutter
 
-/** Concurrent requests under crawling */
+/** Samtidige requests under crawling */
 export const KB_CRAWL_CONCURRENCY = 2;
 
 /** Crawl-status-verdier */
@@ -69,7 +69,7 @@ export const KB_ALLOWED_MIME_TYPES = [
   "text/csv",
 ] as const;
 
-// ─── Skjemaer ─────────────────────────────────────────────
+// Skjemaer
 
 /** Opprett ny kunnskapsbase */
 export const KBCreateBaseSchema = z.object({
@@ -158,7 +158,7 @@ export const KBBaseListResponseSchema = z.object({
   baser: z.array(KBBaseSummarySchema),
 });
 
-// ─── Typer ────────────────────────────────────────────────
+// Typer
 
 export type KBCreateBase = z.infer<typeof KBCreateBaseSchema>;
 export type KBUpdateBase = z.infer<typeof KBUpdateBaseSchema>;

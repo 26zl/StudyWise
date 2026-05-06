@@ -69,8 +69,7 @@ import { CanvasStructureModel, type ICanvasModuleItem } from "../database/models
 import { ContentEmbedding } from "../database/models/ContentEmbedding.js";
 import { crawlCourseExternalUrls } from "./crawler.js";
 
-// ─── Konstanter ────────────────────────────────────────────
-
+// Konstanter
 /** TTL for synkroniserte Canvas-data i Redis (2 timer) — MongoDB er nå permanent fallback */
 const SYNC_CACHE_TTL = 7200;
 
@@ -160,8 +159,7 @@ async function checkMemoryPressure(userId: string): Promise<boolean> {
   return rssAfterMB >= MEMORY_PRESSURE_THRESHOLD_MB;
 }
 
-// ─── Typer ─────────────────────────────────────────────────
-
+// Typer
 interface SyncMeta {
   lastSyncAt: string; // ISO timestamp
   courseHashes: Record<string, string>; // courseId → SHA-256 hash
@@ -186,8 +184,7 @@ interface SyncOptions {
   priorityCourseId?: string | number;
 }
 
-// ─── Sync-tracking ─────────────────────────────────────────
-
+// Sync-tracking
 /** Holder styr på pågående synkroniseringer per bruker */
 const activeSyncs = new Map<string, Promise<SyncResult>>();
 /** Starttidspunkt per pågående sync — brukes til å oppdage stale entries */
@@ -231,8 +228,7 @@ export async function waitForSync(userId: string, timeoutMs: number): Promise<Sy
   }
 }
 
-// ─── Hjelpefunksjoner ──────────────────────────────────────
-
+// Hjelpefunksjoner
 /** Genererer SHA-256 hash av en streng */
 function sha256(data: string): string {
   return crypto.createHash("sha256").update(data, "utf8").digest("hex");
@@ -269,8 +265,7 @@ function computeModuleItemHash(item: {
   return sha256(parts.join("|"));
 }
 
-// ─── Hovedfunksjon ─────────────────────────────────────────
-
+// Hovedfunksjon
 /**
  * Synkroniserer Canvas-data for en bruker til Redis.
  *
@@ -528,7 +523,7 @@ async function _doSync(
           const oppgaver = assignmentsResult.value.data;
           const kunngjøringer = announcementsResult.value.data;
 
-          // ── Per-item change detection ──
+          // Per-item change detection
           // Hent lagrede item-hashes fra MongoDB for å sammenligne med innkommende data
           const previousStructure = await CanvasStructureModel.findOne(
             { userId, courseId },
@@ -759,7 +754,7 @@ async function _doSync(
             });
           }
 
-          // ── Filekstraksjon for File-type module items ──
+          // Filekstraksjon for File-type module items
           // Tungt filinnhold lagres i MongoDB, ikke Redis.
           let fileCount = 0;
           let reachedFileLimit = false;
@@ -1044,7 +1039,7 @@ async function _doSync(
             }
           }
 
-          // ── Orphan-filer fra "Files"-fanen ──
+          // Orphan-filer fra "Files"-fanen
           // Mange emner (typisk humanistisk-/teorifag som ORL1000) organiserer hele
           // pensumet under "Files" uten å linke filene fra moduler. Uten denne
           // ekstra runden ville sync hoppe over alle forelesnings-PDFene for slike emner.
@@ -1109,7 +1104,7 @@ async function _doSync(
           // indeksert, slik at keepFileIds er komplett før vi bestemmer hva som skal slettes.
           await deleteCacheKeys([userKey(userId, "emne", courseId, "chunks")]);
 
-          // ── Page-ekstraksjon for Page-type module items ──
+          // Page-ekstraksjon for Page-type module items
           // Canvas Pages (wiki-sider) inneholder ofte pensum som HTML.
           // Henter page body, stripper HTML og lagrer som chunks.
           if (isEmbeddingAvailable() && !reachedFileLimit && !extractionDisabledForRun) {
@@ -1217,7 +1212,7 @@ async function _doSync(
             }
           }
 
-          // ── ExternalUrl crawling og indeksering ──
+          // ExternalUrl crawling og indeksering
           // Kaller den avanserte crawleren som parser HTML med cheerio og oppdager PDF-er
           if (isEmbeddingAvailable() && !reachedFileLimit && !extractionDisabledForRun) {
             // Finn hvilke ExternalUrl-items som trenger crawling.
@@ -1301,7 +1296,7 @@ async function _doSync(
             }
           }
 
-          // ── Oppgavebeskrivelse-indeksering ──
+          // Oppgavebeskrivelse-indeksering
           // Indekserer fulle oppgavebeskrivelser som chunks slik at vektorsøk kan finne dem.
           // Bruker negative fileId-er (-(oppgave-index+1)) for å unngå kollisjon med ekte filer.
           if (isEmbeddingAvailable() && oppgaver.length > 0 && !reachedFileLimit && !extractionDisabledForRun) {
@@ -1361,7 +1356,7 @@ async function _doSync(
             }
           }
 
-          // ── Cleanup av filer som ikke lenger finnes i Canvas ──
+          // Cleanup av filer som ikke lenger finnes i Canvas
           // Kjøres SIST slik at keepFileIds reflekterer alt vi har indeksert i denne synken
           // (modulfiler, orphan-filer, pages, oppgaver). Hopper over hvis enumerasjonen er
           // ufullstendig (orphan-fetch feilet) for å unngå tap av gyldige data.
@@ -1458,7 +1453,7 @@ async function _doSync(
   };
   await setCache(syncMetaKey, JSON.stringify(syncMeta), SYNC_CACHE_TTL);
 
-  // ── Lagre prosessert kursdata til Redis for chat-kontekst ──
+  // Lagre prosessert kursdata til Redis for chat-kontekst
   // Chat-forespørsler leser kun fra denne nøkkelen (ingen Canvas API-kall)
   // TTL 1 time — chat bruker MongoDB som fallback hvis nøkkelen utløper
   const DB_COURSES_TTL = 3600;
@@ -1554,8 +1549,7 @@ async function _doSync(
   };
 }
 
-// ─── Cache-invalidering ────────────────────────────────────
-
+// Cache-invalidering
 export async function invalidateUserKISessionCache(userId: string): Promise<void> {
   try {
     await invalidateCacheByPattern(`ki:session:${userId}:*`);

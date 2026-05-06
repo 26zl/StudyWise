@@ -60,7 +60,7 @@ const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
 const MAX_OFFSET = 10_000;
 
-// ── GET /brukere ────────────────────────────────────────────────────────────
+// GET /brukere
 router.get("/brukere", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -164,7 +164,7 @@ router.get("/brukere", async (req, res) => {
   }
 });
 
-// ── PATCH /brukere/:id/rolle ────────────────────────────────────────────────
+// PATCH /brukere/:id/rolle
 router.patch("/brukere/:id/rolle", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -248,7 +248,7 @@ router.patch("/brukere/:id/rolle", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── DELETE /brukere/:id ─────────────────────────────────────────────────────
+// DELETE /brukere/:id
 router.delete("/brukere/:id", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -312,7 +312,7 @@ router.delete("/brukere/:id", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── DELETE /brukere/:id/relink-guard ────────────────────────────────────────
+// DELETE /brukere/:id/relink-guard
 // Tømmer Redis relink-state for en bruker som har satt seg fast i ping-pong-
 // guarden (typisk etter Clerk dev/prod-bytte). Lar brukeren logge inn på nytt
 // uten å vente på TTL.
@@ -357,7 +357,7 @@ router.delete("/brukere/:id/relink-guard", requireRecentAuth, async (req, res) =
   }
 });
 
-// ── GET /brukere/:id/detalj ────────────────────────────────────────────────
+// GET /brukere/:id/detalj
 // Aggregert brukerdetalj for admin-modal. PRIVACY-PRINSIPP: returnerer ALDRI
 // chat-innhold, tokens, Canvas-data, dokument-innhold eller noe som kan brukes
 // til å lese brukerens private data. Kun metadata, tellinger og status.
@@ -534,7 +534,7 @@ router.get("/brukere/:id/detalj", async (req, res) => {
   }
 });
 
-// ── POST /brukere/:id/revoke-sessions ──────────────────────────────────────
+// POST /brukere/:id/revoke-sessions
 // Tilbakekaller alle aktive Clerk-sesjoner for en bruker. Brukes ved sikkerhetshendelser
 // — bruker tvinges til å logge inn på nytt på alle enheter.
 router.post("/brukere/:id/revoke-sessions", requireRecentAuth, async (req, res) => {
@@ -581,7 +581,7 @@ router.post("/brukere/:id/revoke-sessions", requireRecentAuth, async (req, res) 
   }
 });
 
-// ── POST /brukere/:id/resend-verification ──────────────────────────────────
+// POST /brukere/:id/resend-verification
 // Trigger Clerk til å sende verifiseringsepost på nytt for stuck brukere.
 router.post("/brukere/:id/resend-verification", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
@@ -627,7 +627,7 @@ router.post("/brukere/:id/resend-verification", requireRecentAuth, async (req, r
   }
 });
 
-// ── POST /brukere/:id/reset-mfa ─────────────────────────────────────────────
+// POST /brukere/:id/reset-mfa
 // Deaktiverer alle MFA-faktorer i Clerk for en bruker som har mistet tilgang
 // til sin autentiseringsapp (mistet telefon, feilet app-migrering osv.).
 // Etter dette kan brukeren logge inn uten MFA og sette opp 2FA på nytt.
@@ -715,7 +715,7 @@ router.post("/brukere/:id/reset-mfa", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── POST /brukere/:id/lock ──────────────────────────────────────────────────
+// POST /brukere/:id/lock
 // Låser en bruker ute av StudyWise uten å slette dataene. Brukeren får 403
 // med en tydelig melding ved alle innloggingsforsøk inntil admin låser opp.
 // Krever requireRecentAuth fordi dette er en privilegert handling.
@@ -807,7 +807,7 @@ router.post("/brukere/:id/lock", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── POST /brukere/:id/unlock ────────────────────────────────────────────────
+// POST /brukere/:id/unlock
 router.post("/brukere/:id/unlock", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;

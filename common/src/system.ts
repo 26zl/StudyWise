@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 
-// ─── Vilkår/personvern-versjonering ───────────────────────────────────────────
+// Vilkår/personvern-versjonering
 
 /**
  * Gjeldende versjon av vilkår og personvernerklæring (dato-basert).
@@ -39,7 +39,7 @@ export const AcceptTermsResponseSchema = z.object({
 });
 export type AcceptTermsResponse = z.infer<typeof AcceptTermsResponseSchema>;
 
-// ─── Avhengighetshelse ────────────────────────────────────────────────────────
+// Avhengighetshelses
 
 export const DependencyStatusSchema = z.enum(["up", "down", "unknown"]);
 export type DependencyStatus = z.infer<typeof DependencyStatusSchema>;
@@ -67,7 +67,7 @@ export const DependenciesHealthSchema = z.object({
 });
 export type DependenciesHealth = z.infer<typeof DependenciesHealthSchema>;
 
-// ─── Global systemmelding ─────────────────────────────────────────────────────
+// Global systemmelding
 
 export const SystemAnnouncementSeveritySchema = z.enum(["info", "warning", "critical"]);
 export type SystemAnnouncementSeverity = z.infer<typeof SystemAnnouncementSeveritySchema>;
@@ -157,7 +157,7 @@ export const PublishAnnouncementRequestSchema = z
   });
 export type PublishAnnouncementRequest = z.infer<typeof PublishAnnouncementRequestSchema>;
 
-// ─── Offentlig status-side ────────────────────────────────────────────────────
+// Offentlig status-side
 
 /** Samlet status for hele plattformen eller en enkelt komponent. */
 export const OverallStatusSchema = z.enum(["operational", "degraded", "down"]);

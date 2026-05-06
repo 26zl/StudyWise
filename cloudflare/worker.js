@@ -18,12 +18,10 @@ function timingSafeEqual(a, b) {
 
 export default {
   async fetch(request, env) {
-    // 1. Sjekk at det er et POST-kall fra backend-en vår
     if (request.method !== "POST") {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    // 2. Sjekk passordet (sikkerhet mot spamming) — timing-safe compare
     const secret = request.headers.get("X-Contact-Secret");
     const expected = env.CONTACT_WORKER_SECRET;
     if (!secret || !expected || !timingSafeEqual(secret, expected)) {
@@ -31,10 +29,8 @@ export default {
     }
 
     try {
-      // 3. Hent ut dataen
       const payload = await request.json();
 
-      // 4. Bygg e-post avhengig av type
       let emailPayload;
 
       if (payload.type === "reply") {
@@ -64,7 +60,6 @@ export default {
         }
       }
 
-      // 5. Send e-posten via Resend
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -88,7 +83,6 @@ export default {
         );
       }
 
-      // 6. Returner suksess tilbake til StudyWise-backend
       return new Response(JSON.stringify({ success: true }), {
         status: 200,
         headers: { "Content-Type": "application/json" },

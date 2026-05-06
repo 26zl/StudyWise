@@ -298,7 +298,7 @@ export function SettingsSection({
             const data = NotionSettingsResponseSchema.parse(await res.json());
             setHarNotionApiKey(data.hasApiKey);
             setNotionDefaultPageId(data.defaultPageId ?? "");
-            setNotionApiKey(""); // Clear input after save
+            setNotionApiKey(""); // Tøm input etter lagring
             showToast.success(
                 t("settings.notionIntegration.saveSuccess.title"),
                 t("settings.notionIntegration.saveSuccess.description"),

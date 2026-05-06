@@ -157,8 +157,7 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
     },
   });
 
-  // ─── Lenke-mutasjoner ──────────────────────────────────
-
+  // Lenke-mutasjoner
   const leggTilLenkeMutation = useMutation({
     mutationFn: () => leggTilKBLenke(baseId, nyUrl, nyTittel || undefined),
     onSuccess: () => {
@@ -187,8 +186,7 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
     },
   });
 
-  // ─── Fil-mutasjoner ────────────────────────────────────
-
+  // Fil-mutasjoner
   const lastOppFilMutation = useMutation({
     mutationFn: (file: File) => lastOppKBFil(baseId, file),
     onSuccess: () => {

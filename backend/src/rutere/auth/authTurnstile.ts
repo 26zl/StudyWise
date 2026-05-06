@@ -1,3 +1,8 @@
+/**
+ * Express-rutere for Turnstile-verifisering på auth-flyter (sign-up, sign-in).
+ * Setter en kortlevd cookie ved bestått verifisering så Clerk-flowen kan fortsette.
+ */
+
 import { Router, type Request, type Response, type NextFunction } from "express";
 import {
   AUTH_TURNSTILE_ACTION,

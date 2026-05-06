@@ -227,7 +227,7 @@ app.use(
   }),
 );
 
-// Gzip komprimering — skip SSE responses (text/event-stream) to prevent buffering.
+// Gzip-komprimering — hopp over SSE-responser (text/event-stream) for å unngå buffering.
 // Content-Type kan inneholde charset-suffix ("text/event-stream; charset=utf-8"),
 // så vi matcher på prefiks i stedet for streng likhet. Ellers ble brotli-buffer
 // holdt tilbake på keepalives og klienten timeouter (Heroku H15).
@@ -311,7 +311,7 @@ app.use(
 // CSRF: krev x-studywise-csrf + gyldig origin/referer for POST/PUT/PATCH/DELETE (se middleware/csrf.ts).
 app.use(beskytteMotCsrf);
 
-// Clerk-only auth: protected routes require Authorization: Bearer <clerk_session_token>
+// Kun Clerk-auth: beskyttede ruter krever Authorization: Bearer <clerk_session_token>
 const offentligSti = new Set(["/health", "/ready"]);
 
 // Offentlige API-ruter (monteres FØR auth-middleware)
@@ -430,7 +430,6 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   apiError.serverError(res);
 });
 
-// Start server og kobler til database med Mongoose
 const port = process.env.PORT!; // Allerede validert i validateEnv
 
 connectToDatabase()

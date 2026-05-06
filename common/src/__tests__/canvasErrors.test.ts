@@ -13,8 +13,7 @@ import {
 } from "../canvasErrors.js";
 import type { CanvasErrorCode } from "../canvasErrors.js";
 
-// ─── classifyHttpStatus ─────────────────────────────────────────────────────
-
+// classifyHttpStatus
 describe("classifyHttpStatus", () => {
   it("klassifiserer 401 som token_invalid", () => {
     expect(classifyHttpStatus(401)).toBe("token_invalid");
@@ -73,8 +72,7 @@ describe("classifyHttpStatus", () => {
   });
 });
 
-// ─── requiresReauth ─────────────────────────────────────────────────────────
-
+// requiresReauth
 describe("requiresReauth", () => {
   it("returnerer true for token_invalid", () => {
     expect(requiresReauth("token_invalid")).toBe(true);
@@ -101,8 +99,7 @@ describe("requiresReauth", () => {
   });
 });
 
-// ─── isRecoverableError ─────────────────────────────────────────────────────
-
+// isRecoverableError
 describe("isRecoverableError", () => {
   it("returnerer true for rate_limited", () => {
     expect(isRecoverableError("rate_limited")).toBe(true);
@@ -137,8 +134,7 @@ describe("isRecoverableError", () => {
   });
 });
 
-// ─── getErrorMessage ────────────────────────────────────────────────────────
-
+// getErrorMessage
 describe("getErrorMessage", () => {
   const koder: CanvasErrorCode[] = [
     "token_invalid",
@@ -169,8 +165,7 @@ describe("getErrorMessage", () => {
   });
 });
 
-// ─── getHttpStatusForCode ───────────────────────────────────────────────────
-
+// getHttpStatusForCode
 describe("getHttpStatusForCode", () => {
   it("returnerer 401 for token_invalid", () => {
     expect(getHttpStatusForCode("token_invalid")).toBe(401);
@@ -217,8 +212,7 @@ describe("getHttpStatusForCode", () => {
   });
 });
 
-// ─── CanvasErrorCodeSchema ──────────────────────────────────────────────────
-
+// CanvasErrorCodeSchema
 describe("CanvasErrorCodeSchema", () => {
   it("godtar alle gyldige koder", () => {
     const gyldige = [

@@ -64,7 +64,7 @@ RUN --mount=type=secret,id=CLERK_SECRET_KEY \
     AUTH_TURNSTILE_GATE_SECRET="$(cat /run/secrets/AUTH_TURNSTILE_GATE_SECRET 2>/dev/null || true)" \
     pnpm --filter frontend build
 
-# --- Backend runtime ---
+# Backend runtime
 FROM node:24-alpine AS backend
 
 RUN npm install -g pnpm@10.33.0
@@ -88,7 +88,7 @@ EXPOSE 4000
 
 CMD ["node", "backend/dist/index.js"]
 
-# --- Frontend runtime ---
+# Frontend runtime
 FROM node:24-alpine AS frontend
 
 WORKDIR /app

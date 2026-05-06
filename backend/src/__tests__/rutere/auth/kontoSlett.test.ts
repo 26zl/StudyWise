@@ -191,7 +191,7 @@ describe("deleteAccountData", () => {
     vi.clearAllMocks();
   });
 
-  // ── Idempotency ───────────────────────────────────────────────────────────
+  // Idempotency
   describe("idempotency", () => {
     it("returnerer tidlig når bruker ikke finnes og ingen tombstone", async () => {
       (User.findById as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
@@ -224,7 +224,7 @@ describe("deleteAccountData", () => {
     });
   });
 
-  // ── Happy path: full sletting ─────────────────────────────────────────────
+  // Happy path: full sletting
   describe("happy path", () => {
     it("kaller deleteMany på ALLE forventede collections", async () => {
       (User.findById as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
@@ -300,7 +300,7 @@ describe("deleteAccountData", () => {
     });
   });
 
-  // ── skipClerkDeletion (brukes av Clerk webhook for å unngå loop) ────────
+  // skipClerkDeletion (brukes av Clerk webhook for å unngå loop)
   describe("skipClerkDeletion option", () => {
     it("hopper over Clerk-kallet når skipClerkDeletion=true", async () => {
       (User.findById as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
@@ -316,7 +316,7 @@ describe("deleteAccountData", () => {
     });
   });
 
-  // ── Failure paths ─────────────────────────────────────────────────────────
+  // Failure paths
   describe("failure paths trigger BullMQ retry queues", () => {
     it("enqueuer Clerk-retry hvis deleteClerkUserById feiler", async () => {
       (User.findById as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({

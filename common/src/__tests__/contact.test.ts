@@ -12,8 +12,7 @@ import {
   isValidReportedErrorId,
 } from "../contact.js";
 
-// ─── Konstanter ─────────────────────────────────────────────────────────────
-
+// Konstanter
 describe("Kontakt-konstanter", () => {
   it("KONTAKT_MAX_ATTACHMENTS er 3", () => {
     expect(KONTAKT_MAX_ATTACHMENTS).toBe(3);
@@ -29,8 +28,7 @@ describe("Kontakt-konstanter", () => {
   });
 });
 
-// ─── KontaktRequestSchema ───────────────────────────────────────────────────
-
+// KontaktRequestSchema
 describe("KontaktRequestSchema", () => {
   const gyldig = {
     navn: "Ola Nordmann",
@@ -146,7 +144,7 @@ describe("KontaktRequestSchema", () => {
     ).toBe(false);
   });
 
-  // ─── reportedErrorId (feil-ID for brukerrapport) ──────────────────────────
+  // reportedErrorId (feil-ID for brukerrapport)
   describe("reportedErrorId", () => {
     it("delt helper godtar gyldig errorId", () => {
       expect(isValidReportedErrorId("req.abc-123:v2")).toBe(true);
@@ -208,8 +206,7 @@ describe("KontaktRequestSchema", () => {
   });
 });
 
-// ─── KontaktAttachmentSchema ────────────────────────────────────────────────
-
+// KontaktAttachmentSchema
 describe("KontaktAttachmentSchema", () => {
   it("godtar gyldig vedlegg", () => {
     const resultat = KontaktAttachmentSchema.safeParse({

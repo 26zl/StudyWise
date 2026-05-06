@@ -233,7 +233,7 @@ describe("resolveAuthentication", () => {
     }
   });
 
-  // ── Defense-in-depth: bruker som ble låst ETTER innlogging ──
+  // Defense-in-depth: bruker som ble låst ETTER innlogging
   it("returnerer user_locked når innlogget bruker har lockedAt satt (defense-in-depth)", async () => {
     const fakeLockedUser = {
       _id: "507f1f77bcf86cd799439011",
@@ -252,7 +252,7 @@ describe("resolveAuthentication", () => {
     }
   });
 
-  // ── Sikkerhet: clerkUserId fra body/query skal ALDRI brukes ──
+  // Sikkerhet: clerkUserId fra body/query skal ALDRI brukes
   it("ignorerer userId fra query/body — kun token avgjør identitet", async () => {
     mockedFindOrCreate.mockResolvedValue({
       _id: "real-user-id",

@@ -2034,7 +2034,6 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                       </div>
                     )}
 
-                    {/* Step 2: Content (Modules / Files) */}
                     <AnimatePresence>
                       {selectedCourseId && (
                         <motion.div
@@ -2127,7 +2126,6 @@ export function QuizView({ harCanvasToken = false }: QuizViewProps) {
                       )}
                     </AnimatePresence>
 
-                    {/* Step 3: Question count */}
                     <AnimatePresence>
                       {(selectedModules.length > 0 || selectedFiles.length > 0) && (
                         <motion.div

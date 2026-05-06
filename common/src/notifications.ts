@@ -1,3 +1,8 @@
+/*
+* Zod typer og skjemaer for Varsler og push-notifikasjoner
+*/
+
+
 import { z } from "zod";
 
 export const BROWSER_PUSH_SENT_IDS_MAX = 500;

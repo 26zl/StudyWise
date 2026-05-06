@@ -5,15 +5,15 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Group K: Late-Conflict / Frontend-Illusion Tests
+ * Gruppe K: Tester for sen konflikt og frontend-illusjon
  *
- * Tests scenarios where conflicts appear after initial success:
- * K01: Clerk signup succeeds but /me returns 409
- * K02: Clerk signup succeeds but /me returns 403
- * K03: Dashboard access with invalid backend identity
- * K04: Username conflict resolver appears after signup
- * K05: AuthConflictGuard signs out user
- * K06: Same account reused perceived as new
+ * Tester scenarier der konflikter dukker opp etter initiell suksess:
+ * K01: Clerk-registrering lykkes, men /me returnerer 409
+ * K02: Clerk-registrering lykkes, men /me returnerer 403
+ * K03: Dashboard-tilgang med ugyldig backend-identitet
+ * K04: Brukernavnskonflikt-resolver dukker opp etter registrering
+ * K05: AuthConflictGuard logger ut brukeren
+ * K06: Samme konto gjenbrukt oppfattes som ny
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

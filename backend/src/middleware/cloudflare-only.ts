@@ -72,9 +72,9 @@ function ipv4ToBigInt(ip: string): bigint | null {
 }
 
 function ipv6ToBigInt(ip: string): bigint | null {
-  // Strip zone-id ("%eth0") if present
+  // Fjern zone-id ("%eth0") hvis tilstede
   const stripped = ip.split("%")[0] ?? ip;
-  // Expand "::" to full form
+  // Utvid "::" til full form
   const sides = stripped.split("::");
   if (sides.length > 2) return null;
   const head = sides[0] ? sides[0].split(":") : [];

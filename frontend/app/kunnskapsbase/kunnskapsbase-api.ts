@@ -18,15 +18,13 @@ import {
   type KBFile,
 } from "common/kunnskapsbase";
 
-// ─── Query Keys ──────────────────────────────────────────
-
+// Query Keys
 export const KB_QUERY_KEYS = {
   bases: ["kb", "bases"] as const,
   base: (id: string) => ["kb", "base", id] as const,
 };
 
-// ─── Baser ───────────────────────────────────────────────
-
+// Baser
 /** Hent alle kunnskapsbaser for innlogget bruker */
 export async function hentAlleKBBaser(): Promise<KBBaseListResponse> {
   const { data } = await fetchAuthedJson("/api/kb");
@@ -69,8 +67,7 @@ export async function slettKBBase(id: string): Promise<void> {
   });
 }
 
-// ─── Lenker ──────────────────────────────────────────────
-
+// Lenker
 /** Legg til lenke i base */
 export async function leggTilKBLenke(
   baseId: string,
@@ -95,8 +92,7 @@ export async function slettKBLenke(baseId: string, linkId: string): Promise<void
   });
 }
 
-// ─── Filer ───────────────────────────────────────────────
-
+// Filer
 /** Last opp fil til base */
 export async function lastOppKBFil(baseId: string, file: File): Promise<KBFile> {
   const formData = new FormData();

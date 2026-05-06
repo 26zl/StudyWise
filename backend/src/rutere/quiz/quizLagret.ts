@@ -33,7 +33,7 @@ function serialiser(doc: LagretQuizDocument) {
   });
 }
 
-// ─── POST /api/quiz/lagrede — lagre en ny quiz ──────────────
+// POST /api/quiz/lagrede — lagre en ny quiz
 router.post("/", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -63,7 +63,7 @@ router.post("/", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── GET /api/quiz/lagrede — list ────────────────────────────
+// GET /api/quiz/lagrede — list
 router.get("/", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -82,7 +82,7 @@ router.get("/", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── GET /api/quiz/lagrede/:id — enkelt quiz (for replay + stats) ──
+// GET /api/quiz/lagrede/:id — enkelt quiz (for replay + stats)
 router.get("/:id", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -111,7 +111,7 @@ router.get("/:id", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── DELETE /api/quiz/lagrede/:id ────────────────────────────
+// DELETE /api/quiz/lagrede/:id
 router.delete("/:id", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
@@ -137,7 +137,7 @@ router.delete("/:id", rateLimitKi, async (req: Request, res: Response) => {
   }
 });
 
-// ─── PATCH /api/quiz/lagrede/:id/forsok — registrer et forsøk ──
+// PATCH /api/quiz/lagrede/:id/forsok — registrer et forsøk
 router.patch("/:id/forsok", rateLimitKi, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
   if (!userId) return;

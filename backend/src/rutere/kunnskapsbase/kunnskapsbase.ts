@@ -92,8 +92,7 @@ function runKBIngestionJob(userId: string, job: () => Promise<void>): void {
     });
 }
 
-// ─── Multer-oppsett for filopplasting ────────────────────
-
+// Multer-oppsett for filopplasting
 const INVALID_KB_FILE_TYPE_ERROR = "INVALID_KB_FILE_TYPE";
 
 const upload = multer({
@@ -111,8 +110,7 @@ const upload = multer({
   },
 });
 
-// ─── Hjelpefunksjoner ────────────────────────────────────
-
+// Hjelpefunksjoner
 /** Hent enkelt strengverdi fra Express-param (Express 5: kan være string | string[]) */
 function paramString(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
@@ -133,8 +131,7 @@ async function hentBaseForBruker(baseId: string, userId: string, res: Response) 
   return base;
 }
 
-// ─── Base-ruter ──────────────────────────────────────────
-
+// Base-ruter
 /** GET /api/kb — Liste alle baser */
 router.get("/", rateLimitKB, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
@@ -332,8 +329,7 @@ router.delete("/:id", rateLimitKBWrite, async (req: Request, res: Response) => {
   }
 });
 
-// ─── Lenke-ruter ─────────────────────────────────────────
-
+// Lenke-ruter
 /** POST /api/kb/:id/links — Legg til lenke */
 router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) => {
   const userId = requireUserId(req, res);
@@ -482,8 +478,7 @@ router.delete("/:id/links/:linkId", rateLimitKBWrite, async (req: Request, res: 
   }
 });
 
-// ─── Fil-ruter ───────────────────────────────────────────
-
+// Fil-ruter
 /** POST /api/kb/:id/files — Last opp fil */
 router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
   upload.single("file")(req, res, async (multerErr) => {
@@ -671,8 +666,7 @@ router.delete("/:id/files/:fileId", rateLimitKBWrite, async (req: Request, res: 
   }
 });
 
-// ─── Bakgrunnsindeksering ────────────────────────────────
-
+// Bakgrunnsindeksering
 /**
  * Crawler og indekserer en lenke asynkront.
  * Bruker enkel HTTP-henting med Readability for innholdsekstraksjon.

@@ -64,8 +64,7 @@ async function registrerForsok(
   return data.quiz;
 }
 
-// ─── React Query hooks ───────────────────────────────────
-
+// React Query hooks
 export function useLagredeQuizer() {
   return useQuery({
     queryKey: QUIZ_LAGRET_QUERY_KEY,

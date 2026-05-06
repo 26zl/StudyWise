@@ -5,14 +5,14 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
- * Group H: Email Update/Conflict Tests
+ * Gruppe H: Tester for e-postoppdatering og konflikter
  *
- * Tests scenarios where email updates cause conflicts:
- * H01: Update email to existing user's email
- * H02: Email update flow via Clerk dashboard
- * H03: Backend sync after email change
- * H04: Frontend state update after email change
- * H05: Concurrent email update race condition
+ * Tester scenarier der e-postendringer fører til konflikter:
+ * H01: Endre e-post til en annen brukers e-post
+ * H02: E-postoppdatering via Clerk-dashbordet
+ * H03: Backend-synk etter e-postendring
+ * H04: Frontend-tilstand oppdateres etter e-postendring
+ * H05: Race-condition ved samtidige e-postoppdateringer
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

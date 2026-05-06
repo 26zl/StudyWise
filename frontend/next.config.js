@@ -1,3 +1,10 @@
+/*
+* Next.js konfigurasjon for frontend.
+* Her definerer vi bl.a. API-rewrites (proxy-regler) og sikkerhetshoder (CSP, CORS, etc).
+* Samt initialiserer datadog og posthog RUM env-variabler for inlining i klienten. 
+*/
+
+
 import path from "path";
 import { fileURLToPath } from "url";
 

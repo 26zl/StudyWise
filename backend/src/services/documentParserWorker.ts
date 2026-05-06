@@ -1,3 +1,9 @@
+/**
+ * Worker-tråd-wrapper for dokumentparsing.
+ * Spawner en Node-worker per parse-jobb slik at tunge PDF/Office-libs
+ * ikke blokkerer event-loopen, med timeout og crash-håndtering.
+ */
+
 import { Worker } from "node:worker_threads";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -70,8 +76,8 @@ function createDocumentParserWorker(): Worker {
   const workerUrl = existsSync(fileURLToPath(workerJsUrl)) ? workerJsUrl : devLauncherUrl;
   void workerTsUrl; // beholdt for dokumentasjonsverdi; launcheren importerer .ts-filen
 
-  // Forward only loader-related flags to worker threads.
-  // `tsx -e` adds eval flags in process.execArgv that should not be inherited.
+  // Videresend bare loader-relaterte flagg til worker-tråden.
+  // `tsx -e` legger til eval-flagg i process.execArgv som ikke skal arves.
   const workerExecArgv: string[] = [];
   for (let i = 0; i < process.execArgv.length; i += 1) {
     const arg = process.execArgv[i];

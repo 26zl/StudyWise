@@ -2006,13 +2006,11 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   logger.info("Mottok chat-forespørsel");
   const chatStartedAt = Date.now();
 
-  // Sjekk autentisering
   if (!req.user?.id) {
     logger.warn("Chat-forespørsel uten autentisering");
     return apiError.unauthorized(res);
   }
 
-  // Valider request body
   const parseResult = KIChatRequestSchema.safeParse(req.body);
   if (!parseResult.success) {
     logger.warn(
@@ -2695,7 +2693,7 @@ Never guess or invent a name from email, username, or other profile fields.
 
       const isLikelyFollowUp = isLikelyFollowUpQuestion(lastUserMsg);
 
-      // ─── Session-locked courseHint ───
+      // Session-locked courseHint
       // Bruker Redis for å låse courseHint til første gyldige ekstraksjon i sesjonen.
       // Oppdateres KUN ved eksplisitt kursbytte-signal fra brukeren.
       // Alle courseHint-verdier saniteres før lagring/sammenligning for konsistent matching.
@@ -4376,7 +4374,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       return;
     }
 
-    // Headers not sent yet — use normal JSON error response
+    // Headers ikke sendt ennå — bruk vanlig JSON-feilrespons
     handleAIError(res, error, KIChatResponseSchema, {
       timeoutLabel: "CHAT_TIMEOUT",
       timeoutMessage:

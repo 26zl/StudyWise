@@ -1,3 +1,8 @@
+/**
+ * Web push-tjeneste: poller Canvas for nye kunngjøringer og kommende frister
+ * og legger varsler i køen for utsending til abonnerte enheter.
+ */
+
 import mongoose from "mongoose";
 import pLimit from "p-limit";
 import { isCanvasAssignmentSubmitted } from "common/canvas";

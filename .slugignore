@@ -9,24 +9,24 @@
 # som one-off via `heroku run`. Bachelor-spesifikke scripts ekskluderes
 # eksplisitt under.
 
-# ── Bachelor- og prosjekt-artefakter ─────────────────────────────────────
+# Bachelor- og prosjekt-artefakter
 # filer_prosjekt/ er en del av bachelor-leveransen og må stå i git for
 # veileder/sensor, men har ingen plass på prod-backend.
 filer_prosjekt/
 prompts/
 
-# ── Bachelor-spesifikke scripts (resten av scripts/ holdes inne) ─────────
+# Bachelor-spesifikke scripts (resten av scripts/ holdes inne)
 scripts/create-kanban-issues.sh
 scripts/export-kanban-issues.sh
 
-# ── Workspaces backend ikke trenger ──────────────────────────────────────
+# Workspaces backend ikke trenger
 frontend/
 docs/
 cloudflare/
 grafana/
 tests/
 
-# ── Lokal utvikling og tooling ───────────────────────────────────────────
+# Lokal utvikling og tooling
 .claude/
 .github/
 .husky/
@@ -37,17 +37,17 @@ tests/
 .prettierrc.json
 .prettierignore
 
-# ── Docker (kun lokal dev) ───────────────────────────────────────────────
+# Docker (kun lokal dev)
 Dockerfile
 docker-compose.yml
 docker.env.example
 .dockerignore
 
-# ── Vercel-spesifikke filer ──────────────────────────────────────────────
+# Vercel-spesifikke filer
 .vercel/
 .vercelignore
 
-# ── Logger og midlertidige filer ─────────────────────────────────────────
+# Logger og midlertidige filer
 *.log
 tmp-*
 backend-*.log

@@ -61,7 +61,7 @@ function makeFakePptxBuffer(): Buffer {
 }
 
 describe("validateFileMagicBytes", () => {
-  // ── Happy path: matching magic bytes ──────────────────────────────────────
+  // Happy path: matching magic bytes
   describe("happy path — matching MIME and magic bytes", () => {
     it("aksepterer PDF med riktig signatur", () => {
       expect(validateFileMagicBytes(pad(PDF_HEADER), "application/pdf")).toBeNull();
@@ -131,7 +131,7 @@ describe("validateFileMagicBytes", () => {
     });
   });
 
-  // ── MIME-spoofing / mismatch ──────────────────────────────────────────────
+  // MIME-spoofing / mismatch
   describe("MIME spoofing detection", () => {
     it("avviser PDF deklarert som image/png", () => {
       const result = validateFileMagicBytes(pad(PDF_HEADER), "image/png");
@@ -163,7 +163,7 @@ describe("validateFileMagicBytes", () => {
     });
   });
 
-  // ── Polyglot detection ────────────────────────────────────────────────────
+  // Polyglot detection
   describe("polyglot file detection", () => {
     it("avviser PDF deklarert som JPEG (klassisk polyglot)", () => {
       // En polyglot-fil starter typisk med PDF-header for å bli kjørt som PDF
@@ -197,7 +197,7 @@ describe("validateFileMagicBytes", () => {
     });
   });
 
-  // ── text/* validering ─────────────────────────────────────────────────────
+  // text/* validering
   describe("text/* MIME types", () => {
     it("aksepterer ren tekst som text/plain", () => {
       const buf = Buffer.from("Dette er en helt vanlig tekstfil med flere tegn.");
@@ -231,7 +231,7 @@ describe("validateFileMagicBytes", () => {
     });
   });
 
-  // ── Edge cases ────────────────────────────────────────────────────────────
+  // Edge cases
   describe("edge cases", () => {
     it("returnerer feil ved buffer kortere enn 12 bytes for binær type", () => {
       const buf = Buffer.from([0x25, 0x50]); // "%P" — for kort
@@ -288,7 +288,7 @@ describe("validateFileMagicBytes", () => {
   });
 });
 
-// ── sanitizeText: PII-maskering via parseDocument ───────────────────────────
+// sanitizeText: PII-maskering via parseDocument
 // sanitizeText er intern, men kjøres som del av parseDocument for tekst-innhold.
 // Vi tester gjennom parseDocument med en text/plain-buffer.
 describe("sanitizeText via parseDocument (PII-maskering)", () => {

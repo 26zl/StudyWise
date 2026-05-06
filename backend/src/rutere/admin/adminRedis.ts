@@ -102,7 +102,7 @@ async function countByPrefix(prefix: string): Promise<number> {
   return count;
 }
 
-// ── GET /redis/info ─────────────────────────────────────────────────────────
+// GET /redis/info
 router.get("/redis/info", async (req, res) => {
   if (!isRedisReady()) {
     return res.json(
@@ -199,7 +199,7 @@ router.get("/redis/info", async (req, res) => {
   }
 });
 
-// ── GET /redis/prefixes ─────────────────────────────────────────────────────
+// GET /redis/prefixes
 router.get("/redis/prefixes", async (req, res) => {
   if (!isRedisReady()) {
     return res.json(AdminRedisPrefixesResponseSchema.parse({ prefixes: [] }));
@@ -234,7 +234,7 @@ router.get("/redis/prefixes", async (req, res) => {
   }
 });
 
-// ── POST /redis/flush ───────────────────────────────────────────────────────
+// POST /redis/flush
 router.post("/redis/flush", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -276,7 +276,7 @@ router.post("/redis/flush", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── GET /redis/relink-states ────────────────────────────────────────────────
+// GET /redis/relink-states
 router.get("/redis/relink-states", async (req, res) => {
   if (!isRedisReady()) {
     return res.json(AdminRedisRelinkStatesResponseSchema.parse({ states: [] }));

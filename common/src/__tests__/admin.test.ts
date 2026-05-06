@@ -27,7 +27,7 @@ import {
 } from "../admin.js";
 
 describe("common/admin.ts schemas", () => {
-  // ── AdminBrukereStatusFilterSchema ────────────────────────────────────────
+  // AdminBrukereStatusFilterSchema
   describe("AdminBrukereStatusFilterSchema", () => {
     it("aksepterer alle fire status-verdier", () => {
       expect(AdminBrukereStatusFilterSchema.parse("all")).toBe("all");
@@ -43,7 +43,7 @@ describe("common/admin.ts schemas", () => {
     });
   });
 
-  // ── AdminBrukereQuerySchema ───────────────────────────────────────────────
+  // AdminBrukereQuerySchema
   describe("AdminBrukereQuerySchema", () => {
     it("aksepterer query med kun status", () => {
       const result = AdminBrukereQuerySchema.parse({ status: "active" });
@@ -89,7 +89,7 @@ describe("common/admin.ts schemas", () => {
     });
   });
 
-  // ── AdminBrukerSchema (lock + delete-felter) ──────────────────────────────
+  // AdminBrukerSchema (lock + delete-felter)
   describe("AdminBrukerSchema", () => {
     const validBruker = {
       id: "507f1f77bcf86cd799439011",
@@ -154,7 +154,7 @@ describe("common/admin.ts schemas", () => {
     });
   });
 
-  // ── AdminLockUserSchema ───────────────────────────────────────────────────
+  // AdminLockUserSchema
   describe("AdminLockUserSchema", () => {
     it("aksepterer tom body (begrunnelse er valgfri)", () => {
       expect(AdminLockUserSchema.parse({})).toEqual({});
@@ -219,7 +219,7 @@ describe("common/admin.ts schemas", () => {
     });
   });
 
-  // ── ContactMessage-skjemaer ───────────────────────────────────────────────
+  // ContactMessage-skjemaer
   describe("ContactMessageStatusSchema", () => {
     it("aksepterer alle tre statuser", () => {
       expect(ContactMessageStatusSchema.parse("unread")).toBe("unread");
@@ -302,7 +302,7 @@ describe("common/admin.ts schemas", () => {
     });
   });
 
-  // ── AdminAuditQuerySchema (utvidet med outcome + targetUserId) ────────────
+  // AdminAuditQuerySchema (utvidet med outcome + targetUserId)
   describe("AdminAuditCategorySchema", () => {
     it("aksepterer kjente kategorier", () => {
       expect(AdminAuditCategorySchema.parse("admin")).toBe("admin");
@@ -354,7 +354,7 @@ describe("common/admin.ts schemas", () => {
     });
   });
 
-  // ── AdminBrukerDetaljSchema (privacy-respekterende) ───────────────────────
+  // AdminBrukerDetaljSchema (privacy-respekterende)
   describe("AdminBrukerDetaljSchema", () => {
     const validDetalj = {
       id: "507f1f77bcf86cd799439011",

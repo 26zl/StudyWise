@@ -1,3 +1,8 @@
+/**
+ * Whitelist av API-stier som er offentlige (uten auth).
+ * Brukes av middleware for å avgjøre om requesten skal gjennom requireAuth.
+ */
+
 const PUBLIC_GET_ONLY_PATHS = ["/api/ki/share"] as const;
 const PUBLIC_POST_ONLY_PATHS = ["/api/user/username/check"] as const;
 const PUBLIC_ALL_METHOD_PATHS = ["/api/kontakt"] as const;

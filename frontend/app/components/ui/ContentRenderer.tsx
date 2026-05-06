@@ -12,8 +12,7 @@ import DOMPurify from "isomorphic-dompurify";
 import { useLanguage } from "@/app/i18n";
 import type { Components } from "react-markdown";
 
-// ─── Kodeblokk ────────────────────────────────────────────────────────────────
-
+// Kodeblokk
 interface CodeBlockProps {
   className?: string;
   children?: React.ReactNode;
@@ -138,8 +137,7 @@ function CodeBlock({ className, children }: CodeBlockProps) {
   );
 }
 
-// ─── Tabell ───────────────────────────────────────────────────────────────────
-
+// Tabell
 function MarkdownTable({ children, ...props }: React.ComponentProps<"table">) {
   const { t } = useLanguage();
   const tableRef = useRef<HTMLTableElement>(null);
@@ -240,8 +238,7 @@ function MarkdownTd({ children, ...props }: React.ComponentProps<"td">) {
   );
 }
 
-// ─── Blockquote / Callout ─────────────────────────────────────────────────────
-
+// Blockquote / Callout
 // Gjenkjenner callout-prefixer: "> **Definisjon:**", "> **NB:**", "> **Eksempel:**" osv.
 const CALLOUT_PATTERNS: Record<string, { border: string; bg: string; darkBorder: string; darkBg: string }> = {
   definisjon: { border: "border-blue-400", bg: "bg-blue-50", darkBorder: "dark:border-blue-500", darkBg: "dark:bg-blue-950/30" },
@@ -301,8 +298,7 @@ function MarkdownBlockquote({ children, ...props }: React.ComponentProps<"blockq
   );
 }
 
-// ─── Fotnoter ─────────────────────────────────────────────────────────────────
-
+// Fotnoter
 function MarkdownSection({ children, ...props }: React.ComponentProps<"section">) {
   const isFootnotes =
     props.className?.includes("footnotes") ||
@@ -322,8 +318,7 @@ function MarkdownSection({ children, ...props }: React.ComponentProps<"section">
   return <section {...props}>{children}</section>;
 }
 
-// ─── Anker-komponent med nedlastings-triggering for Canvas-kildefiler ─────────
-
+// Anker-komponent med nedlastings-triggering for Canvas-kildefiler
 /**
  * Custom `<a>`-renderer som:
  * - Detekterer Canvas-download-URL-er (inneholder `/download?download_frd=1`)
@@ -358,8 +353,7 @@ function MarkdownAnchor(
   );
 }
 
-// ─── Eksportert components-objekt for ReactMarkdown ───────────────────────────
-
+// Eksportert components-objekt for ReactMarkdown
 /**
  * Felles markdown-komponent-overstyringer for ReactMarkdown.
  * Generalisert for alle studieretninger — håndterer kode, tabeller,
@@ -378,8 +372,7 @@ export const contentRendererComponents: Components = {
   a: MarkdownAnchor,
 };
 
-// ─── Hjelpefunksjon ───────────────────────────────────────────────────────────
-
+// Hjelpefunksjon
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")

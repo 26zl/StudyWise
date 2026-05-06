@@ -944,7 +944,7 @@ async function runExecutableScenario(
       cleanup,
     };
   } finally {
-    // Cleanup: delete test users
+    // Opprydding: slett test-brukere
     logger.step("Cleanup", `deleting ${clerkUsers.length} Clerk user(s)`);
     for (const user of clerkUsers) {
       const ok = await deleteUserSafe(clerk, user.id);

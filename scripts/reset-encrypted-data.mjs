@@ -70,7 +70,7 @@ function loadMongoUri() {
     const key = line.slice(0, eq).trim();
     if (key !== "MONGO_URI") continue;
     let value = line.slice(eq + 1).trim();
-    // Strip surrounding quotes
+    // Fjern omkringliggende anførselstegn
     if (
       (value.startsWith("\"") && value.endsWith("\"")) ||
       (value.startsWith("'") && value.endsWith("'"))
@@ -97,11 +97,7 @@ async function main() {
   const isConfirmed = process.argv.includes("--confirm");
   const mongoUri = loadMongoUri();
 
-  console.log("");
-  console.log("┌─────────────────────────────────────────────────────────────┐");
-  console.log("│  StudyWise: Reset ENCRYPTION_KEY-avhengig data              │");
-  console.log("└─────────────────────────────────────────────────────────────┘");
-  console.log("");
+  console.log("StudyWise: Reset ENCRYPTION_KEY-avhengig data");
   console.log(`Mongo URI: ${mongoUri.replace(/:([^:@/]+)@/, ":***@")}`);
   console.log("");
 
@@ -164,13 +160,11 @@ async function main() {
   console.log("UTFØRER...");
   console.log("");
 
-  // Drop collections
   for (const item of dropPlan) {
     await db.collection(item.name).drop();
     console.log(`  ✓ Droppet \`${item.name}\``);
   }
 
-  // Unset Canvas-felter
   if (usersWithCanvasToken > 0) {
     const result = await db.collection("users").updateMany(
       { canvasApiToken: { $exists: true } },
@@ -186,7 +180,6 @@ async function main() {
     console.log(`  ✓ Nullstilt Canvas-felter på ${result.modifiedCount} brukere`);
   }
 
-  // Unset Notion-felter
   if (usersWithNotionKey > 0) {
     const result = await db.collection("users").updateMany(
       { notionApiKey: { $exists: true } },

@@ -1,3 +1,8 @@
+/**
+ * Worker-tråd-entrypunkt for dokumentparsing.
+ * Mottar buffer + mimeType fra hovedtråden og returnerer parse-resultat eller feil.
+ */
+
 import { parentPort } from "node:worker_threads";
 import { parseDocument, type ParseDocumentOptions } from "../services/document.js";
 

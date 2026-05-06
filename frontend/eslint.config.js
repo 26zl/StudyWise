@@ -34,7 +34,7 @@ const eslintConfig = [
     },
     rules: {
       ...typescript.configs.recommended.rules,
-      // TypeScript's type system already prevents prototype pollution caught by this rule
+      // TypeScripts type system fanger allerede mange potensielle bugs, så vi kan være litt mer avslappet på visse regler:
       "security/detect-object-injection": "off",
       "no-undef": "off",
       "no-unused-vars": "off",

@@ -12,7 +12,7 @@ const BASE = new Date("2026-04-22T12:00:00Z").getTime();
 const DAG_START = new Date("2026-04-22T00:00:00Z").getTime();
 
 describe("beregnAktivTimer", () => {
-  // ── F1-regresjon: gammel chat med én ny melding i dag skal ikke gi timer ────
+  // F1-regresjon: gammel chat med én ny melding i dag skal ikke gi timer
   it("teller gammel chat oppdatert i dag som ~2 min, ikke hele spennet", () => {
     const chat = {
       createdAt: new Date(BASE - 10 * 24 * MS_I_TIME), // 10 dager siden
@@ -33,7 +33,7 @@ describe("beregnAktivTimer", () => {
     expect(timer).toBeLessThanOrEqual(0.1);
   });
 
-  // ── Heartbeat-intervaller fungerer som før ─────────────────────────────────
+  // Heartbeat-intervaller fungerer som før
   it("summerer heartbeat-intervaller korrekt", () => {
     const heartbeats = [
       { start: new Date(BASE - 2 * MS_I_TIME), end: new Date(BASE - MS_I_TIME) },

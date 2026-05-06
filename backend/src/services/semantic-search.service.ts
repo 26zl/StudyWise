@@ -11,8 +11,7 @@
  *   - formatCourseLabel(name, code) — felles formatering av emnenavn
  */
 
-// ─── Norske stoppord (vanlige ord som ikke bidrar til søk) ──
-
+// Norske stoppord (vanlige ord som ikke bidrar til søk)
 const STOPPORD = new Set([
   // Artikler og pronomen
   "en", "ei", "et", "den", "det", "de", "vi", "du", "jeg", "han",
@@ -40,8 +39,7 @@ const STOPPORD = new Set([
 /** Minimum ordlengde for søketerm (etter stoppord-filtrering) */
 const MIN_TERM_LENGTH = 2;
 
-// ─── Eksporterte funksjoner ────────────────────────────────
-
+// Eksporterte funksjoner
 /**
  * Ekstraher søketermer fra en bruker-melding.
  * Fjerner stoppord, korte ord, og normaliserer til lowercase.

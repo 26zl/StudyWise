@@ -40,8 +40,7 @@ import { logger } from "../../utils/logger.js";
 
 const router = Router();
 
-// ─── Query replay ───────────────────────────────────────────────────────────
-
+// Query replay
 router.post("/debug/retrieval", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -112,8 +111,7 @@ router.post("/debug/retrieval", async (req, res) => {
   }
 });
 
-// ─── Ekstraksjons-audit ─────────────────────────────────────────────────────
-
+// Ekstraksjons-audit
 /** Maksimalt antall items vi returnerer — holder responsen lett. */
 const MAX_AUDIT_ITEMS = 100;
 
@@ -312,8 +310,7 @@ router.get("/debug/extraction", async (req, res) => {
   }
 });
 
-// ─── KB-helse ───────────────────────────────────────────────────────────────
-
+// KB-helse
 /** Baser med færre enn dette regnes som "tynne" — vanligvis tegn på ufullstendig indeksering. */
 const THIN_BASE_THRESHOLD = 5;
 /** Maks antall KB-items i responsen. */
@@ -398,8 +395,7 @@ router.get("/debug/kb-health", async (req, res) => {
   }
 });
 
-// ─── Feedback-triage ────────────────────────────────────────────────────────
-
+// Feedback-triage
 /**
  * Heuristisk intent-klassifisering av et brukerspørsmål.
  * ChatFeedback lagrer ikke intent — vi klassifiserer on-the-fly basert på

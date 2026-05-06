@@ -1,3 +1,7 @@
+/**
+ * Hjelpere for å mappe Canvas-API-bruker til CanvasUser-modellen lokalt.
+ */
+
 import type { CanvasUser as CanvasProfile } from "common/canvas";
 import type mongoose from "mongoose";
 

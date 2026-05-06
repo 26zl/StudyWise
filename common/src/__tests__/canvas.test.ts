@@ -11,8 +11,7 @@ import {
   CanvasFileSchema,
 } from "../canvas.js";
 
-// ─── CanvasCourseSchema ─────────────────────────────────────────────────────
-
+// CanvasCourseSchema
 describe("CanvasCourseSchema", () => {
   it("godtar gyldig kursobjekt", () => {
     const resultat = CanvasCourseSchema.safeParse({
@@ -49,8 +48,7 @@ describe("CanvasCourseSchema", () => {
   });
 });
 
-// ─── CanvasAssignmentSchema ─────────────────────────────────────────────────
-
+// CanvasAssignmentSchema
 describe("CanvasAssignmentSchema", () => {
   it("godtar gyldig oppgave", () => {
     const resultat = CanvasAssignmentSchema.safeParse({
@@ -91,8 +89,7 @@ describe("CanvasAssignmentSchema", () => {
   });
 });
 
-// ─── isCanvasAssignmentSubmitted ────────────────────────────────────────────
-
+// isCanvasAssignmentSubmitted
 describe("isCanvasAssignmentSubmitted", () => {
   it("returnerer true for 'submitted'", () => {
     expect(
@@ -144,8 +141,7 @@ describe("isCanvasAssignmentSubmitted", () => {
   });
 });
 
-// ─── CanvasCalendarEventSchema ──────────────────────────────────────────────
-
+// CanvasCalendarEventSchema
 describe("CanvasCalendarEventSchema", () => {
   it("godtar gyldig kalenderhendelse", () => {
     const resultat = CanvasCalendarEventSchema.safeParse({
@@ -192,8 +188,7 @@ describe("CanvasCalendarEventSchema", () => {
   });
 });
 
-// ─── CanvasFileSchema ───────────────────────────────────────────────────────
-
+// CanvasFileSchema
 describe("CanvasFileSchema", () => {
   it("godtar gyldig filobjekt", () => {
     const resultat = CanvasFileSchema.safeParse({

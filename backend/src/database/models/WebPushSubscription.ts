@@ -1,3 +1,7 @@
+/**
+ * Mongoose-modell for web push-abonnementer (én rad per enhet/endpoint per bruker).
+ */
+
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface IWebPushSubscription extends Document {

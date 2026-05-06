@@ -1,4 +1,4 @@
-// Cross-platform dev server killer script
+// Skript for å drepe dev-server-prosesser på tvers av plattformer
 // Dreper prosesser som lytter på vanlige dev-server-porter og fjerner Next.js lock-filen, cross-platform.
 import { rm } from "node:fs/promises";
 import path from "node:path";
@@ -43,7 +43,6 @@ async function killPorts() {
           }
         }
       } catch (err) {
-        // Fallback error logging
         const msg = (err && typeof err === "object" && "message" in err) ? err.message : String(err);
         if (msg.includes("is not listening") || msg.includes("No process running")) {
           console.log(`· Port ${port} was not in use`);
@@ -61,7 +60,7 @@ async function cleanNextLock() {
     await rm(lockPath, { force: true });
     console.log("✓ Removed Next.js dev lock");
   } catch (err) {
-    // Ignore if file already gone
+    // Ignorer hvis filen allerede er borte
     const code = err?.code;
     if (code !== "ENOENT") {
       console.warn(`! Could not remove lock file: ${err}`);

@@ -352,7 +352,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
           selectedDate={selectedDate}
         />
 
-        {/* Detaljer-panel - mobile-first design */}
+        {/* Detaljer-panel — mobil-først-design */}
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 h-fit xl:max-h-[calc(100dvh-12rem)] xl:overflow-y-auto">
           <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3 sm:mb-4">
             {selectedDate

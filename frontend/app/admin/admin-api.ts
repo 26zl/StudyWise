@@ -121,8 +121,7 @@ async function throwAdminApiError(
   );
 }
 
-// ── Polling-hjelper for asynkrone vedlikeholdsoperasjoner ────────────────────
-
+// Polling-hjelper for asynkrone vedlikeholdsoperasjoner
 /** Polling-intervall for admin-jobber (ms) */
 const ADMIN_JOB_POLL_INTERVAL_MS = 3_000;
 /** Maks polling-tid (5 minutter) */
@@ -186,8 +185,7 @@ async function submitAndPollMaintenanceOp<T>(
   throw new Error("Vedlikeholdsoperasjonen tok for lang tid. Sjekk status manuelt.");
 }
 
-// ── Hooks ───────────────────────────────────────────────────────────────────
-
+// Hooks
 export function useAdminStats() {
   return useQuery({
     queryKey: ["admin", "statistikk"],
@@ -597,8 +595,7 @@ export function useSlettBruker() {
   });
 }
 
-// ── BullMQ-køer ─────────────────────────────────────────────────────────────
-
+// BullMQ-køer
 export function useQueueOverview() {
   return useQuery({
     queryKey: ["admin", "queues", "overview"],
@@ -708,8 +705,7 @@ export function useRemoveQueueJob() {
   });
 }
 
-// ── Redis-admin ─────────────────────────────────────────────────────────────
-
+// Redis-admin
 export function useRedisInfo() {
   return useQuery({
     queryKey: ["admin", "redis", "info"],
@@ -789,8 +785,7 @@ export function useClearRedisRelinkState() {
   });
 }
 
-// ── Brukerdetalj-modal ──────────────────────────────────────────────────────
-
+// Brukerdetalj-modal
 export function useAdminBrukerDetalj(brukerId: string | null) {
   return useQuery({
     queryKey: ["admin", "brukere", "detalj", brukerId],
@@ -807,8 +802,7 @@ export function useAdminBrukerDetalj(brukerId: string | null) {
   });
 }
 
-// ── Kontakt-innboks ─────────────────────────────────────────────────────────
-
+// Kontakt-innboks
 export function useAdminContactMessages(
   params: {
     limit?: number;
@@ -896,8 +890,7 @@ export function useReplyContactMessage() {
   });
 }
 
-// ── Vedlikehold (admin) ────────────────────────────────────────────────────
-
+// Vedlikehold (admin)
 export function useCleanupOrphaned() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -1074,8 +1067,7 @@ export function useDatabaseHealth() {
   });
 }
 
-// ── Feedback (admin) ────────────────────────────────────────────────────────
-
+// Feedback (admin)
 export function useAdminFeedback(
   params: {
     rating?: AdminFeedbackRating;
@@ -1097,8 +1089,7 @@ export function useAdminFeedback(
   });
 }
 
-// ─── System status + announcement ────────────────────────────────────────────
-
+// System status + announcement
 export function useDependenciesHealth() {
   return useQuery({
     queryKey: ["admin", "dependencies-health"],

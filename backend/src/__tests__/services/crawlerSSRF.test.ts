@@ -38,7 +38,7 @@ describe("normalizeHostname", () => {
 });
 
 describe("isSafeExternalUrlFormat", () => {
-  // ── Protocol ──
+  // Protocol
   it("avviser URL-er uten protocol", () => {
     expect(isSafeExternalUrlFormat("example.com")).toBe(false);
   });
@@ -63,7 +63,7 @@ describe("isSafeExternalUrlFormat", () => {
     expect(isSafeExternalUrlFormat("https://example.com/")).toBe(true);
   });
 
-  // ── Localhost-blokkering ──
+  // Localhost-blokkering
   it("avviser localhost", () => {
     expect(isSafeExternalUrlFormat("http://localhost/")).toBe(false);
     expect(isSafeExternalUrlFormat("http://localhost:8080/")).toBe(false);
@@ -78,7 +78,7 @@ describe("isSafeExternalUrlFormat", () => {
     expect(isSafeExternalUrlFormat("http://mac.local/")).toBe(false);
   });
 
-  // ── IPv4 i URL ──
+  // IPv4 i URL
   it("avviser 127.0.0.1 i URL", () => {
     expect(isSafeExternalUrlFormat("http://127.0.0.1/")).toBe(false);
   });
@@ -95,7 +95,7 @@ describe("isSafeExternalUrlFormat", () => {
     expect(isSafeExternalUrlFormat("http://8.8.8.8/")).toBe(true);
   });
 
-  // ── IPv6 i URL ──
+  // IPv6 i URL
   it("avviser IPv6 loopback ::1", () => {
     expect(isSafeExternalUrlFormat("http://[::1]/")).toBe(false);
   });
@@ -214,7 +214,7 @@ describe("isBlockedIpv6Address", () => {
     expect(isBlockedIpv6Address("febf::1")).toBe(true);
   });
 
-  // ── IPv4-mapped IPv6 bypass (klassisk SSRF-trick) ──
+  // IPv4-mapped IPv6 bypass (klassisk SSRF-trick)
   it("blokkerer IPv4-mapped IPv6 dotted-form (::ffff:127.0.0.1)", () => {
     expect(isBlockedIpv6Address("::ffff:127.0.0.1")).toBe(true);
   });

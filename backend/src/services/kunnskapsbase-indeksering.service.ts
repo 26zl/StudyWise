@@ -35,7 +35,7 @@ const KB_RERANK_OVERFETCH = 2;
 /** Hard øvre grense på antall kandidater sendt til Cohere (kostnad/latency). */
 const KB_RERANK_MAX_CANDIDATES = 24;
 
-// ─── Hjelpefunksjoner ──────────────────────────────��─────
+// Hjelpefunksjoner
 
 /** Genererer en stabil numerisk fileId fra sourceId for Pinecone-metadata */
 function sourceIdToNumeric(sourceId: string): number {
@@ -50,8 +50,7 @@ export function kbCourseId(baseId: string): string {
   return `kb:${baseId}`;
 }
 
-// ─── Indeksering ─────────────────────────────────────────
-
+// Indeksering
 export interface IndexContentOptions {
   userId: string;
   baseId: string;
@@ -277,8 +276,7 @@ export async function deleteAllKBContentForUser(userId: string, baseIds?: string
   await KBContentChunk.deleteMany({ userId });
 }
 
-// ─── Søk / konteksthenting ──────────────────────────────
-
+// Søk / konteksthenting
 export interface KBSearchResult {
   text: string;
   sourceId?: string;

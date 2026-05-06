@@ -27,7 +27,7 @@ const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 const MAX_OFFSET = 10_000;
 
-// ── GET /contact/messages ───────────────────────────────────────────────────
+// GET /contact/messages
 router.get("/contact/messages", async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -116,7 +116,7 @@ router.get("/contact/messages", async (req, res) => {
   }
 });
 
-// ── PATCH /contact/messages/:id ─────────────────────────────────────────────
+// PATCH /contact/messages/:id
 router.patch("/contact/messages/:id", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -179,7 +179,7 @@ router.patch("/contact/messages/:id", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── DELETE /contact/messages/:id ────────────────────────────────────────────
+// DELETE /contact/messages/:id
 router.delete("/contact/messages/:id", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
@@ -214,7 +214,7 @@ router.delete("/contact/messages/:id", requireRecentAuth, async (req, res) => {
   }
 });
 
-// ── POST /contact/messages/:id/reply ───────────────────────────────────────
+// POST /contact/messages/:id/reply
 router.post("/contact/messages/:id/reply", requireRecentAuth, async (req, res) => {
   const actorUserId = requireUserId(req, res);
   if (!actorUserId) return;
