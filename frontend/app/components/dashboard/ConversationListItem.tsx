@@ -13,6 +13,7 @@ type ConversationListItemProps = {
   footer?: ReactNode;
 };
 
+// Kompakt rad for samtaleelement med valgfrie kontroller og metadata.
 export function ConversationListItem({
   title,
   preview,

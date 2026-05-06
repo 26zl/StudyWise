@@ -15,6 +15,7 @@ const MARKDOWN_FORMATTING_PATTERN = /[*`~]/g;
 const WHITESPACE_PATTERN = /\s+/g;
 const MAX_FORHANDSVISNING_LENGDE = 220;
 
+// Splitter ut vedlegg-markor og returnerer tekst + filnavn.
 export function parseVedlegg(innhold: string): { tekst: string; filer: string[] } {
   const vedleggMatch = innhold.match(VEDLEGG_PATTERN);
   if (!vedleggMatch) return { tekst: innhold, filer: [] };
@@ -30,6 +31,7 @@ export function erBildefil(navn: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|svg|bmp)$/i.test(navn);
 }
 
+// Finner meldingsinnhold og prioriterer eksplisitt vedlegg-metadata.
 export function hentSamtaleinnhold(
   melding: ConversationDisplayMessage,
 ): { tekst: string; filer: string[] } {
@@ -60,6 +62,7 @@ function rensMarkdownTilForhandsvisning(tekst: string): string {
     .trim();
 }
 
+// Lager en kort forhandsvisning basert pa siste meldinger.
 export function lagSamtaleForhandsvisning(
   meldinger: Pick<ChatMessage, "rolle" | "innhold">[],
   fallback = "",

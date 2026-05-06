@@ -11,6 +11,7 @@ type CanvasTokenNoticeProps = {
   className?: string;
 };
 
+// Inline-varsel som forklarer Canvas-token og peker til innstillinger.
 export function CanvasTokenNotice({
   variant = "missing",
   message,
