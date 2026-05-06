@@ -1,6 +1,6 @@
 # Overordnet systemarkitektur
 
-Viser de viktigste komponentene i StudyWise og hvordan de henger sammen — frontend, backend, datalag og eksterne tjenester.
+Viser de viktigste komponentene i StudyWise og hvordan de henger sammen — frontend, backend, datalag, Cloudflare-edge og eksterne tjenester.
 
 ```mermaid
 flowchart LR
@@ -12,8 +12,12 @@ flowchart LR
         FE["Frontend (Next.js)<br/>Rewrites: /api/* -> backend"]
     end
 
+    subgraph Cloudflare["Cloudflare"]
+        CFEDGE["DNS/CDN/WAF/TLS edge<br/>www -> Vercel<br/>api -> Heroku origin"]
+    end
+
     subgraph Heroku["Heroku"]
-        BE["Express 5 API<br/>Node 22+ ESM"]
+        BE["Express 5 API<br/>Node 22+ ESM<br/>requireCloudflare"]
     end
 
     subgraph Datalag["Datalag"]
@@ -35,8 +39,10 @@ flowchart LR
         CFW["Cloudflare Worker<br/>Resend e-post"]
     end
 
-    UI -->|HTTPS| FE
-    FE -->|/api/*| BE
+    UI -->|HTTPS www.studwize.page| CFEDGE
+    CFEDGE -->|frontend| FE
+    FE -->|/api/* rewrite via api.studwize.page| CFEDGE
+    CFEDGE -->|Full strict TLS| BE
 
     BE --> MONGO
     BE --> REDIS
@@ -61,5 +67,5 @@ flowchart LR
     classDef app fill:#bbf7d0,stroke:#166534,color:#1f2937
     class CLERK,CANVAS,ANTH,COHERE,TURN,POSTHOG,DD,LANG,GRAF,CFW ext
     class MONGO,REDIS,PINE data
-    class FE,BE,UI app
+    class FE,BE,UI,CFEDGE app
 ```

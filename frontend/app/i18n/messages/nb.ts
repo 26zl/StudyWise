@@ -2572,7 +2572,7 @@ export const nbMessages = {
       eyebrow: "Noe gikk galt",
       title: "En uventet feil oppstod",
       description:
-        "Vi har logget feilen og vil se på den. Prøv å laste siden på nytt — hvis problemet vedvarer, kontakt oss.",
+        "Feilen er logget for senere gjennomgang. Prøv å laste siden på nytt — hvis problemet vedvarer, ta kontakt.",
       retry: "Last på nytt",
       contactSupport: "Kontakt support",
       errorId: "Feil-ID",

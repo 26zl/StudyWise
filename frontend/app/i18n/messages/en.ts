@@ -2576,7 +2576,7 @@ export const enMessages = {
       eyebrow: "Something went wrong",
       title: "An unexpected error occurred",
       description:
-        "We've logged the error and will look into it. Try reloading the page — if the problem persists, please contact us.",
+        "The error has been logged for later review. Try reloading the page — if the problem persists, please get in touch.",
       retry: "Reload",
       contactSupport: "Contact support",
       errorId: "Error ID",

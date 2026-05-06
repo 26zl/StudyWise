@@ -12,7 +12,7 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 
 ### Hard prohibitions — never do these without explicit human approval
 
-1. **Never disable, weaken or bypass security middleware.** Helmet (CSP with nonce), CSRF protection, rate limiting, `requireAuth`, `requireRecentAuth` (step-up), Cloudflare Turnstile verification and host/origin validation are load-bearing. Removing or relaxing any of them is a security regression. The middleware order in `backend/src/index.ts` is also sensitive — Clerk webhook needs raw body before JSON parsing, CSRF runs after CORS, rate limit before `requireAuth`. Do not reorder.
+1. **Never disable, weaken or bypass security middleware.** Helmet (CSP with nonce), CSRF protection, rate limiting, `requireAuth`, `requireRecentAuth` (step-up), Cloudflare Turnstile verification, `requireCloudflare`, and host/origin validation are load-bearing. Removing or relaxing any of them is a security regression. The middleware order in `backend/src/index.ts` is also sensitive — Clerk webhook needs raw body before JSON parsing, Cloudflare-only enforcement runs early in production, CSRF runs after CORS, and route-specific rate limits must stay on the endpoints that need them. Do not reorder.
 2. **Never change cryptographic parameters.** Encryption is AES-256-GCM via `backend/src/utils/kryptering.ts`. The active key is `ENCRYPTION_KEY`; rotation uses `ENCRYPTION_KEY_PREV`. Do not change algorithm, key length, IV length or authentication tag handling. Do not invent your own crypto. Do not store keys in code, in tests, or in commits.
 3. **Never introduce secrets in code or git.** All secrets go through `process.env`, validated by `backend/src/utils/validateEnv.ts` and `frontend/app/lib/validateEnv.ts` at startup. Never commit `.env`, `.env.local`, tokens, signed URLs or example values that look real. TruffleHog runs in CI to catch this; do not work around it.
 4. **Never log tokens, Canvas API responses, chat content or PII.** Logging uses Pino (`logger.info`, `logger.warn`, `logger.error`) with structured fields. Never `console.log` in backend. When logging, never include the Bearer token, encrypted blobs, full chat messages, e-mail, phone number, fødselsnummer, studentnummer or addresses. The PII-sanitization regex in `backend/src/services/kunnskapsbase-indeksering.service.ts` is the boundary before Pinecone; weakening it leaks PII to a third party.
@@ -32,7 +32,7 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 5. **Audit-log sensitive admin actions** via `AuditLog` (account changes, role changes, exports, deletions). Audit-log entries are pseudonymized when a user is deleted — preserve this behavior.
 6. **Preserve the `<svarkilde>`-tag mechanism** in KI responses. The system prompt requires the model to label answers as `kursmateriale|canvas|kunnskapsbase|blandet|generell`. Frontend shows this as a visible badge so users do not confuse a free general answer with one anchored in their pensum. Do not remove the tag, change its values, or bypass `extractAnswerAndSource` in `aiClient.ts`.
 7. **Frontend `dark:` variants are mandatory** in Tailwind. Mobile-first. Add `dark:`-equivalents for every visible color/background you set.
-8. **Frontend data fetching uses relative `/api/...` URLs.** Next.js rewrites in `next.config.js` proxy these to the backend. Do not call backend directly via `http://localhost:4000` from frontend code.
+8. **Frontend data fetching uses relative `/api/...` URLs.** Next.js rewrites in `next.config.js` proxy these to the backend. In production, `INTERNAL_API_URL` must point to `https://api.studwize.page` so Vercel requests still pass through Cloudflare before Heroku. Do not call backend directly via `http://localhost:4000` from frontend code, and do not use a Heroku hostname as the production API target.
 9. **ES modules everywhere.** All packages have `"type": "module"`. Use `.js` import suffixes in compiled TypeScript. Do not introduce CommonJS.
 10. **Run the pre-commit checklist locally** before any commit: `pnpm format && pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build`.
 
@@ -160,7 +160,7 @@ Hybrid retrieval: BM25 keyword search + Pinecone semantic search, results merged
 
 ### Middleware Stack (applied in order)
 
-Host/origin validation (prod) → Helmet security headers → body parsers → Clerk webhook (raw body, before CSRF) → request timeout → CORS → CSRF protection → rate limiting → auth check (`requireAuth`). Order matters — Clerk webhook needs raw body before JSON parsing, CSRF runs after CORS.
+Host/origin validation (prod) → Cloudflare-only enforcement (prod, when enabled) → Helmet security headers → body parsers → Clerk webhook (raw body, before CSRF) → request timeout → CORS → CSRF protection → public routers → auth check (`requireAuth`) → terms check → feature/admin routers with route-specific rate limits and role checks. Order matters — Clerk webhook needs raw body before JSON parsing, Cloudflare-only enforcement must run before protected routes, and CSRF runs after CORS.
 
 ### Backend Organization
 
@@ -192,7 +192,7 @@ Host/origin validation (prod) → Helmet security headers → body parsers → C
 
 - **Types-first**: Define Zod schemas in `common/`, add subpath export in `common/package.json`, then use in backend and frontend.
 - **Logging**: Use pino logger (`logger.info`, `logger.error`), never `console.log` in backend.
-- **Frontend data fetching**: Use relative URLs (`/api/...`), Next.js rewrites proxy to backend. No need to modify `next.config.js` for new endpoints.
+- **Frontend data fetching**: Use relative URLs (`/api/...`), Next.js rewrites proxy to backend via the configured `INTERNAL_API_URL` (`https://api.studwize.page` in production). No need to modify `next.config.js` for new endpoints.
 - **Styling**: Mobile-first Tailwind, always include `dark:` variants.
 - **Error handling**: Backend uses `apiError.*` utilities. Frontend uses typed error classes from `frontend/app/lib/errors.ts`.
 - **Database**: Mongoose models only, no native MongoDB driver.
@@ -209,8 +209,8 @@ The Husky pre-commit hook is currently disabled — see the comment in `.husky/p
 
 ## Deployment
 
-- **Backend** deploys to Heroku (`heroku-postbuild` builds `common` then `backend`; `Procfile` runs the built backend with Node flags tuned for dyno memory).
-- **Frontend** deploys to Vercel.
+- **Backend** deploys to Heroku (`heroku-postbuild` builds `common` then `backend`; `Procfile` runs the built backend with Node flags tuned for dyno memory). Production origin traffic is expected to arrive through `api.studwize.page` via Cloudflare, not directly through a Heroku hostname.
+- **Frontend** deploys to Vercel. Production rewrites use `INTERNAL_API_URL=https://api.studwize.page`.
 - **Docs** deploy to GitHub Pages via GitHub Actions.
 
 ## Docker

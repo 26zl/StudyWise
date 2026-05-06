@@ -2,7 +2,7 @@
 
 > **Om dette dokumentet**
 >
-> Dette er det interne presentasjonsmanuset gruppa brukte under sluttpresentasjonen av bacheloroppgaven (milepæl 3). Manuset er tatt med i prosjektmappen for å vise hvordan vi forberedte oss på presentasjonen, hvordan taletiden var fordelt mellom de fire gruppemedlemmene, og hvilket innhold vi prioriterte å formidle. Det er **ikke** et selvstendig fagdokument — selve faglige resonnementene er dokumentert i hovedrapporten (`BSc/BScThesis.pdf`).
+> Dette er det interne presentasjonsmanuset gruppa brukte under sluttpresentasjonen av bacheloroppgaven (milepæl 3). Manuset er tatt med i prosjektmappen for å vise hvordan vi forberedte oss på presentasjonen, hvordan taletiden var fordelt mellom de fire gruppemedlemmene, og hvilket innhold vi prioriterte å formidle. Det er **ikke** et selvstendig fagdokument — selve faglige resonnementene er dokumentert i hovedrapporten.
 
 **Tema:** StudyWise – KI-basert studieassistent basert på Canvas
 **Lengde:** 6–7 minutter (manuset er litt fyldig som buffer — gruppa kunne kutte underveis)

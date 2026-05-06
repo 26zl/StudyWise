@@ -56,7 +56,7 @@ flowchart TB
     D --> D5["1.4.5 Brukertest"]
     D --> D6["1.4.6 Trusselmodell"]
 
-    E --> E1["1.5.1 Bacheloroppgaven (LaTeX)"]
+    E --> E1["1.5.1 Bacheloroppgaven"]
     E --> E2["1.5.2 Diagrammer"]
     E --> E3["1.5.3 VitePress docs"]
     E --> E4["1.5.4 Compliance-dokumenter"]

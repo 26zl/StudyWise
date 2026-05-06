@@ -24,7 +24,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | # | Diagram | Hva diagrammet viser |
 |---|---------|----------------------|
 | 01 | [arkitektur-overordnet](01-arkitektur-overordnet.md) | Komponentdiagram: frontend, backend, datalag og 10+ eksterne tjenester (inkl. Grafana). |
-| 02 | [monorepo-struktur](02-monorepo-struktur.md) | pnpm workspaces: `common`, `backend`, `frontend`, `docs`, `tests` — med byggrekkefølge. |
+| 02 | [monorepo-struktur](02-monorepo-struktur.md) | pnpm workspaces: `common`, `backend`, `frontend`, `docs`, `tests` — med byggrekkefølge og `common` som fullstack-kontrakt. |
 | 03 | [autentiseringsflyt](03-autentiseringsflyt.md) | Sekvensdiagram: Clerk-innlogging + Cloudflare Turnstile + webhook-håndtering. |
 | 04 | [ki-chat-pipeline](04-ki-chat-pipeline.md) | Sekvensdiagram for AI-svar: Canvas-kontekst + RAG (Pinecone + BM25 + Cohere) + Claude streaming. |
 | 05 | [canvas-integrasjon](05-canvas-integrasjon.md) | Hvordan Canvas LMS-data hentes, caches og indekseres til vektorsøk. |
@@ -32,7 +32,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 07 | [database-modeller](07-database-modeller.md) | ER-diagram over Mongoose-modeller, med embedded vs referenced og TTL-indekser. |
 | 08 | [middleware-stack](08-middleware-stack.md) | Express middleware-rekkefølge: 11 lag fra trust-proxy til feature-router. |
 | 09 | [bruker-sletting](09-bruker-sletting.md) | GDPR-rettigheter: soft-delete + asynkron opprydding via BullMQ-jobber. |
-| 10 | [deployment-arkitektur](10-deployment-arkitektur.md) | Hvor de fire tjenestene kjører: Vercel, Heroku, GitHub Pages, Cloudflare. |
+| 10 | [deployment-arkitektur](10-deployment-arkitektur.md) | Hvor tjenestene kjører i produksjon: Vercel, Heroku, GitHub Pages og Cloudflare som DNS/CDN/WAF/TLS-edge. |
 | 11 | [sikkerhetslag](11-sikkerhetslag.md) | 15 sikkerhetslag — fra HTTPS/HSTS til AES-256-GCM-kryptering og PII-grense. |
 | 12 | [bullmq-koer](12-bullmq-koer.md) | Asynkron jobbkjøring: én unified BullMQ-kø erstatter tre separate. |
 | 13 | [use-case-diagram](13-use-case-diagram.md) | UML-style use case: aktører (student, admin, system, Canvas, Clerk) og 18 use cases. |

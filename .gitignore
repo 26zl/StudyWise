@@ -96,39 +96,6 @@ next-env.d.ts
 # Prompts
 prompts/
 
-# LaTeX build artefakter (filer_prosjekt/BSc/) — kun tex/bib/cls/Makefile/fig/
-# og den ferdige BScThesis.pdf skal trackes. Alt annet er regenererbart fra
-# `make` (latexmk -xelatex) og blir liggende lokalt.
-*.aux
-*.bbl
-*.bcf
-*.blg
-*.fdb_latexmk
-*.fls
-*.run.xml
-*.toc
-*.xdv
-*.synctex.gz
-*.out
-*.lof
-*.lot
-*.idx
-*.ind
-*.ilg
-*.glo
-*.gls
-*.glg
-*.acn
-*.acr
-*.alg
-*.nav
-*.snm
-*.vrb
-*.figlist
-*.dvi
-# `latexmk -c` legger mellomfiler i auto/
-**/auto/
-
 # MERK: filer_prosjekt/ og grafana/ er bevisst IKKE i .gitignore.
 # De er en del av bachelor-leveransen / interne ops-config og skal bli stående
 # tracket i git. De ekskluderes i stedet fra prod-deploy via .vercelignore og

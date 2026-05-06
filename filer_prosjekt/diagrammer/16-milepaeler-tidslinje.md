@@ -54,7 +54,7 @@ gantt
 | M1 | Prosjektskisse innlevert | 2026-01-27 | `Prosjektbeskrivelse_gruppe3.pdf` |
 | M2 | Forprosjekt godkjent | 2026-02-10 | `BOP-Prosjektskisse-Gruppe3-1.pdf` |
 | M3 | Basisapp deployable | 2026-03-24 | Auth + Canvas + dashboard live |
-| M4 | Bacheloroppgave innlevert | 2026-05-19 | `BSc/BScThesis.pdf` + kildekode |
+| M4 | Bacheloroppgave innlevert | 2026-05-19 | Bacheloroppgaven + kildekode |
 | M5 | Sluttpresentasjon | 2026-06-02 | `manus-milepael-3.md` |
 
 ## Metodikk

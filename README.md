@@ -28,6 +28,10 @@ Monorepo med fem pakker (`common`, `backend`, `frontend`, `docs`, `tests`) admin
 | Auth     | Clerk, Cloudflare Turnstile                  |
 | Infra    | Heroku, Vercel, Datadog, PostHog, Cloudflare |
 
+## Produksjonsarkitektur
+
+Frontend kjører på Vercel bak Cloudflare, mens backend kjører på Heroku bak `api.studwize.page`. Next.js proxyer `/api/*` videre til Cloudflare API-edge, og Express-backenden avviser direkte origin-trafikk som ikke kommer via Cloudflare. `common`-pakken er kontrakten mellom frontend, backend og tester, med delte Zod-skjemaer og TypeScript-typer.
+
 ## Kom i gang
 
 **Forutsetninger:** Node.js 22 LTS eller nyere, og pnpm (`npm install -g pnpm`). CI kjører på Node 24.

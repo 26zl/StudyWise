@@ -11,13 +11,6 @@
 # 40 % YAML.
 pnpm-lock.yaml linguist-generated=true
 
-# LaTeX-kilde (filer_prosjekt/BSc/) — tving tekst/LF og merk som "TeX" i
-# språkstatistikk så bachelor-tex-en ikke teller som "vanlig" kode.
-*.tex text eol=lf linguist-language=TeX
-*.bib text eol=lf linguist-language=BibTeX
-*.cls text eol=lf linguist-language=TeX
-*.sty text eol=lf linguist-language=TeX
-
 # Bachelor-leveranser og figurer er binær — ikke prøv å diffe eller normalisere
 # linjeslutt på dem.
 *.pdf binary
@@ -28,7 +21,7 @@ pnpm-lock.yaml linguist-generated=true
 *.eps binary
 
 # filer_prosjekt/ er bachelor-leveranse, ikke prod-kode — skjul fra
-# språkstatistikk så Repo-insights ikke teller .tex/.bib som kodebasen vår.
+# språkstatistikk så Repo-insights ikke teller den som kodebasen vår.
 filer_prosjekt/** linguist-vendored=true
 
 # ─── Git LFS for tunge bachelor-leveranser ─────────────────────────────────
@@ -61,6 +54,3 @@ filer_prosjekt/**/*.zip  filter=lfs diff=lfs merge=lfs -text
 filer_prosjekt/**/*.mp4  filter=lfs diff=lfs merge=lfs -text
 filer_prosjekt/**/*.mov  filter=lfs diff=lfs merge=lfs -text
 filer_prosjekt/**/*.webm filter=lfs diff=lfs merge=lfs -text
-# LaTeX-byggeartefakter i BSc/ er ikke tunge nok i seg selv, men .xdv/.bcf
-# kan bli store ved omfattende oppgaver. Behold som vanlig git til de
-# faktisk vokser — overstyr enkelt-fil med en regel her hvis nødvendig.

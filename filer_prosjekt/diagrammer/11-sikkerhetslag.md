@@ -1,16 +1,16 @@
 # Sikkerhetslag (defense in depth)
 
-Lagene som beskytter StudyWise. Hvert lag er en uavhengig sjekk — ingen av dem kan skrus av uten at det blir en regresjon (jf. CLAUDE.md guardrails).
+Lagene som beskytter StudyWise. Dette er defense-in-depth: flere uavhengige kontroller må passeres før forretningslogikken nås, og ingen av dem kan skrus av uten at det blir en sikkerhetsregresjon (jf. CLAUDE.md guardrails).
 
 ```mermaid
 flowchart TB
     REQ["HTTP-request"]
-    L1["Lag 1: Transport<br/>HTTPS, HSTS, trust proxy"]
-    L2["Lag 2: Host & origin<br/>API_HOST + INTERNAL_HOSTS<br/>WEB_ORIGINS allowlist"]
+    L1["Lag 1: Transport<br/>HTTPS, HSTS preload<br/>TLS 1.2+ edge + Full (strict) origin<br/>trust proxy"]
+    L2["Lag 2: Host & edge<br/>API_HOST + INTERNAL_HOSTS<br/>WEB_ORIGINS allowlist<br/>requireCloudflare (CF-Connecting-IP +<br/>X-Forwarded-For peer i CF-ranges)"]
     L3["Lag 3: Helmet headers<br/>CSP m/ nonce, frameAncestors none, X-Powered-By off"]
     L4["Lag 4: Anti-bot<br/>Cloudflare Turnstile på sensitive flyter"]
     L5["Lag 5: CSRF<br/>x-studywise-csrf + origin/referer-sjekk"]
-    L6["Lag 6: Rate limit<br/>per IP / per bruker / per rute"]
+    L6["Lag 6: Rate limit<br/>public abuse-endepunkter<br/>per IP / bruker / rute"]
     L7["Lag 7: AuthN<br/>Clerk Bearer-token, requireAuth"]
     L8["Lag 8: Step-up<br/>requireRecentAuth for sensitive handlinger"]
     L9["Lag 9: AuthZ<br/>requireRole, requireAcceptedTerms"]

@@ -33,14 +33,29 @@ StudyWise er et pågående bachelorprosjekt (2026). Funksjonalitet, design og te
 
 StudyWise er bygd som et **pnpm-monorepo** med fem pakker: `frontend`, `backend`, `common` (delte Zod-skjemaer og TypeScript-typer), `docs` og `tests` (integrasjons-/E2E-testkjøring). Frontend og backend deler datakontrakter gjennom `common`, som sikrer konsistens i validering og typer på tvers av hele stacken.
 
-All kommunikasjon mellom bruker og backend går via frontend — frontend kaller aldri eksterne tjenester direkte. Next.js proxyer alle `/api/*`-forespørsler videre til Express-backendens. Backend er den autoritative sikkerhetsgrensen: autentisering, autorisering, validering og datahenting skjer alltid server-side.
+All kommunikasjon mellom bruker og backend går via frontend og Cloudflare-edge — frontend kaller aldri eksterne tjenester direkte. Next.js proxyer alle `/api/*`-forespørsler videre til `https://api.studwize.page`, som går gjennom Cloudflare før Express-backenden på Heroku nås. Backend er den autoritative sikkerhetsgrensen: autentisering, autorisering, validering og datahenting skjer alltid server-side.
 
 ### Dataflyt
 
 ```text
 Canvas LMS → Backend (henter og validerer) → MongoDB/Redis (lagring og cache) → Frontend (viser til bruker)
-Bruker → Frontend → Backend → KI-tjenester (Claude, Pinecone, Cohere) → Frontend (streamer svar)
+Bruker → Cloudflare → Frontend → Cloudflare API-edge → Backend → KI-tjenester (Claude, Pinecone, Cohere) → Frontend (streamer svar)
 ```
+
+### Fullstack-kontrakt
+
+`common`-pakken fungerer som kontrakt mellom frontend, backend og tester. Endringer i API-skjemaer starter der, valideres med Zod og importeres av begge applikasjonene. Dette reduserer risikoen for at frontend forventer et annet dataformat enn backend faktisk leverer.
+
+### Arkitekturvalg
+
+| Valg | Begrunnelse |
+| ---- | ----------- |
+| pnpm-monorepo | Samler applikasjoner, delte typer, dokumentasjon og tester i ett repo med tydelige workspace-grenser. |
+| Vercel + Next.js | Gir rask frontend-deploy, god støtte for App Router og enkel intern proxying av `/api/*`. |
+| Heroku + Express | Samler server-side integrasjoner, kryptering, autorisering og RAG-flyt i ett backend-lag. |
+| Cloudflare foran produksjonsdomenene | Gir DNS, TLS, WAF, DDoS-beskyttelse, bot-beskyttelse og cache-kontroll før trafikken treffer origin. |
+| Clerk | Håndterer innlogging, SSO og sesjonsflyt uten at prosjektet må implementere egen auth-stack fra bunnen. |
+| MongoDB, Redis og Pinecone | Deler ansvar mellom varig lagring, hurtig cache/køtilstand og semantisk søk. |
 
 ## Teknologi
 
@@ -109,10 +124,14 @@ Sikkerhet er integrert i hele stacken:
 - **Autentisering**: Clerk Bearer-token med valgfri 2FA; sesjoner håndteres via sikre cookies
 - **CSRF**: State-endrende forespørsler krever en egen header og origin-validering
 - **Rate limiting**: Per IP og per tjeneste (innlogging, KI, Canvas, kontaktskjema)
-- **HTTPS og sikkerhetsheadere**: Helmet med nonce-basert CSP i produksjon
+- **HTTPS og sikkerhetsheadere**: Helmet med nonce-basert CSP, HSTS preload og Cloudflare Full (strict) TLS til origin i produksjon
 - **Personvern (GDPR)**: Ingen personidentifiserbar informasjon sendes til KI-tjenester uten anonymisering; cookie-samtykke for valgfrie målinger; full kontosletting med dataminimering
-- **Infrastruktur**: Cloudflare (DDoS, SSL/TLS, bot-beskyttelse via Turnstile), Vercel og Heroku med tilgangskontroll
+- **Infrastruktur**: Cloudflare (DDoS, WAF, SSL/TLS, cache-bypass for API, bot-beskyttelse via Turnstile), Vercel og Heroku med tilgangskontroll. Backend avviser direkte origin-trafikk som ikke kommer via Cloudflare-edge.
 - **Åpen kildekode**: All kildekode er offentlig tilgjengelig på [GitHub](https://github.com/26zl/StudyWise)
+
+### Avgrensninger og videre hardening
+
+StudyWise er en bachelorprototype i produksjonslik drift. Videre arbeid bør prioritere ny autentisert penetrasjonstest etter siste sikkerhetsendringer, videre optimalisering av Heroku-minnebruk, og sterkere standardkrav til MFA/passkeys for administrative kontoer. Tredjepartsavhengigheter som Cloudflare, Vercel, Heroku, Clerk og KI-leverandører er bevisste arkitekturvalg og må vurderes videre i risiko- og personvernarbeid.
 
 ## Testing og kvalitetssikring
 
