@@ -6,7 +6,7 @@
 # syntax=docker/dockerfile:1
 FROM node:24-alpine AS deps
 
-RUN npm install -g pnpm@10.33.0
+RUN npm install -g pnpm@10.33.4
 
 WORKDIR /app
 
@@ -67,7 +67,7 @@ RUN --mount=type=secret,id=CLERK_SECRET_KEY \
 # Backend runtime
 FROM node:24-alpine AS backend
 
-RUN npm install -g pnpm@10.33.0
+RUN npm install -g pnpm@10.33.4
 
 WORKDIR /app
 
