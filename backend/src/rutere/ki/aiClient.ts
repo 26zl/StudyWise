@@ -122,6 +122,83 @@ export function extractAnswerAndSource(raw: string): {
 }
 
 /**
+ * Server-side enforcement av <svarkilde>-tagen mot faktisk injisert kontekst.
+ *
+ * Modellen kan stokastisk lures via prompt-injection til å sette feil verdi i
+ * <svarkilde>-tagen (se F-34c i pentestrapport). Backend vet selv hvilken
+ * kontekst som ble injisert i system-prompten, og kan derfor degradere
+ * modellens emitterte verdi til riktig nivå når den ikke matcher virkeligheten.
+ *
+ * Eksempel: modell hevder "kursmateriale" men ingen PDF-innhold ble injisert →
+ * vi degraderer til "kunnskapsbase"/"canvas"/"generell" basert på hva som
+ * faktisk var tilgjengelig.
+ */
+export function enforceSvarKilde(
+    modelEmittedKilde: SvarKilde | undefined,
+    ctx: {
+        /** PDF/fil-innhold fra Canvas (faktisk tekst, ikke kun metadata). */
+        harKursmateriale: boolean;
+        /** Innhold fra brukerens kunnskapsbase (KB-fil eller -lenke). */
+        harKunnskapsbase: boolean;
+        /** Canvas-metadata uten PDF-innhold (moduler, oppgaver, frister, etc.). */
+        harCanvasMetadata: boolean;
+        /** Live URL-scraping (KB-lenke fetched runtime). */
+        harLiveUrl: boolean;
+    },
+): SvarKilde | undefined {
+    // Ingen kontekst ble injisert i det hele tatt — modellen kan ikke ha "kilde".
+    const harNoenKontekst =
+        ctx.harKursmateriale || ctx.harKunnskapsbase || ctx.harCanvasMetadata || ctx.harLiveUrl;
+    if (!harNoenKontekst) {
+        return "generell";
+    }
+
+    // Hvis modellen ikke emitterte tag, la frontend bestemme standard.
+    if (!modelEmittedKilde) return undefined;
+
+    // "kursmateriale" krever faktisk PDF-innhold injisert; ellers degrader.
+    if (modelEmittedKilde === "kursmateriale" && !ctx.harKursmateriale) {
+        if (ctx.harKunnskapsbase || ctx.harLiveUrl) return "kunnskapsbase";
+        if (ctx.harCanvasMetadata) return "canvas";
+        return "generell";
+    }
+
+    // "kunnskapsbase" krever KB-innhold; ellers degrader.
+    if (modelEmittedKilde === "kunnskapsbase" && !ctx.harKunnskapsbase && !ctx.harLiveUrl) {
+        if (ctx.harKursmateriale) return "kursmateriale";
+        if (ctx.harCanvasMetadata) return "canvas";
+        return "generell";
+    }
+
+    // "canvas" krever Canvas-kontekst; ellers degrader.
+    if (
+        modelEmittedKilde === "canvas" &&
+        !ctx.harCanvasMetadata &&
+        !ctx.harKursmateriale
+    ) {
+        if (ctx.harKunnskapsbase || ctx.harLiveUrl) return "kunnskapsbase";
+        return "generell";
+    }
+
+    // "blandet" krever ≥ 2 distinkte kildetyper; ellers degrader til mest spesifikk.
+    if (modelEmittedKilde === "blandet") {
+        const sources = [
+            ctx.harKursmateriale,
+            ctx.harKunnskapsbase || ctx.harLiveUrl,
+            ctx.harCanvasMetadata,
+        ].filter(Boolean).length;
+        if (sources < 2) {
+            if (ctx.harKursmateriale) return "kursmateriale";
+            if (ctx.harKunnskapsbase || ctx.harLiveUrl) return "kunnskapsbase";
+            if (ctx.harCanvasMetadata) return "canvas";
+            return "generell";
+        }
+    }
+
+    return modelEmittedKilde;
+}
+
+/**
  * Sender chat completion til Claude.
  * Stripper automatisk <analyse>-tagger fra responsen.
  */

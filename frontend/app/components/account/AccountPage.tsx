@@ -21,6 +21,7 @@ import {
 import { useAuthRedirect } from "@/app/auth/authUtils";
 import { showToast } from "@/app/components/ui/Toaster";
 import { UsernameConflictError } from "@/app/lib/errors";
+import { getApiErrorCode } from "@/app/lib/errorUtils";
 import { useLanguage } from "@/app/i18n";
 import { broadcastLogout, clearClientAuthState } from "@/app/hooks/use-auth-sync";
 import { useUIStore } from "@/app/store/uiStore";
@@ -100,15 +101,18 @@ function SlettKontoSeksjon() {
       });
     } catch (error) {
       setKontoSlettes(false);
-      const msg = error instanceof Error ? error.message : "";
-      // Backend krever nylig innlogging for kontosletting (step-up)
-      if (msg.includes("logge inn på nytt") || msg.includes("session_too_old")) {
+      // Step-up-auth-feil identifiseres på `kode`/`error: "session_too_old"`
+      // fra backend (se requireRecentAuth) — IKKE på substring i meldingsteksten,
+      // som er skjør og kan trigge falskt på generiske 500-er.
+      const apiErrorCode = getApiErrorCode(error);
+      if (apiErrorCode === "session_too_old") {
         showToast.error(
           t("settings.deleteAccount.deleteErrorTitle"),
           t("settings.deleteAccount.sessionTooOld"),
         );
         return;
       }
+      const msg = error instanceof Error ? error.message : "";
       const fallback =
         language === "en"
           ? "Could not delete the account. Please try again."

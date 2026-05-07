@@ -30,7 +30,6 @@ import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { deleteAllKBContentForUser } from "../../services/kunnskapsbase-indeksering.service.js";
 import { SystemAnnouncement } from "../../database/models/SystemAnnouncement.js";
-import { FileExtractionStatus } from "../../database/models/FileExtractionStatus.js";
 
 export interface AccountDeletionResult {
   deleted: {
@@ -108,41 +107,33 @@ export async function deleteAccountData(
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
-      const [
-        chatRes,
-        sharedChatRes,
-        taskRes,
-        contentRes,
-        canvasStructureRes,
-        canvasRes,
-        arbeidsplanRes,
-        webPushRes,
-        studyContextRes,
-        _chatFeedbackRes,
-      ] = await Promise.all([
-        ChatHistory.deleteMany({ user: id }, { session }),
-        SharedChat.deleteMany({ ownerId: id }, { session }),
-        TaskBreakdown.deleteMany({ userId: id }, { session }),
-        deleteStoredUserMongoContent(userId, session),
-        CanvasStructureModel.deleteMany({ userId }, { session }),
-        CanvasUser.deleteMany({ localUser: id }, { session }),
-        Arbeidsplan.deleteMany({ userId }, { session }),
-        WebPushSubscriptionModel.deleteMany({ userId: id }, { session }),
-        StudyContext.deleteMany({ userId }, { session }),
-        ChatFeedback.deleteMany({ user: id }, { session }),
-        KnowledgeBase.deleteMany({ userId }, { session }),
-        KBContentChunk.deleteMany({ userId }, { session }),
-        ActivityLog.deleteMany({ user: id }, { session }),
-        FileExtractionStatus.deleteMany({ userId }, { session }),
-        // Anonymiser publishedBy på systemmeldinger denne brukeren har publisert
-        // (kun relevant hvis en admin sletter kontoen sin). $unset fjerner referansen
-        // uten å påvirke meldingens innhold eller aktive status.
-        SystemAnnouncement.updateMany(
-          { publishedBy: userId },
-          { $unset: { publishedBy: 1 } },
-          { session },
-        ),
-      ]);
+      // MongoDB-driveren krever at operasjoner på samme ClientSession kjøres
+      // sekvensielt. `Promise.all` med flere parallelle ops mot `{ session }`
+      // utløser `ConflictingOperationInProgress` (kode 117) ved retry inne i
+      // `withTransaction`. Vi bruker derfor seriell await per op.
+      // `deleteStoredUserMongoContent` sletter `FileExtractionStatus` selv,
+      // så vi kaller det ikke separat lenger (unngår dobbeltsletting).
+      const chatRes = await ChatHistory.deleteMany({ user: id }, { session });
+      const sharedChatRes = await SharedChat.deleteMany({ ownerId: id }, { session });
+      const taskRes = await TaskBreakdown.deleteMany({ userId: id }, { session });
+      const contentRes = await deleteStoredUserMongoContent(userId, session);
+      const canvasStructureRes = await CanvasStructureModel.deleteMany({ userId }, { session });
+      const canvasRes = await CanvasUser.deleteMany({ localUser: id }, { session });
+      const arbeidsplanRes = await Arbeidsplan.deleteMany({ userId }, { session });
+      const webPushRes = await WebPushSubscriptionModel.deleteMany({ userId: id }, { session });
+      const studyContextRes = await StudyContext.deleteMany({ userId }, { session });
+      await ChatFeedback.deleteMany({ user: id }, { session });
+      await KnowledgeBase.deleteMany({ userId }, { session });
+      await KBContentChunk.deleteMany({ userId }, { session });
+      await ActivityLog.deleteMany({ user: id }, { session });
+      // Anonymiser publishedBy på systemmeldinger denne brukeren har publisert
+      // (kun relevant hvis en admin sletter kontoen sin). $unset fjerner referansen
+      // uten å påvirke meldingens innhold eller aktive status.
+      await SystemAnnouncement.updateMany(
+        { publishedBy: userId },
+        { $unset: { publishedBy: 1 } },
+        { session },
+      );
 
       result.chatHistory = chatRes.deletedCount ?? 0;
       result.sharedChat = sharedChatRes.deletedCount ?? 0;

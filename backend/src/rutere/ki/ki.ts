@@ -34,7 +34,7 @@ import {
   setCachedChatResponse,
 } from "../../services/chat-response-cache.service.js";
 import { getCanvasTenantCachePrefix } from "../canvas/canvasUtils.js";
-import { chatCompletion } from "./aiClient.js";
+import { chatCompletion, enforceSvarKilde } from "./aiClient.js";
 import { handleAIError, checkAIClientUnavailable, classifyAIError } from "./handleAIError.js";
 import {
   loadCanvasContext,
@@ -4239,13 +4239,57 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       ? mergeChatSources(kbKilder, liveUrlKilder)
       : mergeChatSources(contextKilder, kbKilder, liveUrlKilder);
 
-    // Når modellen selv markerer svaret som «generell» (rent KI-kunnskap, ikke
-    // forankret i pensum/KB), skal vi IKKE rendre kildelisten — selv om
-    // retrieval dro inn dokumenter fra samtalens primaryCourseId. Ellers ville
-    // f.eks. et off-topic spørsmål («hvem var Sokrates?») fått DAT1000-PDFer
-    // hengende ved seg fra et tidligere spørsmål i samme samtale.
+    // Server-side enforcement av <svarkilde>-tag (F-34c): Modellen kan
+    // stokastisk lures via prompt-injection til å sette feil verdi. Vi degraderer
+    // mot faktisk injisert kontekst slik at UI-badgen aldri lyver om kilden.
+    //
+    // Detekteringen sjekker tekst-markører i selve prompt-konteksten siden
+    // `contextKilder` (ContextSource fra context-loader.service.ts) ikke har
+    // `sourceKind`-felt — den lokale schema-en der dropper det for å unngå
+    // sirkulær avhengighet med common/ki. Markørene som sjekkes er alle
+    // som context-loader bruker når faktisk fil-innhold (PDF/dokument)
+    // injiseres, i motsetning til ren modul-/oppgave-metadata:
+    //   - `--- PDF-INNHOLD:` / `--- FIL-INNHOLD:` — chunked content fra MongoDB
+    //   - `--- FIL-INNHOLD (FULLT DOKUMENT):` — full-document-mode
+    //   - `INNHOLD FRA <tittel>:` — on-demand Canvas-fil hentet runtime
+    //     (context-loader.service.ts:1915 og 3593)
+    const harKursmateriale =
+      canvasKontekst.includes("--- PDF-INNHOLD:") ||
+      canvasKontekst.includes("--- FIL-INNHOLD:") ||
+      canvasKontekst.includes("--- FIL-INNHOLD (FULLT DOKUMENT):") ||
+      canvasKontekst.includes("INNHOLD FRA ");
+    const harKunnskapsbase =
+      kbKontekst.length > 0 || Boolean(kbKilder && kbKilder.length > 0);
+    const harCanvasMetadata = hasCanvasData;
+    const harLiveUrl =
+      liveUrlKontekst.length > 0 || Boolean(liveUrlKilder && liveUrlKilder.length > 0);
+    const enforcedSvarKilde = enforceSvarKilde(result.svarKilde, {
+      harKursmateriale,
+      harKunnskapsbase,
+      harCanvasMetadata,
+      harLiveUrl,
+    });
+    if (enforcedSvarKilde !== result.svarKilde) {
+      logger.info(
+        {
+          modelEmitted: result.svarKilde,
+          enforced: enforcedSvarKilde,
+          harKursmateriale,
+          harKunnskapsbase,
+          harCanvasMetadata,
+          harLiveUrl,
+        },
+        "svarKilde enforced — modell-emittert verdi degradert mot faktisk kontekst",
+      );
+    }
+
+    // Når svaret markeres som «generell» (rent KI-kunnskap, ikke forankret i
+    // pensum/KB), skal vi IKKE rendre kildelisten — selv om retrieval dro inn
+    // dokumenter fra samtalens primaryCourseId. Ellers ville f.eks. et off-topic
+    // spørsmål («hvem var Sokrates?») fått DAT1000-PDFer hengende ved seg fra et
+    // tidligere spørsmål i samme samtale.
     const mergedSources =
-      result.svarKilde === "generell" ? undefined : rawMergedSources;
+      enforcedSvarKilde === "generell" ? undefined : rawMergedSources;
 
     const payload = KIChatResponseSchema.parse({
       suksess: true,
@@ -4259,7 +4303,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
           }
         : undefined,
       kilder: mergedSources,
-      svarKilde: result.svarKilde,
+      svarKilde: enforcedSvarKilde,
     });
     // writeSSE base64-koder JSON-payloaden før den skrives til event-streamen.
     if (writeSSE(res, payload)) {
@@ -4290,7 +4334,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         primaryCourseId: cacheInput.primaryCourseId,
         primaryFileId: cacheInput.primaryFileId,
         ...(fullDocumentTriggerWord ? { triggerWord: fullDocumentTriggerWord } : {}),
-        ...(result.svarKilde ? { svarKilde: result.svarKilde } : {}),
+        ...(enforcedSvarKilde ? { svarKilde: enforcedSvarKilde } : {}),
       }).catch((err) => {
         logger.warn({ err, responseCacheKey }, "setCachedChatResponse feilet");
       });
