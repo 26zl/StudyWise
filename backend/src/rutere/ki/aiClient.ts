@@ -596,6 +596,9 @@ async function callAnthropic(options: {
             const streamResult = streamText({
                 model: anthropicSdkProvider(model),
                 messages: sdkMessages,
+                // System-meldingene er backend-genererte og brukes for Anthropic
+                // prompt caching via providerOptions. Ikke klient-injiserte.
+                allowSystemInMessages: true,
                 maxOutputTokens: max_tokens,
                 temperature: Math.min(Math.max(temperature, 0), 1),
                 abortSignal: effectiveSignal,

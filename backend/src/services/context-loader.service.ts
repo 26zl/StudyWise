@@ -2201,11 +2201,18 @@ async function byggKontekstFraChunks(
         modulTitleMatcherHint(chunk.source.moduleTitle, target.moduleHint!),
       );
       if (moduleMatches.length === 0) {
-        // moduleHint matchet ingenting — bruk kursresultatene i stedet
+        // moduleHint matchet ingenting. Uten eksplisitt filhint er kursresultatene
+        // sannsynligvis fra feil modul, så la målrettet metadata/on-demand få prøve.
         logger.info(
-          { userId, moduleHint: target.moduleHint, chunksBeforeFilter: scored.length },
-          "Chunk-søk: moduleHint matchet ingen chunks — bruker kursresultater",
+          {
+            userId,
+            moduleHint: target.moduleHint,
+            fileHint: target.fileHint,
+            chunksBeforeFilter: scored.length,
+          },
+          "Chunk-søk: moduleHint matchet ingen chunks — faller gjennom til målrettet kontekst",
         );
+        if (!target.fileHint) return null;
       } else {
         scored = moduleMatches;
       }
@@ -2552,18 +2559,15 @@ async function byggKontekstFraHybridSearch(
     let filterResult = filtrerHybridResultater(results, target, coursesPinned);
     const moduleHintMissedOriginal = filterResult.moduleHintMissed;
 
-    // Når moduleHint filtrerte bort alle resultater: prøv igjen uten moduleHint-filter.
-    // Innhold fra samme kurs (andre moduler) er bedre enn ingen kontekst, men dette er
-    // en "soft miss" som må bevares for senere beslutninger (full_document og on-demand).
-    if (filterResult.moduleHintMissed && results.length > 0) {
+    // Når moduleHint filtrerte bort alle resultater uten at brukeren pekte på
+    // en konkret fil, er samme-kurs-treffene sannsynligvis fra feil modul.
+    // Returner null slik at caller kan gå videre til metadata/on-demand.
+    if (filterResult.moduleHintMissed && !target?.fileHint) {
       logger.info(
         { userId, moduleHint: target?.moduleHint, unfilteredCount: results.length, messagePreview: message.substring(0, 80) },
-        "Hybrid søk: moduleHint ga ingen treff — bruker kursresultater uten moduleHint-filter",
+        "Hybrid søk: moduleHint ga ingen treff — faller gjennom til målrettet kontekst",
       );
-      const courseOnlyTarget = target ? { ...target, moduleHint: null } : target;
-      filterResult = filtrerHybridResultater(results, courseOnlyTarget, coursesPinned);
-      // Bevar originalt signal om moduleHint-miss, selv om fallback ga treff.
-      filterResult = { ...filterResult, moduleHintMissed: true };
+      return null;
     }
 
     const filteredResults = filterResult.results;
