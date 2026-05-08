@@ -65,6 +65,19 @@ jobs:
       - name: Build docs
         run: pnpm --filter docs build
 
+      - name: Verify build output
+        run: |
+          set -euo pipefail
+          BUILD_DIR="docs/docs/.vitepress/dist"
+          if [ ! -d "$BUILD_DIR" ]; then
+            echo "Error: Build output directory not found: $BUILD_DIR"
+            echo "Listing docs/docs/ for debugging:"
+            ls -la docs/docs/ || echo "docs/docs/ does not exist"
+            exit 1
+          fi
+          echo "Build output exists. Contents of $BUILD_DIR:"
+          ls -la "$BUILD_DIR"
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
