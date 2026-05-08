@@ -143,8 +143,7 @@ export const nbMessages = {
         emailPlaceholder: "navn@example.com",
       },
       mfa: {
-        description:
-          "Passordet er oppdatert. Fullfør totrinnsbekreftelse for å logge inn.",
+        description: "Passordet er oppdatert. Fullfør totrinnsbekreftelse for å logge inn.",
         title: "Tofaktor kreves",
       },
       setCredential: {
@@ -204,8 +203,7 @@ export const nbMessages = {
           "Kunne ikke logge inn med e-post/brukernavn og passord. Sjekk at begge er skrevet riktig. Hvis du opprettet kontoen med Microsoft eller Google, bruk samme knapp i stedet.",
         method:
           "Denne kontoen ser ut til å bruke en annen innloggingsmetode. Velg Microsoft eller Google hvis det var slik du opprettet kontoen.",
-        rateLimited:
-          "Det har vært for mange innloggingsforsøk. Vent litt før du prøver igjen.",
+        rateLimited: "Det har vært for mange innloggingsforsøk. Vent litt før du prøver igjen.",
         verificationRequired:
           "E-postadressen må bekreftes før du kan logge inn. Sjekk innboksen din for verifiseringskoden.",
       },
@@ -214,8 +212,7 @@ export const nbMessages = {
         subtitle: "Skriv inn koden fra autentiseringsappen din, eller en backup-kode.",
         codeLabel: "Verifiseringskode",
         codePlaceholder: "123456",
-        codeHint:
-          "Eller en backup-kode du lagret da du satte opp tofaktor.",
+        codeHint: "Eller en backup-kode du lagret da du satte opp tofaktor.",
         codeRequired: "Verifiseringskode er påkrevd.",
         verifyButton: "Verifiser",
         verifying: "Verifiserer...",
@@ -273,12 +270,10 @@ export const nbMessages = {
         emailTaken:
           "Det finnes allerede en konto med denne e-postadressen. Logg inn i stedet, eller bruk Microsoft/Google hvis det var slik kontoen ble opprettet.",
         invalidEmail: "Skriv inn en gyldig e-postadresse.",
-        usernameTaken:
-          "Brukernavnet er allerede tatt. Velg et annet brukernavn.",
+        usernameTaken: "Brukernavnet er allerede tatt. Velg et annet brukernavn.",
         usernameInvalid:
           "Brukernavnet kan bare inneholde bokstaver, tall og understrek, og må være 4–30 tegn.",
-        rateLimited:
-          "Det har vært for mange registreringsforsøk. Vent litt før du prøver igjen.",
+        rateLimited: "Det har vært for mange registreringsforsøk. Vent litt før du prøver igjen.",
       },
       submitButton: "Opprett konto",
       submitting: "Oppretter...",
@@ -441,12 +436,12 @@ export const nbMessages = {
     features: {
       aiPartner: {
         description:
-          "Få hjelp, forklaringer, quizer, flashcards og oppgavenedbrytning basert på faktisk kursmateriale. Lagre quizene og flashcard-settene dine, se statistikk over forsøk og spill samme sett om igjen før eksamen. Last opp egne dokumenter — PDF, Word, Excel eller bilder av tavlenotater — og la KI-en lese dem som om det var pensum.",
+          "Få hjelp, forklaringer, quizer, flashcards og oppgavenedbrytning basert på kursmateriale du har tilgang til. Bruk svarene som læringsstøtte, og følg alltid emnets regler for KI-bruk ved eksamen og innlevering.",
         title: "KI-Studiepartner som kjenner pensum",
       },
       canvasIntegration: {
         description:
-          "StudyWise er bygd rundt Canvas. Koble til med en personlig API-token én gang, og resten av appen — KI-chat, quiz, flashcards, ukeplan, kalender — får automatisk tilgang til emner, moduler, filer, frister og kunngjøringer. Uten Canvas-tilkobling låses de fleste funksjonene.",
+          "StudyWise demonstrerer en Canvas-kobling med personlig API-token i denne bachelorprototypen. Det gir appen lese-tilgang til emner, moduler, filer, frister og kunngjøringer du selv kan se i Canvas. En reell produksjonsvariant bør bruke Canvas OAuth/LTI/developer key godkjent av lærestedet.",
         title: "Canvas er fundamentet",
       },
       heading: "Alt du trenger for å lykkes",
@@ -475,7 +470,7 @@ export const nbMessages = {
     },
     hero: {
       description:
-        "StudyWise samler Canvas, kalender og en KI-assistent som faktisk kjenner pensumet ditt. For å få full nytte må du koble til Canvas med en personlig API-token — det tar to minutter, og uten den fungerer kun generell KI-chat og kunnskapsbase med dine egne dokumenter.",
+        "StudyWise samler Canvas, kalender og en KI-assistent som kjenner kursinnholdet du gir tilgang til. Dette er et USN-bachelorprosjekt og en teknisk prototype, ikke en offisiell Canvas- eller lærestedsintegrasjon.",
       title: "Din intelligente studieassistent",
     },
   },
@@ -618,10 +613,13 @@ export const nbMessages = {
         "Koble til Canvas for å få varsler basert på kunngjøringer, frister og hendelser.",
     },
     canvasContext: {
-      description: "Velg hvilken Canvas-data AI-en skal ha tilgang til.",
+      description:
+        "Velg hvilken Canvas-data AI-en skal ha tilgang til. Bruk dette som læringsstøtte, ikke som erstatning for eget arbeid.",
       selector: {
         emptySelection:
           "Ingen data valgt. AI kan ikke svare på Canvas-spørsmål før du velger minst ett datasett.",
+        notice:
+          "Når Canvas-kontekst er valgt, kan relevant kursinnhold brukes i KI-svar. Ikke bruk funksjonen med eksamens- eller innleveringsarbeid der KI ikke er tillatt, og ikke legg inn materiale du ikke har rett til å behandle.",
         options: {
           announcements: {
             description: "Kunngjøringer fra forelesere",
@@ -659,14 +657,14 @@ export const nbMessages = {
       deleting: "Sletter...",
       deletingButton: "Ja, slett Canvas API Token",
       description:
-        "Koble til din Canvas-konto for å hente emner, kunngjøringer, frister og forelesninger. Velg institusjon under før du lagrer tokenet. Listen dekker de støttede norske Canvas-instansene i StudyWise.",
+        "Koble til din Canvas-konto for å hente emner, kunngjøringer, frister og forelesninger. Dagens personlige API-token er en prototype-/demo-løsning for bachelorprosjektet, ikke en offisiell Canvas-, USN- eller lærestedsintegrasjon. En produksjonsvariant bør bruke institusjonsgodkjent Canvas OAuth/LTI/developer key.",
       hide: "Skjul",
       howTo: {
         step1: "Logg inn på Canvas",
         step2: "Gå til Innstillinger → Godkjente integrasjoner",
         step3: 'Klikk "+ Ny tilgangsnøkkel"',
         step4: "Kopier token og lim inn her",
-        title: "Slik får du en API token:",
+        title: "Slik får du en API-token for demo:",
       },
       institutionLabel: "Institusjon (Canvas)",
       institutionPlaceholder: "Velg institusjon",
@@ -965,15 +963,18 @@ export const nbMessages = {
       statusTooLarge: "For stor",
       statusUnsupported: "Ustøttet format",
       deleteAction: "Slett",
-      deleteConfirm: "Slette status-raden for \"{fileName}\"? (Blir gjenopprettet neste sync hvis filen fortsatt ikke kan leses.)",
+      deleteConfirm:
+        'Slette status-raden for "{fileName}"? (Blir gjenopprettet neste sync hvis filen fortsatt ikke kan leses.)',
       deleteSuccess: "Status-rad slettet",
       deleteFailed: "Sletting feilet",
       rescanAction: "Skann eksisterende filer",
       rescanRunning: "Skanner...",
-      rescanDescription: "Skanner alle ekte dokumentfiler (.pptx, .pdf, .docx osv.) og flagger de som har svært lite tekst. Ekskluderer Canvas-sider, assignments og eksterne lenker — de er naturlig korte og skal ikke flagges.",
+      rescanDescription:
+        "Skanner alle ekte dokumentfiler (.pptx, .pdf, .docx osv.) og flagger de som har svært lite tekst. Ekskluderer Canvas-sider, assignments og eksterne lenker — de er naturlig korte og skal ikke flagges.",
       rescanConfirm: "Skanne eksisterende PPTX/PDF/DOCX/XLSX-filer?",
       rescanSuccess: "Retroaktiv skann fullført",
-      rescanSummary: "{found} sparse-kandidater funnet. {flagged} nye markører opprettet, {skipped} hoppet over (sterkere status finnes), {cleared} gamle retroaktive markører ryddet bort.",
+      rescanSummary:
+        "{found} sparse-kandidater funnet. {flagged} nye markører opprettet, {skipped} hoppet over (sterkere status finnes), {cleared} gamle retroaktive markører ryddet bort.",
       rescanFailed: "Retroaktiv skann feilet",
     },
     kbHealth: {
@@ -1901,7 +1902,8 @@ export const nbMessages = {
     sourceDownloadFailed: "Kunne ikke laste ned kilden",
     sourceDownloadStarted: "Laster ned kilden…",
     sourceDownloadSuccess: "Nedlasting fullført",
-    sourceKbFileInfo: "Dette er indeksert innhold fra din kunnskapsbase. Originalfilen lagres ikke.",
+    sourceKbFileInfo:
+      "Dette er indeksert innhold fra din kunnskapsbase. Originalfilen lagres ikke.",
     noSourcesForAnswer: "Ingen kilder registrert for dette svaret.",
     feedbackGood: "Bra svar",
     feedbackBad: "Dårlig svar",
@@ -2001,6 +2003,8 @@ export const nbMessages = {
     closeLabel: "Lukk eksportdialog",
     defaultChatTitle: "Samtale",
     messageInfo: "Eksporterer {messageCount} meldinger fra denne samtalen.",
+    academicIntegrityNote:
+      "Gå gjennom eksporten før du bruker eller deler den. KI-generert innhold skal ikke leveres som eget arbeid, og bruk av KI må dokumenteres der emnet eller lærestedet krever det.",
     formatLabel: "Eksportformat",
     formats: {
       markdown: "Markdown",
@@ -2080,7 +2084,7 @@ export const nbMessages = {
     title: "Om StudyWise",
     whatTitle: "Hva er StudyWise?",
     whatBody:
-      "StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt ved Universitetet i Sørøst-Norge (USN). Applikasjonen integrerer med Canvas LMS for å gi studenter en sentralisert plattform for å holde oversikt over studiene sine.",
+      "StudyWise er en AI-drevet studieassistent utviklet som et bachelorprosjekt ved Universitetet i Sørøst-Norge (USN). Applikasjonen demonstrerer hvordan Canvas LMS, kalender og KI kan samles i én studieflate, men er ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder.",
     featuresTitle: "Funksjoner",
     featureCanvasLabel: "Canvas-integrasjon:",
     featureCanvasBody: "Se kunngjøringer, emner, frister og kalender fra Canvas",
@@ -2128,10 +2132,10 @@ export const nbMessages = {
   },
   personvern: {
     title: "Personvernerklæring",
-    updatedAt: "6. mai 2026",
+    updatedAt: "8. mai 2026",
     controllerTitle: "Hvem står bak StudyWise?",
     controllerBody:
-      "StudyWise er utviklet som bacheloroppgave ved Universitetet i Sørøst-Norge (USN). Studentene bak prosjektet er behandlingsansvarlige for personopplysningene i tjenesten — det betyr at vi bestemmer hvordan dataene dine brukes og har ansvar for å følge personvernreglene. Har du spørsmål, innspill eller vil utøve rettighetene dine, er det bare å ta kontakt via kontaktskjemaet. Vi svarer gjerne.",
+      "StudyWise er utviklet som bacheloroppgave ved Universitetet i Sørøst-Norge (USN), men er ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder. Studentene bak prosjektet er behandlingsansvarlige for personopplysningene i tjenesten — det betyr at vi bestemmer hvordan dataene dine brukes og har ansvar for å følge personvernreglene. Har du spørsmål, innspill eller vil utøve rettighetene dine, er det bare å ta kontakt via kontaktskjemaet. Vi svarer gjerne.",
     dataCollectionTitle: "Hvilke data samler vi inn?",
     accountInfoLabel: "Kontoinformasjon og innlogging:",
     accountInfoBody:
@@ -2141,7 +2145,7 @@ export const nbMessages = {
       "Vi bruker nødvendige cookies for innlogging og preferanser. Backend-tjenesten bruker driftsmonitorering (Datadog APM) for feilsporing og stabilitet — dette kjører server-side og krever ikke samtykke. Hvis du godtar det, aktiverer vi også valgfrie ytelsesmålinger i nettleseren: Datadog RUM og Speed Insights for teknisk ytelse, Datadog Session Replay (avspillbar rekonstruksjon av UI-interaksjoner der all tekst maskeres og bilder blurres i opptaket) for ca. 50 % av sesjoner, og PostHog for aggregert produktanalyse (i cookieless-modus uten informasjonskapsler). Valget for valgfrie målinger lagres på brukerprofilen din når du er innlogget, og caches også lokalt i nettleseren for å unngå at banneret vises på nytt.",
     canvasTokenLabel: "Canvas API-token:",
     canvasTokenBody:
-      "Lagres med sterk kryptering (samme nivå som i banksektoren) slik at vi kan hente Canvas-data på dine vegne. Nøkkelen vises aldri i klartekst noe sted i systemet vårt.",
+      "Lagres med sterk kryptering (samme nivå som i banksektoren) slik at vi kan hente Canvas-data på dine vegne. Nøkkelen vises aldri i klartekst noe sted i systemet vårt. Dagens personlige token-flyt er en prototype-/demo-løsning for bachelorprosjektet; en produksjonsintegrasjon bør bruke institusjonsgodkjent Canvas OAuth/LTI/developer key.",
     chatHistoryLabel: "Samtalehistorikk:",
     chatHistoryBody:
       "AI-samtaler lagres kryptert på din konto. Vi lagrer en kort tittel basert på første spørsmål (f.eks. første 50 tegn) for å vise samtalen i listen.",
@@ -2210,10 +2214,10 @@ export const nbMessages = {
       "Clerk håndterer registrering, innlogging, passord, to-faktor-autentisering og Google/Microsoft-innlogging. De lagrer e-post, passord (i hashet form — vi ser aldri selve passordet), og valgfritt 2FA-hemmeligheter. Clerk er SOC 2 Type II-sertifisert og publiserer en egen DPA.",
     thirdPartyAILabel: "AI-tjenester (Anthropic):",
     thirdPartyAIBody:
-      "Innhold du skriver og kontekst (f.eks. oppgavetekst) sendes til AI for å generere svar. Dokumenter du laster opp saniteres automatisk for strukturert PII (epost, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) før de brukes som AI-kontekst. Canvas-innhold anonymiseres der det er mulig. AI-modellen er i tillegg instruert om å ikke gjengi personnavn fra dokumenter i svar.",
+      "Innhold du skriver og kontekst (f.eks. oppgavetekst, Canvas-utdrag eller dokumentinnhold) sendes til AI for å generere svar. Dokumenter du laster opp saniteres automatisk for strukturert PII (epost, telefon, fødselsnummer, studentnummer, norske adresser og signatur-navn) før de brukes som AI-kontekst. Canvas-innhold anonymiseres der det er mulig, men sanitering er best-effort. Ikke bruk funksjonen med personopplysninger, taushetsbelagt informasjon eller opphavsbeskyttet materiale du ikke har rett til å behandle.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
-      "StudyWise bruker en personlig API-nøkkel som du selv genererer i Canvas. Nøkkelen gir StudyWise tilgang til de samme dataene du allerede har tilgang til i Canvas — ikke mer. StudyWise henter kun data (lese-tilgang) og oppretter, endrer eller sletter ingenting i Canvas på dine vegne. StudyWise har ikke administrativ tilgang, institusjonstilgang eller tilgang til andre brukeres data. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter.",
+      "StudyWise bruker i prototypen en personlig API-nøkkel som du selv genererer i Canvas. Nøkkelen gir StudyWise tilgang til de samme dataene du allerede har tilgang til i Canvas — ikke mer. StudyWise henter kun data (lese-tilgang) og oppretter, endrer eller sletter ingenting i Canvas på dine vegne. StudyWise har ikke administrativ tilgang, institusjonstilgang eller tilgang til andre brukeres data. Tokenet lagres kryptert hos oss og sendes ikke til andre tredjeparter. Denne løsningen er ment som teknisk demonstrasjon; en reell institusjonsutrulling bør bruke Canvas OAuth/LTI/developer key godkjent av lærestedet.",
     thirdPartyPineconeLabel: "Søketjeneste for kunnskapsbase (Pinecone):",
     thirdPartyPineconeBody:
       "Når du bruker KI-funksjoner med Canvas-innhold eller egne notater, sender vi tekstbiter (uten navn, e-post eller andre personopplysninger) til en søketjeneste som hjelper KI-en å finne de mest relevante delene av det du har lastet opp. Innholdet er knyttet til en anonym bruker-ID og slettes når du fjerner basen eller kontoen din.",
@@ -2280,7 +2284,7 @@ export const nbMessages = {
     automated1:
       "Alle KI-svar er forslag du selv kan godta eller avvise. Verken karakterer, tilgang eller andre rettigheter avgjøres av maskinen.",
     automated2:
-      "KI kan ta feil. Du er ansvarlig for å sjekke informasjonen før du leverer akademisk arbeid.",
+      "KI kan ta feil. Du er ansvarlig for å sjekke informasjonen, følge emnets regler og dokumentere KI-bruk før du leverer akademisk arbeid.",
     automated3:
       "Du kan når som helst stoppe å bruke KI-funksjoner, slette samtaler, eller be om menneskelig oppfølging fra support via kontaktskjemaet.",
     ageTitle: "Aldersgrense",
@@ -2333,7 +2337,7 @@ export const nbMessages = {
     autoLogoutBody:
       "Sesjoner utløper automatisk etter en periode med inaktivitet, og du må logge inn på nytt. Du kan også logge deg ut manuelt fra alle enheter hvis du mistenker at kontoen er blitt brukt uten din tillatelse.",
     canvasApiTitle: "Canvas API-sikkerhet",
-    canvasApiIntro: "Når du kobler til Canvas, bruker vi ditt personlige API-token:",
+    canvasApiIntro: "Når du kobler til Canvas i prototypen, bruker vi ditt personlige API-token:",
     canvasApi1:
       "Vi bruker tokenet kun til å lese dine Canvas-data — vi utfører ingen skriveoperasjoner",
     canvasApi2: "Du kan tilbakekalle tokenet i Canvas når som helst",
@@ -2391,34 +2395,38 @@ export const nbMessages = {
     reportBody: "Har du oppdaget en sikkerhetssvakhet? Kontakt oss umiddelbart via",
     reportLink: "kontaktskjemaet",
     reportSuffix: ". Vi tar alle rapporter på alvor og vil respondere raskt.",
-    reportSecurityTxtIntro: "For sikkerhetsforskere publiserer vi kanonisk kontakt i maskin-lesbart format:",
+    reportSecurityTxtIntro:
+      "For sikkerhetsforskere publiserer vi kanonisk kontakt i maskin-lesbart format:",
     reportSecurityTxtLink: "/.well-known/security.txt",
     reportSecurityTxtSuffix: "(RFC 9116).",
   },
   vilkar: {
     title: "Brukervilkår",
-    updatedAt: "18. april 2026",
+    updatedAt: "8. mai 2026",
     acceptTitle: "1. Aksept av vilkår",
     acceptBody:
       "Ved å opprette en konto og bruke StudyWise aksepterer du disse brukervilkårene. Hvis du ikke aksepterer vilkårene, må du ikke bruke tjenesten. Du kan avslutte denne avtalen når som helst ved å logge ut eller slette kontoen din under Innstillinger → Slett konto.",
     serviceTitle: "2. Beskrivelse av tjenesten",
     serviceBody:
-      "StudyWise er en studieassistent som integrerer med Canvas LMS og tilbyr AI-basert hjelp. Tjenesten er utviklet som et bachelorprosjekt ved USN og tilbys gratis til studenter.",
+      "StudyWise er en studieassistent og teknisk prototype som integrerer med Canvas LMS og tilbyr AI-basert hjelp. Tjenesten er utviklet som et bachelorprosjekt ved USN, men er ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder.",
     accountTitle: "3. Brukerkonto",
     account1: "Du er ansvarlig for å holde passordet ditt hemmelig",
     account2: "Du må ikke dele kontoen din med andre",
     account3: "Du må varsle oss umiddelbart ved mistanke om uautorisert tilgang",
     account4: "Vi kan suspendere kontoer som bryter vilkårene",
     canvasTitle: "4. Canvas-integrasjon",
-    canvas1: "Du gir oss tillatelse til å hente data fra Canvas på dine vegne",
-    canvas2: "Vi henter kun data som er nødvendig for tjenestens funksjonalitet",
-    canvas3: "Du kan tilbakekalle tilgangen når som helst via Canvas",
-    canvas4: "Vi er ikke ansvarlige for innhold i Canvas",
+    canvas1:
+      "Dagens personlige Canvas API-token er en prototype-/demo-løsning; en produksjonsvariant bør bruke Canvas OAuth/LTI/developer key godkjent av lærestedet",
+    canvas2: "Du gir oss tillatelse til å hente data fra Canvas på dine vegne",
+    canvas3:
+      "Vi henter kun data som er nødvendig for funksjonaliteten du bruker, og vi skriver ikke tilbake til Canvas",
+    canvas4:
+      "Du kan tilbakekalle tilgangen når som helst via Canvas og skal bare bruke innhold du har rett til å behandle i StudyWise",
     aiTitle: "5. AI-assistenten",
     ai1: "AI-svarene er veiledende og kan inneholde feil",
     ai2: "Du bør alltid verifisere viktig informasjon",
-    ai3: "AI-en skal ikke brukes til juks eller akademisk uredelighet",
-    ai4: "Vi forbeholder oss retten til å fjerne eller begrense innhold som bryter vilkårene, og å suspendere kontoer ved misbruk",
+    ai3: "AI-en er læringsstøtte og skal ikke brukes til juks, plagiat eller som erstatning for egen forståelse",
+    ai4: "Du må følge emnets og lærestedets regler for eksamen, innleveringer og dokumentasjon av KI-bruk",
     sharingTitle: "6. Deling av samtaler",
     sharing1:
       "Du kan opprette offentlige lenker til samtaler. Alle med lenken kan lese hele innholdet",
@@ -2452,18 +2460,21 @@ export const nbMessages = {
     titlePrefix: "Ofte stilte",
     titleAccent: "spørsmål",
     helpCenter: "Hjelpesenter",
-    description: "Finn svar på de vanligste spørsmålene om StudyWise — Canvas, sikkerhet, konto og funksjoner.",
+    description:
+      "Finn svar på de vanligste spørsmålene om StudyWise — Canvas, sikkerhet, konto og funksjoner.",
     searchPlaceholder: "Søk etter spørsmål...",
     filterAll: "Alle",
-    noMatches: "Ingen spørsmål matcher søket ditt. Prøv et annet søkeord eller velg en annen kategori.",
-    contactDescription: "Vi er her for å hjelpe. Send oss en melding så svarer vi som regel innen 24 timer.",
+    noMatches:
+      "Ingen spørsmål matcher søket ditt. Prøv et annet søkeord eller velg en annen kategori.",
+    contactDescription:
+      "Vi er her for å hjelpe. Send oss en melding så svarer vi som regel innen 24 timer.",
     categoryCanvas: "Canvas",
     categorySecurityPrivacy: "Sikkerhet og personvern",
     categoryAccount: "Konto",
     categoryFeatures: "Funksjoner",
     canvasTokenQ: "Hvordan får jeg Canvas API-token?",
     canvasTokenA:
-      'Logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner, og klikk "+ Ny tilgangsnøkkel". Kopier nøkkelen og lim den inn i StudyWise under Innstillinger.',
+      'For prototypen: logg inn på Canvas, gå til Innstillinger → Godkjente integrasjoner, og klikk "+ Ny tilgangsnøkkel". Kopier nøkkelen og lim den inn i StudyWise under Innstillinger. I en produksjonsintegrasjon bør dette erstattes av Canvas OAuth/LTI/developer key godkjent av lærestedet.',
     canvasTokenSettings: "Innstillinger → Godkjente integrasjoner",
     canvasTokenButton: "+ Ny tilgangsnøkkel",
     canvasInstitutionsQ: "Hvilke Canvas-institusjoner støttes?",
@@ -2477,8 +2488,12 @@ export const nbMessages = {
     supplementQ: "Erstatter StudyWise Canvas?",
     supplementA:
       "Nei. Canvas forblir den offisielle kanalen mellom deg og skolen — alle innleveringer, kunngjøringer og karakterer går fortsatt gjennom Canvas. StudyWise leser fra Canvas (med ditt API-token), men skriver aldri tilbake. Tenk på oss som studieassistenten som sitter ved siden av deg og hjelper deg å bruke Canvas-innholdet bedre.",
+    officialIntegrationQ: "Er StudyWise en offisiell Canvas- eller USN-integrasjon?",
+    officialIntegrationA:
+      "Nei. StudyWise er et bachelorprosjekt og en teknisk prototype, ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder. Dagens personlige Canvas-token viser hva som er teknisk mulig. En produksjonsvariant bør bruke Feide/FS der det er relevant og Canvas OAuth/LTI/developer key godkjent av institusjonen.",
     dataSecureQ: "Er dataene mine trygge?",
-    dataSecureA: "Ja. Sensitive data (som Canvas-token og chat-historikk) krypteres med bransjestandard kryptering før de lagres, og all kommunikasjon mellom nettleser og servere er kryptert (HTTPS). Les mer på vår",
+    dataSecureA:
+      "Ja. Sensitive data (som Canvas-token og chat-historikk) krypteres med bransjestandard kryptering før de lagres, og all kommunikasjon mellom nettleser og servere er kryptert (HTTPS). Les mer på vår",
     dataSecureLink: "sikkerhetsside",
     thirdPartyQ: "Sender StudyWise data til tredjepart?",
     thirdPartyA1:
@@ -2505,7 +2520,7 @@ export const nbMessages = {
       "Arbeidsplanen samler kommende frister og oppgaver fra Canvas i en strukturert ukeoversikt, slik at du enkelt kan planlegge lesing og innleveringer. Den oppdateres automatisk når Canvas synkroniseres.",
     withoutCanvasQ: "Kan jeg bruke StudyWise uten Canvas-token?",
     withoutCanvasA:
-      "Bare i svært begrenset grad — og vi anbefaler det ikke. StudyWise er bygd rundt Canvas-integrasjonen. Uten en personlig Canvas-API-token er kun generell KI-chat og kunnskapsbasen (dine egne opplastede dokumenter) tilgjengelig. Alt som gir StudyWise sin egentlige verdi — emneoversikt, kalender med frister, kunngjøringer, KI-chat med pensum-kontekst, quiz og flashcards fra Canvas-pensum, ukeplan og oppgavenedbrytning — krever Canvas-tilkobling. Du finner instruksjoner for å lage en token i Innstillinger; det tar et par minutter.",
+      "Bare i svært begrenset grad. StudyWise er bygd rundt Canvas-integrasjonen, men dagens personlige Canvas-token er en prototype-/demo-løsning. Uten Canvas-tilkobling er kun generell KI-chat og kunnskapsbasen (dine egne opplastede dokumenter) tilgjengelig. Alt som gir StudyWise sin egentlige verdi — emneoversikt, kalender med frister, kunngjøringer, KI-chat med pensum-kontekst, quiz og flashcards fra Canvas-pensum, ukeplan og oppgavenedbrytning — krever Canvas-tilkobling.",
     fileTypesQ: "Hvilke filtyper støttes for dokumentanalyse?",
     fileTypesA:
       "StudyWise støtter PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), bilder (PNG, JPG, WEBP) og vanlige kodefiler.",
@@ -2518,6 +2533,9 @@ export const nbMessages = {
     taskBreakdownQ: "Hva er oppgavenedbrytning?",
     taskBreakdownA:
       "Når du har en stor Canvas-oppgave, kan KI-en bryte den ned i mindre deloppgaver med anslått tidsbruk. Nyttig når en lang innlevering føles uoverkommelig — du får en konkret tiltaksliste å jobbe ut fra. Du finner det under KI-breakdown eller ved å be KI-en dele opp en oppgave direkte i chatten.",
+    academicIntegrityQ: "Kan jeg bruke StudyWise på eksamen eller innlevering?",
+    academicIntegrityA:
+      "Bare hvis emnet og eksamens-/oppgaveteksten tillater KI-bruk. StudyWise er ment som læringsstøtte. Ikke lever KI-generert tekst som ditt eget arbeid, og dokumenter hvor og hvordan du har brukt KI når lærestedet krever det.",
     exportQ: "Kan jeg eksportere chat-svar eller notater?",
     exportA:
       "Ja. Du kan eksportere KI-svar og oppsummeringer til PDF, Word (.docx), Excel (.xlsx) eller direkte til Notion (krever Notion-tilkobling i Innstillinger). Bruk «Eksporter»-knappen i chatten eller KI-oppsummeringen.",
@@ -2529,12 +2547,13 @@ export const nbMessages = {
       "Gå til Innstillinger → Varsler og slå på nettleservarsler. Nettleseren vil spørre om tillatelse første gang. Du kan da få beskjed om nye Canvas-frister og oppgaver selv når StudyWise ikke er åpent. Varslene er per enhet — aktiver på hver enhet du vil bruke.",
     responseTimeQ: "Hvorfor tar det så lang tid å få svar fra KI-en?",
     responseTimeA:
-      "Når du stiller et grundig spørsmål om pensum — typisk \"oppsummer leksjon X\" eller \"forklar hele kapittel Y\" — leser KI-en hele relevante PDF-er, søker gjennom alt kursmaterialet ditt, og komponerer et fyldig svar med kilder. Dette tar vanligvis 1-3 minutter første gang. Kvaliteten er verdt ventetiden: du får svar basert på faktisk pensum, ikke bare generell kunnskap. Stilles samme spørsmål igjen (enten av deg eller en medstudent på samme kurs), serveres svaret fra cachen på ~2 sekunder. Korte oppslag som \"hva er neste frist?\" tar bare noen få sekunder.",
+      'Når du stiller et grundig spørsmål om pensum — typisk "oppsummer leksjon X" eller "forklar hele kapittel Y" — leser KI-en hele relevante PDF-er, søker gjennom alt kursmaterialet ditt, og komponerer et fyldig svar med kilder. Dette tar vanligvis 1-3 minutter første gang. Kvaliteten er verdt ventetiden: du får svar basert på faktisk pensum, ikke bare generell kunnskap. Stilles samme spørsmål igjen (enten av deg eller en medstudent på samme kurs), serveres svaret fra cachen på ~2 sekunder. Korte oppslag som "hva er neste frist?" tar bare noen få sekunder.',
     termsUpdateQ: "Hva skjer hvis vilkårene oppdateres?",
     termsUpdateA:
       "Når vi oppdaterer brukervilkårene eller personvernerklæringen, får du opp en dialog neste gang du bruker StudyWise som ber deg lese gjennom og godta de nye versjonene. Du kan ikke fortsette å bruke tjenesten uten å bekrefte — men du kan alltid logge ut eller slette kontoen din hvis du ikke ønsker å godta. Aksepten logges med versjon, tidspunkt og teknisk kontekst som bevis.",
     statusQ: "Hvordan sjekker jeg om StudyWise er oppe?",
-    statusA: "Vi har en egen statusside som viser om kjernetjenestene (innlogging, AI-chat, kunnskapsbase og varslinger) fungerer som de skal. Sjekk",
+    statusA:
+      "Vi har en egen statusside som viser om kjernetjenestene (innlogging, AI-chat, kunnskapsbase og varslinger) fungerer som de skal. Sjekk",
     statusLink: "statussiden",
     statusASuffix: "hvis du opplever problemer — eller les der først før du rapporterer en feil.",
     notFound: "Fant du ikke svaret?",
@@ -2758,7 +2777,8 @@ export const nbMessages = {
     fileDeleteError: "Kunne ikke slette fil",
     fileTooLarge: "Filen er for stor (maks 10 MB)",
     noFiles: "Ingen filer lastet opp ennå.",
-    aiTip: "Skriv /{navn} (f.eks. /{navn} forklar kapittel 3) som en egen melding for å aktivere denne basen som kontekst for KI-en.",
+    aiTip:
+      "Skriv /{navn} (f.eks. /{navn} forklar kapittel 3) som en egen melding for å aktivere denne basen som kontekst for KI-en.",
     statusIndexing: "Indekserer...",
     statusReady: "Klar",
     statusFailed: "Feilet",
@@ -2797,8 +2817,7 @@ export const nbMessages = {
   },
   status: {
     title: "Driftsstatus",
-    description:
-      "Live status for StudyWise-plattformen. Siden oppdateres automatisk hvert minutt.",
+    description: "Live status for StudyWise-plattformen. Siden oppdateres automatisk hvert minutt.",
     loading: "Henter status...",
     loadError: "Kunne ikke hente driftsstatus.",
     retry: "Prøv igjen",

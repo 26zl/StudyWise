@@ -17,7 +17,7 @@ flowchart LR
     end
 
     subgraph Heroku["Heroku"]
-        BE["Express 5 API<br/>Node 22+ ESM<br/>requireCloudflare"]
+        BE["Express 5 API<br/>Node 24 ESM<br/>requireCloudflare"]
     end
 
     subgraph Datalag["Datalag"]

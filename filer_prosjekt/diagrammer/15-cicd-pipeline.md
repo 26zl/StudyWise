@@ -1,6 +1,6 @@
 # CI/CD-pipeline (GitHub Actions)
 
-Viser den fulle pipelinen fra kodeendring til produksjonsdeploy. Inkluderer både kvalitetssikring (typecheck, lint, test, sikkerhetsskanning) og deploy til Vercel/Heroku/GitHub Pages. Dokumenterer at prosjektet har modne automatiserte rutiner — relevant for vurdering av leveransekvalitet.
+Viser den fulle pipelinen fra kodeendring til offentlig demo / produksjonslik deploy. Inkluderer både kvalitetssikring (typecheck, lint, test, sikkerhetsskanning) og deploy til Vercel/Heroku/GitHub Pages. Dokumenterer at prosjektet har modne automatiserte rutiner — relevant for vurdering av leveransekvalitet.
 
 ```mermaid
 flowchart TB
@@ -80,7 +80,7 @@ flowchart TB
 
 ## Kvalitetsporter før deploy
 
-For at en commit skal nå produksjon må alle disse passere:
+For at en commit skal nå offentlig demo / produksjonslik deploy må alle disse passere:
 
 1. **Format**: Prettier-konsistens
 2. **Typer**: TypeScript strict på alle 5 pakker

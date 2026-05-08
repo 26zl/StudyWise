@@ -16,21 +16,35 @@ tiltak og som kan dokumentere GDPR-etterlevelse.
 
 ## Aktive underleverandører
 
-| Leverandør | Formål | Data behandlet | Lokasjon | Overføringsgrunnlag | Sertifisering |
-| ---------- | ------ | -------------- | -------- | ------------------- | ------------- |
-| **Clerk** | Innlogging, passord, 2FA, Google/Microsoft SSO | E-post, hashet passord, 2FA-hemmeligheter, sesjonstokens | USA | SCC + EU-US DPF | SOC 2 Type II |
-| **Anthropic** (Claude) | KI-svar, oppsummering, quiz/flashcards | Chat-innhold, oppgavetekst, dokumentinnhold (PII-sanitert) | USA | EU-US DPF | SOC 2 Type II |
-| **Pinecone** | Vektorsøk i kunnskapsbase | Anonymiserte tekst-chunks + embeddings (ingen PII etter sanitering) | USA | SCC + EU-US DPF | SOC 2 Type II |
-| **Cohere** | Rerank av søkeresultater | Anonymiserte tekstutdrag | USA | SCC | SOC 2 Type II |
-| **MongoDB Atlas** | Primær database | All lagret brukerdata (kryptert at-rest) | EU-regioner (primær) | SCC for replikering | SOC 2 Type II, ISO 27001 |
-| **Redis Cloud** | Cache og rate-limiting | Canvas-cache, sesjons-kontekst (kortvarig) | EU | SCC | SOC 2 Type II |
-| **Heroku** | Backend-hosting | All backend-trafikk (metadata, logger) | USA | SCC + EU-US DPF | SOC 2 Type II |
-| **Vercel** | Frontend-hosting | HTTP-requests, edge-logger | Global edge | SCC + EU-US DPF | SOC 2 Type II |
-| **Cloudflare** | CDN, WAF, DDoS, Turnstile | IP, user-agent, request-metadata | Global edge | SCC + EU-US DPF | SOC 2 Type II, ISO 27001 |
-| **Datadog** | APM, RUM, Session Replay (mask-modus) | Ytelsesmetrikker, feilspor, maskerte DOM-events | USA/EU | SCC + EU-US DPF | SOC 2 Type II |
-| **PostHog** | Produktanalyse (cookieless) | Pseudonyme bruksmønstre, sidevisninger | USA | SCC | SOC 2 Type II |
-| **LangSmith** | KI-feilsøking | Prompt-/respons-par med anonym request-ID | USA | SCC | SOC 2 Type II |
-| **Resend** | E-postlevering for kontaktskjema | Navn, e-post, melding (via Cloudflare Worker-relay) | USA | SCC + EU-US DPF | SOC 2 Type II |
+| Leverandør             | Formål                                         | Data behandlet                                                      | Lokasjon             | Overføringsgrunnlag | Sertifisering            |
+| ---------------------- | ---------------------------------------------- | ------------------------------------------------------------------- | -------------------- | ------------------- | ------------------------ |
+| **Clerk**              | Innlogging, passord, 2FA, Google/Microsoft SSO | E-post, hashet passord, 2FA-hemmeligheter, sesjonstokens            | USA                  | SCC + EU-US DPF     | SOC 2 Type II            |
+| **Anthropic** (Claude) | KI-svar, oppsummering, quiz/flashcards         | Chat-innhold, oppgavetekst, dokumentinnhold (PII-sanitert)          | USA                  | EU-US DPF           | SOC 2 Type II            |
+| **Pinecone**           | Vektorsøk i kunnskapsbase                      | Anonymiserte tekst-chunks + embeddings (ingen PII etter sanitering) | USA                  | SCC + EU-US DPF     | SOC 2 Type II            |
+| **Cohere**             | Rerank av søkeresultater                       | Anonymiserte tekstutdrag                                            | USA                  | SCC                 | SOC 2 Type II            |
+| **MongoDB Atlas**      | Primær database                                | All lagret brukerdata (kryptert at-rest)                            | EU-regioner (primær) | SCC for replikering | SOC 2 Type II, ISO 27001 |
+| **Redis Cloud**        | Cache og rate-limiting                         | Canvas-cache, sesjons-kontekst (kortvarig)                          | EU                   | SCC                 | SOC 2 Type II            |
+| **Heroku**             | Backend-hosting                                | All backend-trafikk (metadata, logger)                              | USA                  | SCC + EU-US DPF     | SOC 2 Type II            |
+| **Vercel**             | Frontend-hosting                               | HTTP-requests, edge-logger                                          | Global edge          | SCC + EU-US DPF     | SOC 2 Type II            |
+| **Cloudflare**         | CDN, WAF, DDoS, Turnstile                      | IP, user-agent, request-metadata                                    | Global edge          | SCC + EU-US DPF     | SOC 2 Type II, ISO 27001 |
+| **Datadog**            | APM, RUM, Session Replay (mask-modus)          | Ytelsesmetrikker, feilspor, maskerte DOM-events                     | USA/EU               | SCC + EU-US DPF     | SOC 2 Type II            |
+| **PostHog**            | Produktanalyse (cookieless)                    | Pseudonyme bruksmønstre, sidevisninger                              | USA                  | SCC                 | SOC 2 Type II            |
+| **LangSmith**          | KI-feilsøking                                  | Prompt-/respons-par med anonym request-ID                           | USA                  | SCC                 | SOC 2 Type II            |
+| **Resend**             | E-postlevering for kontaktskjema               | Navn, e-post, melding (via Cloudflare Worker-relay)                 | USA                  | SCC + EU-US DPF     | SOC 2 Type II            |
+
+## Prototype- og institusjonsavgrensning
+
+StudyWise er en bachelorprototype, ikke en offisiell tjeneste fra USN,
+Canvas/Instructure eller andre læresteder. Teamet støtter seg på leverandørenes
+standard-DPA-er og publiserte sikkerhetsdokumentasjon. Det foreligger ikke en
+institusjonell databehandleravtale mellom StudyWise og USN eller andre skoler
+for bred produksjonsbruk.
+
+Canvas LMS er kilden til brukerens kursdata, men er ikke en underleverandør for
+StudyWise i denne prototypen. Brukeren kobler selv til Canvas med personlig
+API-token. En produksjonsvariant bør bruke institusjonsgodkjent Canvas OAuth,
+LTI eller developer key og avklare behandlingsansvar, databehandleravtaler og
+opphavsrett før utrulling.
 
 ## Overføringsgrunnlag
 

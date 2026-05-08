@@ -44,7 +44,7 @@ These guardrails are an explicit part of the bachelor thesis's contribution on s
 
 ## Project Overview
 
-StudyWise is an AI-powered study assistant for higher education with Canvas LMS integration. Built as a Bachelor's thesis project at the University of South-Eastern Norway (USN), 2026. Production: <https://www.studwize.page>. The codebase uses Norwegian for variable names, comments, and error messages — a deliberate choice that aligns the code with the user-facing language and the report.
+StudyWise is an AI-powered study assistant for higher education with Canvas LMS integration. Built as a Bachelor's thesis project at the University of South-Eastern Norway (USN), 2026. Public demo / production-like deploy: <https://www.studwize.page>. The codebase uses Norwegian for variable names, comments, and error messages — a deliberate choice that aligns the code with the user-facing language and the report.
 
 ### Norwegian glossary (common directory/concept names)
 
@@ -57,7 +57,7 @@ StudyWise is an AI-powered study assistant for higher education with Canvas LMS 
 
 ## Prerequisites
 
-- **Node.js 22 LTS or newer** (CI runs on Node 24). `pnpm` is the required package manager — do not use npm/yarn.
+- **Node.js 24 LTS** (CI, Cloudflare and deploy workflows are aligned on Node 24). `pnpm` is the required package manager — do not use npm/yarn.
 - Copy env examples before first run: `cp backend/.env.example backend/.env` and `cp frontend/.env.example frontend/.env`, then fill required values in both.
 
 ## Local Dev URLs

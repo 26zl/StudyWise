@@ -50,15 +50,8 @@ export default function FaqPage() {
       items: [
         {
           q: t("faq.canvasTokenQ"),
-          a: (
-            <>
-              {t("faq.canvasTokenA")}
-            </>
-          ),
-          searchText: [
-            t("faq.canvasTokenQ"),
-            t("faq.canvasTokenA"),
-          ].join(" "),
+          a: <>{t("faq.canvasTokenA")}</>,
+          searchText: [t("faq.canvasTokenQ"), t("faq.canvasTokenA")].join(" "),
         },
         {
           q: t("faq.canvasInstitutionsQ"),
@@ -81,18 +74,17 @@ export default function FaqPage() {
         {
           q: t("faq.vsCanvasQ"),
           a: t("faq.vsCanvasA"),
-          searchText: [
-            t("faq.vsCanvasQ"),
-            t("faq.vsCanvasA"),
-          ].join(" "),
+          searchText: [t("faq.vsCanvasQ"), t("faq.vsCanvasA")].join(" "),
         },
         {
           q: t("faq.supplementQ"),
           a: t("faq.supplementA"),
-          searchText: [
-            t("faq.supplementQ"),
-            t("faq.supplementA"),
-          ].join(" "),
+          searchText: [t("faq.supplementQ"), t("faq.supplementA")].join(" "),
+        },
+        {
+          q: t("faq.officialIntegrationQ"),
+          a: t("faq.officialIntegrationA"),
+          searchText: [t("faq.officialIntegrationQ"), t("faq.officialIntegrationA")].join(" "),
         },
       ],
     },
@@ -113,19 +105,14 @@ export default function FaqPage() {
               .
             </>
           ),
-          searchText: [
-            t("faq.dataSecureQ"),
-            t("faq.dataSecureA"),
-            t("faq.dataSecureLink"),
-          ].join(" "),
+          searchText: [t("faq.dataSecureQ"), t("faq.dataSecureA"), t("faq.dataSecureLink")].join(
+            " ",
+          ),
         },
         {
           q: t("faq.twoFactorQ"),
           a: t("faq.twoFactorA"),
-          searchText: [
-            t("faq.twoFactorQ"),
-            t("faq.twoFactorA"),
-          ].join(" "),
+          searchText: [t("faq.twoFactorQ"), t("faq.twoFactorA")].join(" "),
         },
         {
           q: t("faq.thirdPartyQ"),
@@ -148,10 +135,7 @@ export default function FaqPage() {
         {
           q: t("faq.termsUpdateQ"),
           a: t("faq.termsUpdateA"),
-          searchText: [
-            t("faq.termsUpdateQ"),
-            t("faq.termsUpdateA"),
-          ].join(" "),
+          searchText: [t("faq.termsUpdateQ"), t("faq.termsUpdateA")].join(" "),
         },
         {
           q: t("faq.statusQ"),
@@ -200,18 +184,14 @@ export default function FaqPage() {
         {
           q: t("faq.canvasTokenAfterDeleteQ"),
           a: t("faq.canvasTokenAfterDeleteA"),
-          searchText: [
-            t("faq.canvasTokenAfterDeleteQ"),
-            t("faq.canvasTokenAfterDeleteA"),
-          ].join(" "),
+          searchText: [t("faq.canvasTokenAfterDeleteQ"), t("faq.canvasTokenAfterDeleteA")].join(
+            " ",
+          ),
         },
         {
           q: t("faq.withoutCanvasQ"),
           a: t("faq.withoutCanvasA"),
-          searchText: [
-            t("faq.withoutCanvasQ"),
-            t("faq.withoutCanvasA"),
-          ].join(" "),
+          searchText: [t("faq.withoutCanvasQ"), t("faq.withoutCanvasA")].join(" "),
         },
       ],
     },
@@ -279,6 +259,11 @@ export default function FaqPage() {
       icon: AlertTriangle,
       iconClassName: "bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-300",
       items: [
+        {
+          q: t("faq.academicIntegrityQ"),
+          a: t("faq.academicIntegrityA"),
+          searchText: [t("faq.academicIntegrityQ"), t("faq.academicIntegrityA")].join(" "),
+        },
         {
           q: t("faq.parallelChatsQ"),
           a: t("faq.parallelChatsA"),
@@ -401,12 +386,18 @@ export default function FaqPage() {
               >
                 <header className="flex items-center justify-between gap-4 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
                   <div className="flex items-center gap-2">
-                    <span className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${gruppe.iconClassName}`}>
+                    <span
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-md ${gruppe.iconClassName}`}
+                    >
                       <Icon className="h-3.5 w-3.5" />
                     </span>
-                    <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{gruppe.kategori}</h2>
+                    <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
+                      {gruppe.kategori}
+                    </h2>
                   </div>
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{gruppe.items.length}</span>
+                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {gruppe.items.length}
+                  </span>
                 </header>
 
                 <div>
@@ -415,7 +406,10 @@ export default function FaqPage() {
                     const isOpen = Boolean(openItems[itemId]);
 
                     return (
-                      <div key={itemId} className="border-t first:border-t-0 border-slate-200 dark:border-slate-700">
+                      <div
+                        key={itemId}
+                        className="border-t first:border-t-0 border-slate-200 dark:border-slate-700"
+                      >
                         <button
                           type="button"
                           onClick={() => toggleItem(itemId)}

@@ -15,7 +15,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 |------|---------|----------------------|
 | 1 | [01 – Overordnet arkitektur](01-arkitektur-overordnet.md) | Helhetsbildet: hvilke teknologier brukes, og hvordan henger de sammen. |
 | 2 | [02 – Monorepo-struktur](02-monorepo-struktur.md) | Hvordan kodebasen er organisert i fem pnpm-pakker. |
-| 3 | [10 – Deployment-arkitektur](10-deployment-arkitektur.md) | Hva kjører hvor i produksjon, med CI/CD og observabilitet. |
+| 3 | [10 – Deployment-arkitektur](10-deployment-arkitektur.md) | Hva kjører hvor i offentlig demo / produksjonslik deploy, med CI/CD og observabilitet. |
 | 4 | [04 – KI-chat-pipeline](04-ki-chat-pipeline.md) | Hovedfunksjonen: RAG-arkitektur og kildekontroll via `<svarkilde>`-tag. |
 | 5 | [11 – Sikkerhetslag](11-sikkerhetslag.md) | Defense-in-depth: 15 lag som beskytter løsningen. |
 
@@ -32,7 +32,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 07 | [database-modeller](07-database-modeller.md) | ER-diagram over Mongoose-modeller, med embedded vs referenced og TTL-indekser. |
 | 08 | [middleware-stack](08-middleware-stack.md) | Express middleware-rekkefølge: 11 lag fra trust-proxy til feature-router. |
 | 09 | [bruker-sletting](09-bruker-sletting.md) | GDPR-rettigheter: soft-delete + asynkron opprydding via BullMQ-jobber. |
-| 10 | [deployment-arkitektur](10-deployment-arkitektur.md) | Hvor tjenestene kjører i produksjon: Vercel, Heroku, GitHub Pages og Cloudflare som DNS/CDN/WAF/TLS-edge. |
+| 10 | [deployment-arkitektur](10-deployment-arkitektur.md) | Hvor tjenestene kjører i offentlig demo / produksjonslik deploy: Vercel, Heroku, GitHub Pages og Cloudflare som DNS/CDN/WAF/TLS-edge. |
 | 11 | [sikkerhetslag](11-sikkerhetslag.md) | 15 sikkerhetslag — fra HTTPS/HSTS til AES-256-GCM-kryptering og PII-grense. |
 | 12 | [bullmq-koer](12-bullmq-koer.md) | Asynkron jobbkjøring: én unified BullMQ-kø erstatter tre separate. |
 | 13 | [use-case-diagram](13-use-case-diagram.md) | UML-style use case: aktører (student, admin, system, Canvas, Clerk) og 18 use cases. |

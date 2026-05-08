@@ -158,7 +158,7 @@
 >
 > Vi har sett **viktigheten av å automatisere kvalitetssikring tidlig**. Vi har CI som kjører ved hver commit, vi har typesjekking, lint, og enhetstester. Det føles kanskje som et omveltning i starten, men det har spart oss for utrolig mye tid — og det gjør at vi tør å gjøre store endringer uten å være redd for å ødelegge noe.
 >
-> Og kanskje det viktigste vi tar med oss: vi har gått hele veien **fra en idé til et ferdig produkt i produksjon — med ekte brukere som faktisk bruker det**. Det er en erfaring som er vanskelig å få i et vanlig studieløp, og det er noe vi kommer til å ha nytte av i mange år fremover.
+> Og kanskje det viktigste vi tar med oss: vi har gått hele veien **fra en idé til en produksjonslik offentlig demo — testet med ekte brukere**. Det er en erfaring som er vanskelig å få i et vanlig studieløp, og det er noe vi kommer til å ha nytte av i mange år fremover.
 >
 > Tusen takk for oppmerksomheten — vi tar gjerne imot spørsmål."
 
@@ -211,7 +211,7 @@
 
 ### Hvorfor brukte dere ikke FEIDE eller LTI?
 
-> "Vi hadde ikke tilgang til FEIDE-integrasjon eller FS som studentprosjekt — det krever avtaler på institusjonsnivå. Derfor bruker vi Canvas sin offisielle REST-API direkte, og studenten kobler seg til via en personlig API-token. Arkitekturen er likevel tilrettelagt for en eventuell LTI 1.3-integrasjon i fremtiden."
+> "Vi hadde ikke tilgang til FEIDE-integrasjon eller FS som studentprosjekt — det krever avtaler på institusjonsnivå. Derfor demonstrerer prototypen Canvas-tilkobling via Canvas sitt REST-API og en personlig API-token som studenten selv oppretter. For bredere bruk bør dette erstattes av institusjonsgodkjent OAuth, developer key eller LTI 1.3."
 
 ---
 

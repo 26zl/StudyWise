@@ -24,7 +24,7 @@ import { z } from "zod";
  * (versjon + tidsstempel + IP) gir dette juridisk bevis for nøyaktig hva
  * hver bruker godtok ved sin aksept.
  */
-export const TERMS_VERSION = "2026-04-18";
+export const TERMS_VERSION = "2026-05-08";
 
 /** Schema for POST /api/user/accept-terms. */
 export const AcceptTermsRequestSchema = z.object({

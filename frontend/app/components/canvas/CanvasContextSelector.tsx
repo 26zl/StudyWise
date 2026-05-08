@@ -5,7 +5,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Check } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { useUIStore, type CanvasContextSelection } from "@/app/store/uiStore";
 import { useMeg, useDebouncedPreferanseOppdater } from "@/app/auth/auth-api";
@@ -16,7 +16,7 @@ export function CanvasContextSelector() {
   // Bruk global state for valg så de bevares mellom view-bytter
   const selected = useUIStore((state) => state.canvasContextSelection);
   const setSelected = useUIStore((state) => state.setCanvasContextSelection);
-  
+
   // Hent brukerdata og sync preferanser fra backend (debounced for å unngå mange PUT ved rask bruk)
   const { data: megData } = useMeg();
   const {
@@ -25,7 +25,7 @@ export function CanvasContextSelector() {
     flush: flushPreferanser,
   } = useDebouncedPreferanseOppdater();
   const initializedRef = useRef(false);
-  
+
   // Synkroniser fra backend ved første load
   useEffect(() => {
     if (megData?.user?.canvasContextPreferences && !initializedRef.current) {
@@ -65,7 +65,8 @@ export function CanvasContextSelector() {
   };
 
   // Hjelpetekst når alt er av
-  const allOff = !selected.announcements && !selected.courses && !selected.assignments && !selected.events;
+  const allOff =
+    !selected.announcements && !selected.courses && !selected.assignments && !selected.events;
 
   const options = [
     {
@@ -99,6 +100,10 @@ export function CanvasContextSelector() {
         {isLoading && (
           <LoadingSpinner className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-spin" />
         )}
+      </div>
+      <div className="mx-3 sm:mx-4 mt-3 flex items-start gap-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <p>{t("settings.canvasContext.selector.notice")}</p>
       </div>
       {allOff && (
         <div className="mx-3 sm:mx-4 mt-3 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 rounded">
@@ -142,4 +147,4 @@ export function CanvasContextSelector() {
       </div>
     </div>
   );
-} 
+}

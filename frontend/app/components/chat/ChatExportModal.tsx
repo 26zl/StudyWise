@@ -181,10 +181,7 @@ export function ChatExportModal({
           feil?: string;
         };
         throw new Error(
-          errorData.melding ||
-            errorData.message ||
-            errorData.feil ||
-            t("exportModal.errorGeneric"),
+          errorData.melding || errorData.message || errorData.feil || t("exportModal.errorGeneric"),
         );
       }
 
@@ -212,7 +209,8 @@ export function ChatExportModal({
         try {
           const a = Object.assign(document.createElement("a"), {
             href: blobUrl,
-            download: result.data.filename || `studywise-export.${getFileExtension(selectedTarget)}`,
+            download:
+              result.data.filename || `studywise-export.${getFileExtension(selectedTarget)}`,
           });
           a.click();
         } finally {
@@ -306,6 +304,13 @@ export function ChatExportModal({
                   {t("exportModal.messageInfo", { messageCount })}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700 dark:text-amber-300" />
+              <p>{t("exportModal.academicIntegrityNote")}</p>
             </div>
           </div>
 
@@ -454,11 +459,7 @@ export function ChatExportModal({
           <button
             type="button"
             onClick={() => void handleExport()}
-            disabled={
-              isExporting ||
-              isLoading ||
-              (isExternalTarget && !isTargetConfigured)
-            }
+            disabled={isExporting || isLoading || (isExternalTarget && !isTargetConfigured)}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
             {isExporting ? (

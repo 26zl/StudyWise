@@ -6,6 +6,10 @@
 >
 > Dette er den fullstendige spørreundersøkelsen som ble brukt i brukertestingen av StudyWise. Skjemaet ble bygget programmatisk i Google Forms via skriptet `brukertest-skjema-bygg.gs`, og distribuert anonymt til testdeltakere. Dokumentet er tatt med i prosjektmappen for å gi innsyn i metodisk grunnlag (oppgaver, SUS-måling, kvalitative spørsmål) og slik at testen kan reproduseres. Resultatene fra brukertesten dokumenteres i hovedrapporten.
 
+> **Status for sensor**
+>
+> Dette dokumentet er en reproduksjon av testinstrumentet, ikke en aktiv invitasjon til ny testing. StudyWise omtales som en bachelorprototype / offentlig demo, ikke som en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder. Eventuell videre brukertesting bør avklares på nytt med tanke på personvern, Canvas-vilkår og bruk av KI-tjenester.
+
 ---
 
 ## Til deg som deltar
@@ -31,6 +35,8 @@ Slik fordeler skjemaet seg:
 
 **Samtykke:** Ved å sende inn skjemaet bekrefter du at du har lest informasjonen over og samtykker til at svarene dine brukes i forskningsformål i tråd med GDPR.
 
+**Viktig om Canvas og KI:** Canvas-kobling er frivillig og gjelder kun egen konto. Ikke legg inn sensitive personopplysninger, taushetsbelagt informasjon, eksamensmateriale eller innhold der bruk med eksterne KI-tjenester ikke er tillatt. Hopp over Canvas-oppgaven hvis du er usikker.
+
 ---
 
 ## Før du starter – gjør disse oppgavene i StudyWise
@@ -38,7 +44,7 @@ Slik fordeler skjemaet seg:
 Åpne <https://www.studwize.page> og prøv å løse oppgavene under i den rekkefølgen de står. Du trenger ikke fullføre alle hvis det stopper opp – noter heller hva som var vanskelig.
 
 1. **Opprett en konto** og logg inn – legg merke til hvordan du blir introdusert til appen første gang
-2. **Koble til Canvas** med din institusjon (hopp over hvis du ikke har Canvas). Prøv KI-handlinger direkte på et Canvas-emne (f.eks. *oppsummer pensum* eller *lag quiz fra emnet*)
+2. **Koble til Canvas** med din institusjon (hopp over hvis du ikke har Canvas eller ikke ønsker å koble til). Prøv KI-handlinger direkte på et Canvas-emne (f.eks. *oppsummer pensum* eller *lag quiz fra emnet*)
 3. **Still et spørsmål til KI-en** om et tema du jobber med, og **gi tommel opp/ned** på ett av svarene
 4. **Generer en quiz**, **lagre den** og se på **resultatstatistikken** etter forsøket. Se også gjennom flashcards-funksjonen
 5. **Last opp en PDF** til kunnskapsbasen og still et spørsmål om innholdet

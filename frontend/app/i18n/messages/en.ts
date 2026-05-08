@@ -145,8 +145,7 @@ export const enMessages = {
         emailPlaceholder: "name@example.com",
       },
       mfa: {
-        description:
-          "Your password is updated. Complete two-factor authentication to sign in.",
+        description: "Your password is updated. Complete two-factor authentication to sign in.",
         title: "Two-factor authentication required",
       },
       setCredential: {
@@ -216,8 +215,7 @@ export const enMessages = {
         subtitle: "Enter the code from your authenticator app, or a backup code.",
         codeLabel: "Verification code",
         codePlaceholder: "123456",
-        codeHint:
-          "Or a backup code you saved when setting up two-factor.",
+        codeHint: "Or a backup code you saved when setting up two-factor.",
         codeRequired: "Verification code is required.",
         verifyButton: "Verify",
         verifying: "Verifying...",
@@ -274,8 +272,7 @@ export const enMessages = {
         emailTaken:
           "An account with this email address already exists. Sign in instead, or use Microsoft/Google if that is how the account was created.",
         invalidEmail: "Enter a valid email address.",
-        usernameTaken:
-          "This username is already taken. Choose another username.",
+        usernameTaken: "This username is already taken. Choose another username.",
         usernameInvalid:
           "Username can only contain letters, numbers, and underscores, and must be 4–30 characters.",
         rateLimited:
@@ -432,7 +429,7 @@ export const enMessages = {
         "Your StudyWise account has been deleted, but one or more external cleanups did not finish automatically. We are retrying in the background — contact us if you have questions.",
       canvasReminderTitle: "Remember to remove the Canvas access token",
       canvasReminderBody:
-        "The access token was always stored encrypted on our side (AES-256-GCM) — never readable in plaintext — and has now been deleted along with your account. Just to be on the safe side, we still recommend removing the entry in Canvas yourself: go to Account → Settings → \"Approved Integrations\" and delete the StudyWise entry.",
+        'The access token was always stored encrypted on our side (AES-256-GCM) — never readable in plaintext — and has now been deleted along with your account. Just to be on the safe side, we still recommend removing the entry in Canvas yourself: go to Account → Settings → "Approved Integrations" and delete the StudyWise entry.',
       dismiss: "Dismiss notice",
     },
     actions: {
@@ -442,12 +439,12 @@ export const enMessages = {
     features: {
       aiPartner: {
         description:
-          "Get help, explanations, quizzes, flashcards, and task breakdowns grounded in your actual course material. Save your quizzes and flashcard sets, view stats on past attempts, and replay the same set before exams. Upload your own documents — PDFs, Word, Excel, or even photos of whiteboard notes — and let AI read them as if they were required reading.",
+          "Get help, explanations, quizzes, flashcards, and task breakdowns based on course material you can access. Use the output as study support, and always follow your course rules for AI use in exams and submissions.",
         title: "AI study partner that knows your syllabus",
       },
       canvasIntegration: {
         description:
-          "StudyWise is built around Canvas. Connect once with a personal API token, and the rest of the app — AI chat, quizzes, flashcards, weekly plan, calendar — automatically gets access to courses, modules, files, deadlines, and announcements. Without a Canvas connection, most features are locked.",
+          "StudyWise demonstrates a Canvas connection with a personal API token in this bachelor prototype. It gives the app read access to courses, modules, files, deadlines, and announcements you can already see in Canvas. A real production version should use Canvas OAuth/LTI/developer key access approved by the institution.",
         title: "Canvas is the foundation",
       },
       heading: "Everything you need to succeed",
@@ -476,7 +473,7 @@ export const enMessages = {
     },
     hero: {
       description:
-        "StudyWise gathers Canvas, your calendar, and an AI assistant that actually knows your syllabus. To get the full benefit you need to connect Canvas with a personal API token — it takes two minutes, and without it only general AI chat and your own knowledge base with uploaded documents are available.",
+        "StudyWise brings together Canvas, your calendar, and an AI assistant that can work with the course content you grant access to. This is a USN bachelor project and technical prototype, not an official Canvas or institution integration.",
       title: "Your Intelligent Study Assistant",
     },
   },
@@ -564,7 +561,7 @@ export const enMessages = {
     accountSecurity: {
       action: "Open account",
       connectionHint:
-        "Here you can update your profile information, change your password, enable two-factor authentication (2FA), manage connected sign-in methods like Google and Microsoft, see active devices and sessions (under \"Security\"), and delete your account if needed.",
+        'Here you can update your profile information, change your password, enable two-factor authentication (2FA), manage connected sign-in methods like Google and Microsoft, see active devices and sessions (under "Security"), and delete your account if needed.',
       description:
         "Open the account page to change username, first name, last name, email, password, two-factor authentication (2FA), and connected sign-in methods (Google, Microsoft). You can also delete your StudyWise account there.",
       title: "Account and security",
@@ -620,10 +617,13 @@ export const enMessages = {
         "Connect Canvas to receive notifications based on announcements, deadlines, and events.",
     },
     canvasContext: {
-      description: "Choose which Canvas data the AI should have access to while you chat.",
+      description:
+        "Choose which Canvas data the AI should have access to while you chat. Use this as study support, not as a replacement for your own work.",
       selector: {
         emptySelection:
           "No data selected. The AI cannot answer Canvas questions until you select at least one dataset.",
+        notice:
+          "When Canvas context is selected, relevant course content may be used in AI responses. Do not use this for exams or submissions where AI is not allowed, and do not add material you are not allowed to process.",
         options: {
           announcements: {
             description: "Announcements from lecturers",
@@ -661,14 +661,14 @@ export const enMessages = {
       deleting: "Deleting...",
       deletingButton: "Yes, delete Canvas API token",
       description:
-        "Connect your Canvas account to fetch courses, announcements, deadlines, and lectures. Choose your institution below before saving the token. The list covers the Norwegian Canvas instances supported by StudyWise.",
+        "Connect your Canvas account to fetch courses, announcements, deadlines, and lectures. The current personal API token flow is a prototype/demo solution for the bachelor project, not an official Canvas, USN, or institution-approved integration. A production version should use institution-approved Canvas OAuth/LTI/developer key access.",
       hide: "Hide",
       howTo: {
         step1: "Sign in to Canvas",
         step2: "Go to Settings → Approved integrations",
         step3: 'Click "New access token"',
         step4: "Copy the token and paste it here",
-        title: "How to get an API token:",
+        title: "How to get an API token for demo:",
       },
       institutionLabel: "Institution (Canvas)",
       institutionPlaceholder: "Choose institution",
@@ -770,7 +770,7 @@ export const enMessages = {
       accepted: "Accepted",
       declined: "Essential only",
       description:
-        "Essential cookies are always active. Optional performance measurements require your consent and can be withdrawn at any time — \"Essential only\" turns them off immediately.",
+        'Essential cookies are always active. Optional performance measurements require your consent and can be withdrawn at any time — "Essential only" turns them off immediately.',
       readMore: "Read more about what we measure in the privacy policy.",
       status: {
         accepted: "You have accepted optional performance analytics.",
@@ -783,7 +783,7 @@ export const enMessages = {
     consent: {
       title: "Terms and privacy",
       description:
-        "Here you see which version you've accepted. If you no longer want to be bound by the terms, you can log out or delete your account under \"Delete account\".",
+        'Here you see which version you\'ve accepted. If you no longer want to be bound by the terms, you can log out or delete your account under "Delete account".',
       acceptedOn: "Accepted {date}",
       versionLabel: "Version {version}",
       currentBadge: "Current",
@@ -876,7 +876,7 @@ export const enMessages = {
       description:
         "Runs the same hybrid search as the chat endpoint. Shows what BM25, Pinecone, RRF and Cohere returned for a specific query.",
       queryLabel: "Query",
-      queryPlaceholder: "e.g. \"summarize lesson 3\"",
+      queryPlaceholder: 'e.g. "summarize lesson 3"',
       courseLabel: "Course ID (optional)",
       coursePlaceholder: "Canvas courseId",
       userLabel: "User ID (optional — admin replay as another user)",
@@ -903,7 +903,7 @@ export const enMessages = {
     extraction: {
       title: "Extraction audit",
       description:
-        "Canvas files that exist in modules but have not been indexed into chunks. This is reason #1 for \"AI can't find file X\".",
+        'Canvas files that exist in modules but have not been indexed into chunks. This is reason #1 for "AI can\'t find file X".',
       totalFiles: "User-file pairs total",
       indexedFiles: "Indexed",
       unindexedFiles: "Missing indexing",
@@ -967,15 +967,18 @@ export const enMessages = {
       statusTooLarge: "Too large",
       statusUnsupported: "Unsupported format",
       deleteAction: "Delete",
-      deleteConfirm: "Delete the status row for \"{fileName}\"? (Will be re-created on next sync if the file still can't be read.)",
+      deleteConfirm:
+        'Delete the status row for "{fileName}"? (Will be re-created on next sync if the file still can\'t be read.)',
       deleteSuccess: "Status row deleted",
       deleteFailed: "Delete failed",
       rescanAction: "Scan existing files",
       rescanRunning: "Scanning...",
-      rescanDescription: "Scans all real document files (.pptx, .pdf, .docx, etc.) and flags those with very little text. Excludes Canvas pages, assignments and external links — those are naturally short and should not be flagged.",
+      rescanDescription:
+        "Scans all real document files (.pptx, .pdf, .docx, etc.) and flags those with very little text. Excludes Canvas pages, assignments and external links — those are naturally short and should not be flagged.",
       rescanConfirm: "Scan existing PPTX/PDF/DOCX/XLSX files?",
       rescanSuccess: "Retroactive scan completed",
-      rescanSummary: "{found} sparse candidates found. {flagged} new markers created, {skipped} skipped (stronger status exists), {cleared} previous retroactive markers removed.",
+      rescanSummary:
+        "{found} sparse candidates found. {flagged} new markers created, {skipped} skipped (stronger status exists), {cleared} previous retroactive markers removed.",
       rescanFailed: "Retroactive scan failed",
     },
     kbHealth: {
@@ -1046,10 +1049,10 @@ export const enMessages = {
       severityWarning: "Warning",
       severityCritical: "Critical",
       meldingLabel: "Message",
-      meldingPlaceholder: "E.g. \"The AI service is unavailable, we're investigating.\"",
+      meldingPlaceholder: 'E.g. "The AI service is unavailable, we\'re investigating."',
       meldingHint: "Max 500 characters. Shown on all signed-in pages.",
       publicWarning:
-        "If \"Show on status page\" is checked, the message is displayed publicly on /status — visible to everyone, including non-signed-in users. Do not include personal data, usernames, emails, or other details that could identify individuals.",
+        'If "Show on status page" is checked, the message is displayed publicly on /status — visible to everyone, including non-signed-in users. Do not include personal data, usernames, emails, or other details that could identify individuals.',
       dismissibleLabel: "Allow users to dismiss the banner",
       targetsLabel: "Where should the message appear?",
       showInBannerLabel: "Banner for signed-in users",
@@ -1580,7 +1583,7 @@ export const enMessages = {
       resetMfaFailed: "Could not reset 2FA",
       resetMfaSessionsNotRevokedTitle: "2FA removed, but sessions could not be signed out",
       resetMfaSessionsNotRevokedDescription:
-        "Click \"Sign out all sessions\" on the user to complete the action. Until then, existing sessions may still be active.",
+        'Click "Sign out all sessions" on the user to complete the action. Until then, existing sessions may still be active.',
       lockUser: "Lock account",
       unlockUser: "Unlock account",
       lockedBadge: "Locked",
@@ -1883,8 +1886,7 @@ export const enMessages = {
       },
       canvas: {
         label: "Canvas data",
-        tooltip:
-          "Grounded in Canvas metadata (deadlines, modules, announcements).",
+        tooltip: "Grounded in Canvas metadata (deadlines, modules, announcements).",
       },
       kunnskapsbase: {
         label: "Knowledge base",
@@ -1892,8 +1894,7 @@ export const enMessages = {
       },
       blandet: {
         label: "Course + AI",
-        tooltip:
-          "Combines your course material/knowledge base with general AI knowledge.",
+        tooltip: "Combines your course material/knowledge base with general AI knowledge.",
       },
       generell: {
         label: "General AI knowledge",
@@ -1905,7 +1906,8 @@ export const enMessages = {
     sourceDownloadFailed: "Could not download source",
     sourceDownloadStarted: "Downloading source…",
     sourceDownloadSuccess: "Download complete",
-    sourceKbFileInfo: "This is indexed content from your knowledge base. The original file is not stored.",
+    sourceKbFileInfo:
+      "This is indexed content from your knowledge base. The original file is not stored.",
     noSourcesForAnswer: "No sources were registered for this answer.",
     feedbackGood: "Good answer",
     feedbackBad: "Bad answer",
@@ -2005,6 +2007,8 @@ export const enMessages = {
     closeLabel: "Close export dialog",
     defaultChatTitle: "Conversation",
     messageInfo: "Exporting {messageCount} messages from this conversation.",
+    academicIntegrityNote:
+      "Review the export before using or sharing it. AI-generated content must not be submitted as your own work, and AI use must be documented where your course or institution requires it.",
     formatLabel: "Export format",
     formats: {
       markdown: "Markdown",
@@ -2084,7 +2088,7 @@ export const enMessages = {
     title: "About StudyWise",
     whatTitle: "What is StudyWise?",
     whatBody:
-      "StudyWise is an AI-powered study assistant developed as a bachelor project at the University of South-Eastern Norway (USN). The application integrates with Canvas LMS to give students a centralized platform for keeping track of their studies.",
+      "StudyWise is an AI-powered study assistant developed as a bachelor project at the University of South-Eastern Norway (USN). The application demonstrates how Canvas LMS, calendar, and AI can be brought together in one study workspace, but it is not an official service from USN, Canvas/Instructure, or any other institution.",
     featuresTitle: "Features",
     featureCanvasLabel: "Canvas integration:",
     featureCanvasBody: "View announcements, courses, deadlines, and calendar from Canvas",
@@ -2132,10 +2136,10 @@ export const enMessages = {
   },
   personvern: {
     title: "Privacy Policy",
-    updatedAt: "6 May 2026",
+    updatedAt: "8 May 2026",
     controllerTitle: "Who is behind StudyWise?",
     controllerBody:
-      "StudyWise is developed as a bachelor's thesis project at the University of South-Eastern Norway (USN). The students behind the project are the data controllers for personal information in the service — meaning we decide how your data is used and are responsible for following privacy rules. If you have questions, feedback, or want to exercise your rights, just reach out via the contact form. We'll be happy to respond.",
+      "StudyWise is developed as a bachelor's thesis project at the University of South-Eastern Norway (USN), but it is not an official service from USN, Canvas/Instructure, or any other institution. The students behind the project are the data controllers for personal information in the service — meaning we decide how your data is used and are responsible for following privacy rules. If you have questions, feedback, or want to exercise your rights, just reach out via the contact form. We'll be happy to respond.",
     dataCollectionTitle: "What data do we collect?",
     accountInfoLabel: "Account information and login:",
     accountInfoBody:
@@ -2145,7 +2149,7 @@ export const enMessages = {
       "We use necessary cookies for login and preferences. The backend uses operational monitoring (Datadog APM) for error tracking and stability — this runs server-side and does not require consent. If you accept, we also enable optional browser-side measurements: Datadog RUM and Speed Insights for technical performance, Datadog Session Replay (replayable reconstruction of UI interactions where all text is masked and images are blurred in the recording) on roughly 50% of sessions, and PostHog for aggregated product analytics (in cookieless mode, without any cookies). The choice for optional measurements is stored on your user profile when logged in, and cached locally in the browser to prevent the banner from reappearing.",
     canvasTokenLabel: "Canvas API token:",
     canvasTokenBody:
-      "Stored with strong encryption (bank-level) so we can fetch Canvas data on your behalf. The key is never visible in plain text anywhere in our system.",
+      "Stored with strong encryption (bank-level) so we can fetch Canvas data on your behalf. The key is never visible in plain text anywhere in our system. The current personal token flow is a prototype/demo solution for the bachelor project; a production integration should use institution-approved Canvas OAuth/LTI/developer key access.",
     chatHistoryLabel: "Conversation history:",
     chatHistoryBody:
       "AI conversations are stored encrypted on your account. We store a short title based on the first question (e.g., first 50 characters) to display the conversation in the list.",
@@ -2162,13 +2166,13 @@ export const enMessages = {
     legalBasisIntro: "We process personal data on the following legal grounds:",
     legalBasisContractLabel: "Contract — Art. 6(1)(b):",
     legalBasisContractBody:
-      "Account information (email, login via Clerk), Canvas API token, conversation history, preferences, and study plans are processed because it is necessary to deliver the service you registered for. This is a contract, not consent, and can't be \"withdrawn\" the same way — but you can terminate the agreement at any time by logging out or deleting your account under Settings → Delete account.",
+      'Account information (email, login via Clerk), Canvas API token, conversation history, preferences, and study plans are processed because it is necessary to deliver the service you registered for. This is a contract, not consent, and can\'t be "withdrawn" the same way — but you can terminate the agreement at any time by logging out or deleting your account under Settings → Delete account.',
     legalBasisInterestLabel: "Legitimate interest — Art. 6(1)(f):",
     legalBasisInterestBody:
       "Security logging, audit logs (including IP address, user-agent, and request ID tied to security-relevant events such as sign-in, terms acceptance, account deletion, and admin actions), backend operational monitoring (Datadog APM), and abuse detection are processed based on our legitimate interest in secure and stable operations. This data is minimized and pseudonymized where possible. You have the right to object to this processing on grounds relating to your particular situation (GDPR Art. 21) — contact us via the contact form and we'll make a concrete assessment. On account deletion, audit records that relate to you are anonymized/pseudonymized.",
     legalBasisConsentLabel: "Consent — Art. 6(1)(a):",
     legalBasisConsentBody:
-      "Optional browser-side measurements (Datadog RUM, Speed Insights, and product analytics via PostHog) are only enabled if you explicitly accept via the cookie banner. You can withdraw consent at any time by switching to \"Essential only\" in the cookie banner or under Settings → Cookies — as easily as you gave it (GDPR Art. 7(3)). Withdrawal does not affect the lawfulness of processing that occurred before withdrawal. If you are not logged in, the choice is remembered for 30 days via a cookie.",
+      'Optional browser-side measurements (Datadog RUM, Speed Insights, and product analytics via PostHog) are only enabled if you explicitly accept via the cookie banner. You can withdraw consent at any time by switching to "Essential only" in the cookie banner or under Settings → Cookies — as easily as you gave it (GDPR Art. 7(3)). Withdrawal does not affect the lawfulness of processing that occurred before withdrawal. If you are not logged in, the choice is remembered for 30 days via a cookie.',
     purposeTitle: "Purpose of processing",
     purposeIntro: "We use the data to:",
     purpose1:
@@ -2214,10 +2218,10 @@ export const enMessages = {
       "Clerk handles sign-up, sign-in, passwords, two-factor authentication and Google/Microsoft sign-in. It stores your email, password (in hashed form — we never see the raw password), and optional 2FA secrets. Clerk is SOC 2 Type II certified and publishes its own DPA.",
     thirdPartyAILabel: "AI services (Anthropic):",
     thirdPartyAIBody:
-      "Content you write and context (e.g., assignment text) is sent to AI to generate responses. Documents you upload are automatically sanitized for structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) before being used as AI context. Canvas content is anonymized where possible. The AI model is additionally instructed not to repeat personal names from documents in its responses.",
+      "Content you write and context (for example assignment text, Canvas excerpts, or document content) is sent to AI to generate responses. Documents you upload are automatically sanitized for structured PII (email, phone, national ID, student ID, Norwegian addresses, and signature names) before being used as AI context. Canvas content is anonymized where possible, but sanitization is best-effort. Do not use the feature with personal data, confidential information, or copyrighted material you are not allowed to process.",
     thirdPartyCanvasLabel: "Canvas LMS:",
     thirdPartyCanvasBody:
-      "StudyWise uses a personal API key that you generate yourself in Canvas. The key grants StudyWise access to the same data you already have access to in Canvas — nothing more. StudyWise only reads data (read-only access) and never creates, modifies, or deletes anything in Canvas on your behalf. StudyWise has no administrative access, institutional access, or access to other users' data. The token is stored encrypted with us and is not sent to other third parties.",
+      "In the prototype, StudyWise uses a personal API key that you generate yourself in Canvas. The key grants StudyWise access to the same data you already have access to in Canvas — nothing more. StudyWise only reads data (read-only access) and never creates, modifies, or deletes anything in Canvas on your behalf. StudyWise has no administrative access, institutional access, or access to other users' data. The token is stored encrypted with us and is not sent to other third parties. This solution is intended as a technical demonstration; a real institutional rollout should use Canvas OAuth/LTI/developer key access approved by the institution.",
     thirdPartyPineconeLabel: "Knowledge base search service (Pinecone):",
     thirdPartyPineconeBody:
       "When you use AI features with Canvas content or your own notes, we send text snippets (without names, emails, or other personal data) to a search service that helps the AI find the most relevant parts of what you've uploaded. The content is linked to an anonymous user ID and deleted when you remove the base or your account.",
@@ -2226,7 +2230,7 @@ export const enMessages = {
       "We use a service that helps the AI sort search results so the most relevant ones come first. Only anonymized text excerpts are sent — no personal data.",
     thirdPartyDatadogLabel: "Monitoring and session replay (Datadog):",
     thirdPartyDatadogBody:
-      "When you've accepted optional performance measurements, we send technical operational and error tracking data to Datadog to link frontend errors, backend traces, and performance anomalies. We also enable Datadog Session Replay on a portion of sessions (about 50%) — this records a replayable reconstruction of DOM interactions (clicks, scrolls, navigation) so we can debug UI issues. We use Datadog's strictest \"mask\" setting by default: all text is replaced with \"xxx\" and images are blurred in the recording, so the content of chat messages, Canvas pages, knowledge base files, and quiz questions is not readable in the replay. Canvas tokens are never sent. You can withdraw consent at any time in the cookie banner; monitoring and replay stop immediately.",
+      'When you\'ve accepted optional performance measurements, we send technical operational and error tracking data to Datadog to link frontend errors, backend traces, and performance anomalies. We also enable Datadog Session Replay on a portion of sessions (about 50%) — this records a replayable reconstruction of DOM interactions (clicks, scrolls, navigation) so we can debug UI issues. We use Datadog\'s strictest "mask" setting by default: all text is replaced with "xxx" and images are blurred in the recording, so the content of chat messages, Canvas pages, knowledge base files, and quiz questions is not readable in the replay. Canvas tokens are never sent. You can withdraw consent at any time in the cookie banner; monitoring and replay stop immediately.',
     thirdPartyPosthogLabel: "Product analytics (PostHog):",
     thirdPartyPosthogBody:
       "To understand how features are actually used (page views, clicks, which AI features are adopted), we send aggregated usage data to PostHog (hosted in the US) when you have consented to optional measurements. We only send pseudonymous identifiers and usage patterns — no chat content, Canvas data, email addresses, or names. PostHog is configured in cookieless mode without cookies or localStorage, and session replay is disabled.",
@@ -2280,11 +2284,11 @@ export const enMessages = {
       "Transfers are based on the European Commission's Standard Contractual Clauses (SCCs) and on the EU-US Data Privacy Framework where the provider is certified. Both are EU-approved ways to transfer data to countries outside the EEA. We also minimize what is sent — for example, we automatically remove personal data from uploaded documents before they are used by the AI.",
     automatedTitle: "AI and automated decisions",
     automatedBody:
-      "StudyWise uses AI (Claude) to generate responses, summaries, quizzes, and study plans based on what you provide. This does not count as \"automated decision-making\" in the legal sense — the AI provides learning support, not decisions that affect grades, benefits, or rights.",
+      'StudyWise uses AI (Claude) to generate responses, summaries, quizzes, and study plans based on what you provide. This does not count as "automated decision-making" in the legal sense — the AI provides learning support, not decisions that affect grades, benefits, or rights.',
     automated1:
       "All AI outputs are suggestions you can accept or reject. Neither grades, access, nor other rights are decided by the machine.",
     automated2:
-      "AI can make mistakes. You are responsible for verifying information before submitting academic work.",
+      "AI can make mistakes. You are responsible for verifying information, following course rules, and documenting AI use before submitting academic work.",
     automated3:
       "You can stop using AI features at any time, delete conversations, or request human follow-up from support via the contact form.",
     ageTitle: "Age limit",
@@ -2338,7 +2342,7 @@ export const enMessages = {
     autoLogoutBody:
       "Sessions expire automatically after a period of inactivity, and you must sign in again. You can also manually sign out of all devices if you suspect your account has been used without your permission.",
     canvasApiTitle: "Canvas API security",
-    canvasApiIntro: "When you connect to Canvas, we use your personal API token:",
+    canvasApiIntro: "When you connect to Canvas in the prototype, we use your personal API token:",
     canvasApi1: "We only use the token to read your Canvas data — we perform no write operations",
     canvasApi2: "You can revoke the token in Canvas at any time",
     canvasApi3: "The token is stored encrypted and never sent to third parties",
@@ -2348,7 +2352,7 @@ export const enMessages = {
     notionApi1:
       "We can only create new child pages under the page you've selected — we cannot read, modify, or delete existing Notion content",
     notionApi2:
-      "Export only happens when you explicitly click \"Export\" — we never send anything in the background",
+      'Export only happens when you explicitly click "Export" — we never send anything in the background',
     notionApi3:
       "The Notion API key is stored encrypted. You can remove the connection at any time in settings",
     loggingTitle: "Logging and privacy",
@@ -2395,34 +2399,38 @@ export const enMessages = {
     reportBody: "Have you discovered a security vulnerability? Contact us immediately via",
     reportLink: "the contact form",
     reportSuffix: ". We take all reports seriously and will respond promptly.",
-    reportSecurityTxtIntro: "For security researchers we publish canonical contact info in a machine-readable format:",
+    reportSecurityTxtIntro:
+      "For security researchers we publish canonical contact info in a machine-readable format:",
     reportSecurityTxtLink: "/.well-known/security.txt",
     reportSecurityTxtSuffix: "(RFC 9116).",
   },
   vilkar: {
     title: "Terms of Service",
-    updatedAt: "18 April 2026",
+    updatedAt: "8 May 2026",
     acceptTitle: "1. Acceptance of terms",
     acceptBody:
       "By creating an account and using StudyWise, you accept these terms of service. If you do not accept the terms, you must not use the service. You can terminate this agreement at any time by logging out or deleting your account under Settings → Delete account.",
     serviceTitle: "2. Description of the service",
     serviceBody:
-      "StudyWise is a study assistant that integrates with Canvas LMS and offers AI-based help. The service is developed as a bachelor project at USN and is offered free of charge to students.",
+      "StudyWise is a study assistant and technical prototype that integrates with Canvas LMS and offers AI-based help. The service is developed as a bachelor project at USN, but it is not an official service from USN, Canvas/Instructure, or any other institution.",
     accountTitle: "3. User account",
     account1: "You are responsible for keeping your password secret",
     account2: "You must not share your account with others",
     account3: "You must notify us immediately if you suspect unauthorized access",
     account4: "We may suspend accounts that violate the terms",
     canvasTitle: "4. Canvas integration",
-    canvas1: "You give us permission to fetch data from Canvas on your behalf",
-    canvas2: "We only fetch data necessary for the service's functionality",
-    canvas3: "You can revoke access at any time via Canvas",
-    canvas4: "We are not responsible for content in Canvas",
+    canvas1:
+      "The current personal Canvas API token flow is a prototype/demo solution; a production version should use Canvas OAuth/LTI/developer key access approved by the institution",
+    canvas2: "You give us permission to fetch data from Canvas on your behalf",
+    canvas3:
+      "We only fetch data necessary for the functionality you use, and we do not write back to Canvas",
+    canvas4:
+      "You can revoke access at any time via Canvas and should only use content you are allowed to process in StudyWise",
     aiTitle: "5. AI assistant",
     ai1: "AI responses are advisory and may contain errors",
     ai2: "You should always verify important information",
-    ai3: "The AI must not be used for cheating or academic dishonesty",
-    ai4: "We reserve the right to remove or restrict content that violates the terms, and to suspend accounts in case of misuse",
+    ai3: "The AI is study support and must not be used for cheating, plagiarism, or as a replacement for your own understanding",
+    ai4: "You must follow your course and institution rules for exams, submissions, and documentation of AI use",
     sharingTitle: "6. Sharing conversations",
     sharing1:
       "You can create public links to conversations. Anyone with the link can read the full content",
@@ -2456,18 +2464,21 @@ export const enMessages = {
     titlePrefix: "Frequently asked",
     titleAccent: "questions",
     helpCenter: "Help center",
-    description: "Find answers to the most common questions about StudyWise — Canvas, security, account, and features.",
+    description:
+      "Find answers to the most common questions about StudyWise — Canvas, security, account, and features.",
     searchPlaceholder: "Search questions...",
     filterAll: "All",
-    noMatches: "No questions match your search. Try another keyword or choose a different category.",
-    contactDescription: "We're here to help. Send us a message and we usually reply within 24 hours.",
+    noMatches:
+      "No questions match your search. Try another keyword or choose a different category.",
+    contactDescription:
+      "We're here to help. Send us a message and we usually reply within 24 hours.",
     categoryCanvas: "Canvas",
     categorySecurityPrivacy: "Security and Privacy",
     categoryAccount: "Account",
     categoryFeatures: "Features",
     canvasTokenQ: "How do I get a Canvas API token?",
     canvasTokenA:
-      'Log in to Canvas, go to Settings → Approved Integrations, and click "New Access Token". Copy the token and paste it in StudyWise under Settings.',
+      'For the prototype: log in to Canvas, go to Settings → Approved Integrations, and click "New Access Token". Copy the token and paste it in StudyWise under Settings. In a production integration, this should be replaced by Canvas OAuth/LTI/developer key access approved by the institution.',
     canvasTokenSettings: "Settings → Approved Integrations",
     canvasTokenButton: "New Access Token",
     canvasInstitutionsQ: "Which Canvas institutions are supported?",
@@ -2481,8 +2492,12 @@ export const enMessages = {
     supplementQ: "Does StudyWise replace Canvas?",
     supplementA:
       "No. Canvas remains the official channel between you and your school — all submissions, announcements, and grades still go through Canvas. StudyWise reads from Canvas (with your API token) but never writes back. Think of us as the study assistant sitting next to you, helping you make better use of the content already in Canvas.",
+    officialIntegrationQ: "Is StudyWise an official Canvas or USN integration?",
+    officialIntegrationA:
+      "No. StudyWise is a bachelor project and technical prototype, not an official service from USN, Canvas/Instructure, or any other institution. The current personal Canvas token flow demonstrates what is technically possible. A production version should use Feide/FS where relevant and Canvas OAuth/LTI/developer key access approved by the institution.",
     dataSecureQ: "Is my data safe?",
-    dataSecureA: "Yes. Sensitive data (such as Canvas tokens and chat history) is encrypted with industry-standard encryption before storage, and all communication between your browser and our servers is encrypted (HTTPS). Read more on our",
+    dataSecureA:
+      "Yes. Sensitive data (such as Canvas tokens and chat history) is encrypted with industry-standard encryption before storage, and all communication between your browser and our servers is encrypted (HTTPS). Read more on our",
     dataSecureLink: "security page",
     thirdPartyQ: "Does StudyWise send data to third parties?",
     thirdPartyA1:
@@ -2497,7 +2512,7 @@ export const enMessages = {
     canvasTokenAfterDeleteQ:
       "Should I remove my Canvas access token after deleting my StudyWise account?",
     canvasTokenAfterDeleteA:
-      "Yes — just to be on the safe side. On our end the token was always stored encrypted with AES-256-GCM, never exposed in plaintext, and has been deleted along with your account, so it was safe with us either way. The token itself is still registered in Canvas until you remove it there: sign in to Canvas, go to Account → Settings → \"Approved Integrations\" and delete the StudyWise entry.",
+      'Yes — just to be on the safe side. On our end the token was always stored encrypted with AES-256-GCM, never exposed in plaintext, and has been deleted along with your account, so it was safe with us either way. The token itself is still registered in Canvas until you remove it there: sign in to Canvas, go to Account → Settings → "Approved Integrations" and delete the StudyWise entry.',
     twoFactorQ: "How do I enable two-factor authentication (2FA)?",
     twoFactorA:
       "Go to Account → Security and follow the setup. We recommend an authenticator app (Google Authenticator, 1Password, Authy, or similar). If you lose access to the app, contact us via the contact form and we'll help you reset 2FA.",
@@ -2509,7 +2524,7 @@ export const enMessages = {
       "The study plan gathers upcoming Canvas deadlines and assignments into a structured weekly overview, so you can plan your reading and submissions. It updates automatically when Canvas syncs.",
     withoutCanvasQ: "Can I use StudyWise without a Canvas token?",
     withoutCanvasA:
-      "Only in a very limited way — and we don't recommend it. StudyWise is built around the Canvas integration. Without a personal Canvas API token, only general AI chat and the knowledge base (your own uploaded documents) are available. Everything that gives StudyWise its real value — course overview, calendar with deadlines, announcements, AI chat with syllabus context, quizzes and flashcards from your Canvas course material, weekly plan, and task breakdowns — requires a Canvas connection. You'll find instructions for creating a token in Settings; it takes a couple of minutes.",
+      "Only in a very limited way. StudyWise is built around the Canvas integration, but the current personal Canvas token flow is a prototype/demo solution. Without a Canvas connection, only general AI chat and the knowledge base (your own uploaded documents) are available. Everything that gives StudyWise its real value — course overview, calendar with deadlines, announcements, AI chat with syllabus context, quizzes and flashcards from your Canvas course material, weekly plan, and task breakdowns — requires a Canvas connection.",
     fileTypesQ: "Which file types are supported for document analysis?",
     fileTypesA:
       "StudyWise supports PDF, Word (.docx), PowerPoint (.pptx), Excel (.xlsx), images (PNG, JPG, WEBP), and common code files.",
@@ -2522,9 +2537,12 @@ export const enMessages = {
     taskBreakdownQ: "What is task breakdown?",
     taskBreakdownA:
       "When you have a large Canvas assignment, the AI can break it down into smaller subtasks with estimated time. Useful when a long submission feels overwhelming — you get a concrete action list to work from. Find it under AI breakdown, or ask the AI to break down an assignment directly in chat.",
+    academicIntegrityQ: "Can I use StudyWise for exams or submissions?",
+    academicIntegrityA:
+      "Only if your course and exam/submission instructions allow AI use. StudyWise is intended as study support. Do not submit AI-generated text as your own work, and document where and how you used AI when your institution requires it.",
     exportQ: "Can I export chat responses or notes?",
     exportA:
-      "Yes. You can export AI responses and summaries to PDF, Word (.docx), Excel (.xlsx), or directly to Notion (requires a Notion connection in Settings). Use the \"Export\" button in the chat or AI summary.",
+      'Yes. You can export AI responses and summaries to PDF, Word (.docx), Excel (.xlsx), or directly to Notion (requires a Notion connection in Settings). Use the "Export" button in the chat or AI summary.',
     notionQ: "How do I connect to Notion?",
     notionA:
       "Go to Settings, scroll to the Notion integration, create an internal integration at notion.so/my-integrations, copy the API key and paste it in. You can also provide a default page ID where exports should land. The key is stored encrypted and used only for your account.",
@@ -2533,12 +2551,13 @@ export const enMessages = {
       "Go to Settings → Notifications and turn on browser notifications. The browser will ask for permission the first time. You'll then be notified about new Canvas deadlines and assignments even when StudyWise isn't open. Notifications are per device — enable on each device you want to use.",
     responseTimeQ: "Why do AI answers take so long?",
     responseTimeA:
-      "When you ask an in-depth question about your syllabus — typically \"summarize lesson X\" or \"explain chapter Y\" — the AI reads the entire relevant PDF, searches through all your course material, and composes a thorough answer with sources. This usually takes 1-3 minutes the first time. The quality is worth the wait: you get answers grounded in your actual syllabus, not just general knowledge. If the same question is asked again (by you or a classmate on the same course), the answer is served from cache in about 2 seconds. Short lookups like \"what's my next deadline?\" only take a few seconds.",
+      'When you ask an in-depth question about your syllabus — typically "summarize lesson X" or "explain chapter Y" — the AI reads the entire relevant PDF, searches through all your course material, and composes a thorough answer with sources. This usually takes 1-3 minutes the first time. The quality is worth the wait: you get answers grounded in your actual syllabus, not just general knowledge. If the same question is asked again (by you or a classmate on the same course), the answer is served from cache in about 2 seconds. Short lookups like "what\'s my next deadline?" only take a few seconds.',
     termsUpdateQ: "What happens if the terms are updated?",
     termsUpdateA:
       "When we update the terms of service or privacy policy, you'll see a dialog the next time you use StudyWise asking you to read and accept the new versions. You can't continue using the service without confirming — but you can always log out or delete your account if you don't want to accept. Your acceptance is logged with version, timestamp, and technical context as evidence.",
     statusQ: "How do I check if StudyWise is up?",
-    statusA: "We have a dedicated status page showing whether core services (sign-in, AI chat, knowledge base and notifications) are working correctly. Check",
+    statusA:
+      "We have a dedicated status page showing whether core services (sign-in, AI chat, knowledge base and notifications) are working correctly. Check",
     statusLink: "the status page",
     statusASuffix: "if you're experiencing issues — or check it first before reporting a bug.",
     notFound: "Didn't find the answer?",
@@ -2556,13 +2575,15 @@ export const enMessages = {
     canvasPermissionsQ: "Why are files missing from some courses in the AI's answer?",
     canvasPermissionsA:
       "Canvas institutions control which endpoints students can access. For some courses (typically common rooms and discussion rooms) we can't fetch files directly — only via modules. Then the AI may lose content for those files, but the rest of the course works normally.",
-    cacheBehaviourQ: "Why do I get the same answer when I ask about the same lesson multiple times?",
+    cacheBehaviourQ:
+      "Why do I get the same answer when I ask about the same lesson multiple times?",
     cacheBehaviourA:
       "To keep AI responses fast and predictable, we cache curriculum answers for 24 hours per course and lesson. Asking the same question again within that window returns the cached answer in ~2 seconds instead of waiting 1–2 minutes for a new one. If you want an updated answer, rephrase the question slightly or wait for the cache to expire.",
     coldStartQ: "Why does the first answer take so much longer than later ones?",
     coldStartA:
       "The first time you ask about a specific lesson or file, the AI must read the entire document, search the curriculum, and compose a detailed answer — typically 60–120 seconds. After that the answer is cached, and follow-up questions on the same topic respond in about 2 seconds.",
-    sourcePanelQ: "Why does the 'Sources' panel sometimes show a different file than I asked about?",
+    sourcePanelQ:
+      "Why does the 'Sources' panel sometimes show a different file than I asked about?",
     sourcePanelA:
       "If the file you asked about has little extractable content (for example an empty Canvas page or an image-heavy PowerPoint), the system may promote another relevant file from the same course as the primary source to give you a useful answer. The AI still uses the correct subject matter, but the source panel reflects which file the text actually came from.",
     moduleHintQ: "Why does the AI sometimes mix up lesson numbers?",
@@ -2763,7 +2784,8 @@ export const enMessages = {
     fileDeleteError: "Could not delete file",
     fileTooLarge: "File is too large (max 10 MB)",
     noFiles: "No files uploaded yet.",
-    aiTip: "Type /{navn} (e.g. /{navn} explain chapter 3) as a separate message to activate this base as context for the AI.",
+    aiTip:
+      "Type /{navn} (e.g. /{navn} explain chapter 3) as a separate message to activate this base as context for the AI.",
     statusIndexing: "Indexing...",
     statusReady: "Ready",
     statusFailed: "Failed",
@@ -2828,7 +2850,7 @@ export const enMessages = {
       down: "Down",
     },
     refreshNote:
-      "This page is cached for 30 seconds on the server. If you just experienced an issue and the page shows \"Operational\", wait a minute and reload.",
+      'This page is cached for 30 seconds on the server. If you just experienced an issue and the page shows "Operational", wait a minute and reload.',
   },
   onboarding: {
     welcome: "Welcome to StudyWise!",
@@ -2849,7 +2871,7 @@ export const enMessages = {
         "Pick a course and a module from Canvas, and the AI will generate a quiz or flashcards based on your reading material. You control the question count and difficulty. New: save your quizzes and flashcard sets, view stats on past attempts, and replay the same set before exams.",
       knowledgeBase: "Knowledge Base",
       knowledgeBaseDescription:
-        "Build your own collections of links and documents that the AI chat can use as sources. Create a base under \"Knowledge Base\" and upload files or paste URLs — each file shows a status indicator so you know when it's ready.",
+        'Build your own collections of links and documents that the AI chat can use as sources. Create a base under "Knowledge Base" and upload files or paste URLs — each file shows a status indicator so you know when it\'s ready.',
       notifications: "Notifications",
       notificationsDescription:
         "Get notified as Canvas deadlines approach so nothing slips through the cracks. Enable browser push notifications and adjust how far in advance you want to be warned.",

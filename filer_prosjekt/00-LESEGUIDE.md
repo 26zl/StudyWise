@@ -6,14 +6,16 @@ Denne mappen (`filer_prosjekt/`) samler alt supplerende materiale til bachelorop
 
 **StudyWise** er en KI-basert studieassistent for høyere utdanning, integrert med Canvas LMS. Løsningen henter studentens kursdata fra Canvas, lar studenten bygge en privat kunnskapsbase av PDF-er og lenker, og bruker Anthropic Claude med RAG (Retrieval-Augmented Generation) til å gi svar som er forankret i studentens eget pensum.
 
-- **Produksjon:** <https://www.studwize.page>
+I sensordokumentasjonen omtales `studwize.page` som en offentlig demo / produksjonslik deploy. Prosjektet er ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder.
+
+- **Offentlig demo / produksjonslik deploy:** <https://www.studwize.page>
 - **Teknologi:** TypeScript, Next.js 16, Express 5, MongoDB, Redis, Pinecone, Anthropic Claude, Cohere, Clerk
 - **Kodebase:** monorepo (pnpm workspaces) med ca. 50 000 linjer TypeScript
 - **Drift:** Vercel (frontend) + Heroku (backend) + Cloudflare (DNS/CDN/WAF/SSL/TLS/Worker)
 
 ## Arkitektur på ett minutt
 
-StudyWise er delt i en klientdel, en API-del og flere eksterne datatjenester. Frontend kjører på Vercel, backend kjører på Heroku, og Cloudflare ligger foran produksjonsdomenene som DNS-, CDN-, WAF- og TLS-lag. API-et eksponeres kun via `api.studwize.page`; backend avviser direkte origin-trafikk som ikke kommer gjennom Cloudflare.
+StudyWise er delt i en klientdel, en API-del og flere eksterne datatjenester. Frontend kjører på Vercel, backend kjører på Heroku, og Cloudflare ligger foran de offentlige domenene som DNS-, CDN-, WAF- og TLS-lag. API-et eksponeres kun via `api.studwize.page`; backend avviser direkte origin-trafikk som ikke kommer gjennom Cloudflare.
 
 ```text
 Bruker
@@ -88,7 +90,7 @@ Vi har estimert ca. 30 minutter for en grundig orientering før selve hovedrappo
 | **Sikkerhet og personvern (GDPR)** | Diagram 03, 08, 09, 10, 11 + rotmappens `CLAUDE.md` (guardrails-seksjon). Cloudflare-only API-path, 15 sikkerhetslag og soft-delete-flyt for kontosletting. |
 | **Brukersentrert utvikling** | `brukertest-skjema.md`, `kanban-brukerhistorier.txt`. SUS-måling, 55 brukerhistorier, ekte testdeltakere. |
 | **Prosjektledelse og metodikk** | `kanban-brukerhistorier.txt`, `teknisk-kanban-issues.txt`, `Prosjektbeskrivelse_gruppe3.pdf`. Sporbar Kanban-flyt fra brukerhistorie til implementasjon. |
-| **Drift og leveranse** | Diagram 10, 13. Løsningen er deployet i produksjon med CI/CD, helsestatus og observabilitet. |
+| **Drift og leveranse** | Diagram 10, 13. Løsningen er deployet som offentlig demo / produksjonslik drift med CI/CD, helsestatus og observabilitet. |
 | **Kommunikasjon** | `manus-milepael-3.md`. Norske variabelnavn og kommentarer gjennomgående i kodebasen for tilgjengelighet. |
 
 ## Tekniske verifiserings­tips
@@ -99,7 +101,7 @@ Hvis man ønsker å verifisere påstandene i rapporten direkte:
 - **API-helsestatus:** <https://api.studwize.page/health> (offentlig liveness-endepunkt via Cloudflare).
 - **Dokumentasjon:** <https://26zl.github.io/StudyWise/> (VitePress-side med teknisk dokumentasjon, deployet til GitHub Pages).
 - **Kildekode:** rotnivå `CLAUDE.md` gir en kompakt oversikt over guardrails, mappestruktur og pre-commit-rutiner.
-- **Bygg lokalt:** `pnpm install && pnpm dev` — krever Node 22+ og .env-filer (eksempler i `backend/.env.example` og `frontend/.env.example`).
+- **Bygg lokalt:** `pnpm install && pnpm dev` — krever Node 24 og .env-filer (eksempler i `backend/.env.example` og `frontend/.env.example`).
 
 ## Kontakt
 

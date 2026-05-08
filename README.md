@@ -9,11 +9,31 @@
 En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas LMS.
 Bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026 — gruppe 3.
 
-- **Produksjon:** <https://www.studwize.page>
+- **Offentlig demo / produksjonslik deploy:** <https://www.studwize.page>
 - **Dokumentasjon:** <https://26zl.github.io/StudyWise/>
 - **Statusside:** <https://www.studwize.page/status>
 
 > For en raskere orientering i prosjektet, se `filer_prosjekt/00-LESEGUIDE.md` og diagrammene i `filer_prosjekt/diagrammer/`.
+
+## Prototype-scope og avgrensning
+
+StudyWise er en bachelorprototype og teknisk demonstrator, ikke en offisiell
+tjeneste fra USN, Canvas/Instructure eller andre læresteder. Den offentlige
+deployen brukes for å demonstrere hva som er teknisk mulig med Canvas-data,
+KI-assistanse og studieplanlegging i én flate.
+
+Dagens Canvas-kobling bruker personlig API-token som brukeren selv oppretter i
+Canvas. Dette er et bevisst prototypevalg for bachelorprosjektet. En reell
+institusjonsutrulling bør erstattes av en godkjent integrasjonsmodell, for
+eksempel Feide/FS der det er relevant og Canvas OAuth, LTI eller developer key
+godkjent av lærestedets Canvas-administrator.
+
+KI-funksjoner kan behandle Canvas-utdrag, dokumentinnhold og brukerens egne
+spørsmål hos eksterne underleverandører som Anthropic, Pinecone, Cohere og
+LangSmith. Brukere og testpersoner skal derfor ikke bruke løsningen med
+taushetsbelagt informasjon, personopplysninger eller opphavsbeskyttet materiale
+de ikke har rett til å behandle. KI-generert innhold er læringsstøtte og skal
+ikke leveres som eget arbeid der emne- eller eksamensregler forbyr det.
 
 ## Teknologi
 
@@ -28,13 +48,13 @@ Monorepo med fem pakker (`common`, `backend`, `frontend`, `docs`, `tests`) admin
 | Auth     | Clerk, Cloudflare Turnstile                  |
 | Infra    | Heroku, Vercel, Datadog, PostHog, Cloudflare |
 
-## Produksjonsarkitektur
+## Deploy- og driftsarkitektur
 
 Frontend kjører på Vercel bak Cloudflare, mens backend kjører på Heroku bak `api.studwize.page`. Next.js proxyer `/api/*` videre til Cloudflare API-edge, og Express-backenden avviser direkte origin-trafikk som ikke kommer via Cloudflare. `common`-pakken er kontrakten mellom frontend, backend og tester, med delte Zod-skjemaer og TypeScript-typer.
 
 ## Kom i gang
 
-**Forutsetninger:** Node.js 22 LTS eller nyere, og pnpm (`npm install -g pnpm`). CI kjører på Node 24.
+**Forutsetninger:** Node.js 24 LTS, og pnpm (`npm install -g pnpm`). CI og deploy er satt opp for Node 24.
 
 ```bash
 git clone https://github.com/26zl/StudyWise.git
@@ -97,14 +117,14 @@ docker compose up --build     # Start MongoDB, Redis, backend, frontend
 
 ## Git hooks og kvalitetssjekker
 
-Pre-commit-hook (Husky + lint-staged) er midlertidig deaktivert mens kodebasen reformateres samlet, slik at fremtidige commits får små, fokuserte differ. Frem til reaktivering kjøres pre-commit-sjekkene manuelt:
+Kvalitetssjekker kjøres manuelt lokalt og automatisk i CI. Før større commits anbefales:
 
 ```bash
 pnpm format
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
-De samme sjekkene håndheves automatisk i pull requests via GitHub Actions, slik at kvalitetskravet er likt uansett om hooken er aktiv lokalt.
+De samme sjekkene håndheves automatisk i pull requests via GitHub Actions, slik at kvalitetskravet er likt på tvers av utviklingsmiljøer.
 
 ## Testing
 
@@ -128,6 +148,15 @@ Se [tests/README.md](./tests/README.md) for detaljer.
 ## Avhengigheter
 
 Dependabot kjører ukentlig (mandager 06:00 CET) og åpner grupperte pull requests for npm og GitHub Actions. Security-advisories åpner PR-er umiddelbart. Konfigurasjon ligger i [`.github/dependabot.yml`](./.github/dependabot.yml).
+
+## Dokumentasjon og policyer
+
+Viktige avgrensnings- og compliance-dokumenter:
+
+- [`compliance/PROTOTYPE_SCOPE.md`](./compliance/PROTOTYPE_SCOPE.md) — prototype-scope, Canvas-avgrensning og produksjonskrav
+- [`compliance/PIA.md`](./compliance/PIA.md) — personvernvurdering og restrisiko
+- [`compliance/SUBPROCESSORS.md`](./compliance/SUBPROCESSORS.md) — underleverandører og dataflyt
+- [`.github/SECURITY.md`](./.github/SECURITY.md) — sårbarhetsrapportering
 
 ## Lisens
 

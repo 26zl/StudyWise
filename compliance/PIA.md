@@ -6,8 +6,8 @@
 >
 > Revideres når ny funksjonalitet endrer risikoprofilen, eller minimum årlig.
 >
-> **Sist oppdatert:** 2026-04-18
-> **Versjon:** 1.0
+> **Sist oppdatert:** 2026-05-08
+> **Versjon:** 1.1
 > **Ansvarlig:** Bachelor-teamet, StudyWise (USN)
 
 ## 1. Tjenestebeskrivelse
@@ -21,18 +21,28 @@ Tjenesten er utviklet som bacheloroppgave ved USN (2026), driftes av
 studentene som behandlingsansvarlige, og er tilgjengelig på
 <https://www.studwize.page>.
 
+StudyWise er en bachelorprototype og teknisk demonstrator, ikke en offisiell
+tjeneste fra USN, Canvas/Instructure eller andre læresteder. Se
+[`PROTOTYPE_SCOPE.md`](./PROTOTYPE_SCOPE.md) for avgrensning av Canvas-token,
+KI-bruk, testpersoner og krav før eventuell institusjonsutrulling.
+
+Status per 2026-05-08: avgrenset testing med ca. 10 testpersoner er avsluttet,
+og tilhørende kontoer/data er slettet. Videre testing med eksterne
+testpersoner skal vurderes med veileder/personvernfunksjon og eventuelt Sikt
+før ny behandling starter.
+
 ## 2. Personopplysninger vi behandler
 
-| Kategori                     | Formål                | Lagringssted                  | Kryptering                          | Retention                                   |
-| ---------------------------- | --------------------- | ----------------------------- | ----------------------------------- | ------------------------------------------- |
-| E-post, navn, brukernavn     | Identifisering        | Clerk + MongoDB               | Transit + at-rest hos Clerk         | Inntil kontosletting                        |
-| Canvas API-token             | Hente Canvas-data     | MongoDB                       | AES-256-GCM                         | Inntil bruker fjerner eller sletter konto   |
-| Chat-historikk               | Kjernefunksjon        | MongoDB                       | AES-256-GCM (kryptert blob)         | Inntil bruker sletter samtale eller konto   |
-| Kunnskapsbase (tekst)        | RAG-kontekst          | MongoDB + Pinecone (vektorer) | Transit + at-rest hos leverandør    | Inntil bruker sletter base eller konto      |
-| Canvas-data cache            | Ytelse                | Redis                         | Transit + at-rest hos Redis Cloud   | 2 timer TTL                                 |
-| Preferanser (UI, varsler)    | Personalisering       | MongoDB                       | Ukryptert (ikke-sensitiv)           | Inntil kontosletting                        |
-| Audit logs                   | Sikkerhet, compliance | MongoDB                       | Pseudonymisert ved kontosletting    | Begrenset retention                         |
-| IP, user-agent, request-ID   | Misbruksdeteksjon     | MongoDB audit logs            | Pseudonymisert                      | Begrenset retention                         |
+| Kategori                   | Formål                | Lagringssted                  | Kryptering                        | Retention                                 |
+| -------------------------- | --------------------- | ----------------------------- | --------------------------------- | ----------------------------------------- |
+| E-post, navn, brukernavn   | Identifisering        | Clerk + MongoDB               | Transit + at-rest hos Clerk       | Inntil kontosletting                      |
+| Canvas API-token           | Hente Canvas-data     | MongoDB                       | AES-256-GCM                       | Inntil bruker fjerner eller sletter konto |
+| Chat-historikk             | Kjernefunksjon        | MongoDB                       | AES-256-GCM (kryptert blob)       | Inntil bruker sletter samtale eller konto |
+| Kunnskapsbase (tekst)      | RAG-kontekst          | MongoDB + Pinecone (vektorer) | Transit + at-rest hos leverandør  | Inntil bruker sletter base eller konto    |
+| Canvas-data cache          | Ytelse                | Redis                         | Transit + at-rest hos Redis Cloud | 2 timer TTL                               |
+| Preferanser (UI, varsler)  | Personalisering       | MongoDB                       | Ukryptert (ikke-sensitiv)         | Inntil kontosletting                      |
+| Audit logs                 | Sikkerhet, compliance | MongoDB                       | Pseudonymisert ved kontosletting  | Begrenset retention                       |
+| IP, user-agent, request-ID | Misbruksdeteksjon     | MongoDB audit logs            | Pseudonymisert                    | Begrenset retention                       |
 
 **Vi samler IKKE inn:**
 
@@ -151,17 +161,62 @@ Administratorer har utvidet tilgang i admin-panelet.
 - MongoDB Atlas, Pinecone og Cohere har egne compliance-sertifiseringer.
 - Ved tredjepart-brudd: vi varsler egne brukere i tråd med GDPR Art. 33/34.
 
-### 4.8 Misbruk av KI-funksjoner
+### 4.8 Misbruk av KI-funksjoner / akademisk uredelighet
 
-**Sannsynlighet:** Middels · **Alvorlighet:** Lav · **Risk score:** Lav
+**Sannsynlighet:** Middels · **Alvorlighet:** Middels · **Risk score:** Middels
 
-Brukere kan forsøke å generere upassende innhold.
+Brukere kan bruke KI-svar, oppsummeringer, quiz, eksport eller
+oppgavenedbrytning på en måte som bryter emne-, eksamens- eller
+innleveringsregler.
 
 **Tiltak:**
 
 - Anthropic har innebygde modereringsmekanismer.
 - Rate-limiting per bruker for å begrense misbruk.
 - Logging for å kunne stoppe gjentatt misbruk.
+- Brukervilkår forbyr juks, plagiat og akademisk uredelighet.
+- Produkttekst i Canvas-kontekst og eksport minner brukere om å følge emnets
+  regler og dokumentere KI-bruk der det kreves.
+
+### 4.9 Canvas personlig API-token som prototypeflyt
+
+**Sannsynlighet:** Høy ved bred bruk · **Alvorlighet:** Middels/Høy ·
+**Risk score:** Middels/Høy
+
+I prototypen kobler brukeren Canvas ved å opprette og lime inn et personlig
+Canvas API-token. Dette gir StudyWise lesetilgang til samme Canvas-data brukeren
+selv har tilgang til. For avgrenset demonstrasjon er dette praktisk, men det er
+ikke riktig langsiktig modell for en flerbruker-/institusjonsintegrasjon.
+
+**Tiltak:**
+
+- Token lagres kryptert med AES-256-GCM og brukes kun server-side.
+- StudyWise skriver ikke tilbake til Canvas.
+- Bruker kan tilbakekalle tokenet i Canvas når som helst.
+- Brukerrettet tekst og dokumentasjon markerer tokenflyten som
+  prototype-/demo-løsning.
+- Produksjonsvariant skal bruke institusjonsgodkjent Canvas OAuth, LTI eller
+  developer key.
+
+### 4.10 Canvas-/pensuminnhold til KI- og søketjenester
+
+**Sannsynlighet:** Middels · **Alvorlighet:** Middels/Høy ·
+**Risk score:** Middels/Høy
+
+Canvas-innhold kan inneholde personopplysninger, opphavsbeskyttet materiale,
+forelesningsnotater, oppgavetekster, kunngjøringer eller annet innhold brukeren
+har tilgang til, men ikke nødvendigvis rett til å videresende til eksterne
+tjenester.
+
+**Tiltak:**
+
+- Brukeren velger hvilke Canvas-datasett KI-en får tilgang til.
+- Produkttekst og vilkår advarer mot bruk med sensitivt, taushetsbelagt eller
+  opphavsbeskyttet materiale man ikke har rett til å behandle.
+- PII-sanitering brukes der det er mulig, men dokumenteres som best-effort.
+- Underleverandører og dataflyt er dokumentert i `SUBPROCESSORS.md`.
+- Videre brukertesting eller produksjonsbruk krever ny vurdering av
+  behandlingsansvar, databehandleravtaler, opphavsrett og institusjonsgodkjenning.
 
 ## 5. Overføring utenfor EØS
 
@@ -218,6 +273,12 @@ Se `/sikkerhet`-siden for brukerrettet versjon.
 4. **Ingen utpekt DPO** — ikke påkrevd for vår skala iht. GDPR Art. 37.
 5. **Enkelt-dyno-deploy** — ingen formell DR-plan utover Heroku/MongoDB Atlas
    sine egne backups.
+6. **Canvas-token er prototypeflyt** — akseptabelt for bachelordemo og
+   avgrenset testing, men må erstattes med institusjonsgodkjent OAuth/LTI eller
+   developer key før reell utrulling.
+7. **Institusjonell avklaring mangler for bred bruk** — videre testing med
+   eksterne brukere må avklares med veileder/personvernfunksjon og eventuelt
+   Sikt etter USNs retningslinjer.
 
 ## 9. Revisjon
 
