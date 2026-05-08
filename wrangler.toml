@@ -1,0 +1,5 @@
+# Root-level config for Cloudflare Workers Builds when the connected
+# repository root is used as the build root.
+name = "holy-meadow-6380"
+main = "cloudflare/worker.js"
+compatibility_date = "2026-03-27"

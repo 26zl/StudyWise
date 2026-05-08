@@ -4,7 +4,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { createClerkClient, verifyToken } from "@clerk/backend";
-import { isClerkAPIResponseError } from "@clerk/backend/errors";
+import { isClerkAPIResponseError, TokenVerificationErrorReason } from "@clerk/backend/errors";
 import { hashSha256 } from "../../utils/cryptoUtils.js";
 import { User } from "../../database/models/User.js";
 import { DeletedUserTombstone } from "../../database/models/DeletedUserTombstone.js";
@@ -2419,7 +2419,7 @@ function getAuthorizedParties(): string[] | undefined {
 const TOKEN_CACHE_TTL_MS = 30_000;
 const TOKEN_CACHE_MAX = 200;
 /**
- * Stale-token-grace ved Clerk-utfall: hvor lenge etter token-exp vi godtar en
+ * Stale-token-grace ved Clerk-utfall: hvor lenge etter faktisk JWT-exp vi godtar en
  * tidligere verifisert cache-entry hvis verifyToken feiler med upstream-feil.
  * 30 minutter dekker en typisk Clerk-blip uten å gi en betydelig sikkerhets-
  * vindu for revoked/expired tokens. Tombstone-sjekkene (isClerkIdDeleted,
@@ -2430,10 +2430,15 @@ export type ClerkFactorVerificationAge = [firstFactorAge: number, secondFactorAg
 type ClerkTokenCacheEntry = {
   sub: string;
   sid?: string;
-  exp: number;
+  cacheExpiresAt: number;
+  jwtExpiresAt: number | null;
   fva?: ClerkFactorVerificationAge;
 };
 const tokenCache = new Map<string, ClerkTokenCacheEntry>();
+
+const UPSTREAM_CLERK_TOKEN_ERROR_REASONS = new Set<string>([
+  TokenVerificationErrorReason.RemoteJWKFailedToLoad,
+]);
 
 /**
  * Klassifiserer en Clerk-verifyToken-feil som upstream (Clerk er nede / nettverk)
@@ -2441,16 +2446,16 @@ const tokenCache = new Map<string, ClerkTokenCacheEntry>();
  * akseptere en stale cache-entry midlertidig.
  *
  * @clerk/backend kaster `TokenVerificationError` for token-spesifikke feil
- * (TokenInvalid, TokenExpired, TokenSignatureInvalid osv.). Alt annet — typisk
- * fetch-feil mot JWKS-endepunktet eller `clerk.sessions.getSession()` —
- * behandles som upstream. Vi feiler aldri til "upstream" på en
- * TokenVerificationError, slik at ugyldige tokens IKKE blir akseptert som stale.
+ * (TokenInvalid, TokenExpired, TokenSignatureInvalid osv.), men også for enkelte
+ * JWKS-fetch-feil. Vi godtar derfor kun eksplisitte upstream-reasons, slik at
+ * ugyldige tokens IKKE blir akseptert som stale.
  */
 function isUpstreamClerkFailure(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const name = (err as { name?: unknown }).name;
   if (typeof name === "string" && name === "TokenVerificationError") {
-    return false;
+    const reason = (err as { reason?: unknown }).reason;
+    return typeof reason === "string" && UPSTREAM_CLERK_TOKEN_ERROR_REASONS.has(reason);
   }
   return true;
 }
@@ -2576,7 +2581,10 @@ export async function resolveSessionTurnstileVerification(
 /** Hasher token med SHA256 for sikker cache-nøkkel. */
 const hashToken = hashSha256;
 
-function resolveTokenCacheExpiry(payload: { exp?: unknown }): number {
+function resolveTokenExpiryTimes(payload: { exp?: unknown }): {
+  cacheExpiresAt: number;
+  jwtExpiresAt: number | null;
+} {
   const now = Date.now();
   const localExpiry = now + TOKEN_CACHE_TTL_MS;
   const jwtExpiry =
@@ -2584,20 +2592,34 @@ function resolveTokenCacheExpiry(payload: { exp?: unknown }): number {
       ? payload.exp * 1000
       : null;
 
-  if (!jwtExpiry) return localExpiry;
-  return Math.min(localExpiry, jwtExpiry);
+  if (!jwtExpiry) {
+    return { cacheExpiresAt: localExpiry, jwtExpiresAt: null };
+  }
+  return { cacheExpiresAt: Math.min(localExpiry, jwtExpiry), jwtExpiresAt: jwtExpiry };
+}
+
+function canUseStaleToken(entry: ClerkTokenCacheEntry, now = Date.now()): boolean {
+  if (entry.jwtExpiresAt === null) return false;
+  return now - entry.jwtExpiresAt < TOKEN_STALE_GRACE_MS;
+}
+
+function getTokenCacheRetainUntil(entry: ClerkTokenCacheEntry): number {
+  if (entry.jwtExpiresAt === null) return entry.cacheExpiresAt;
+  return Math.max(entry.cacheExpiresAt, entry.jwtExpiresAt + TOKEN_STALE_GRACE_MS);
 }
 
 function pruneTokenCache(): void {
-  // Fjern utløpte entries først
+  // Fjern entries som er for gamle til både fersk cache og stale fallback.
   const now = Date.now();
   for (const [key, entry] of tokenCache) {
-    if (entry.exp <= now) tokenCache.delete(key);
+    if (getTokenCacheRetainUntil(entry) <= now) tokenCache.delete(key);
   }
   // Håndhev maks-grense: fjern entries med tidligst utløp først
   if (tokenCache.size > TOKEN_CACHE_MAX) {
     const keysToDelete = tokenCache.size - TOKEN_CACHE_MAX;
-    const sorted = [...tokenCache.entries()].sort((a, b) => a[1].exp - b[1].exp);
+    const sorted = [...tokenCache.entries()].sort(
+      (a, b) => getTokenCacheRetainUntil(a[1]) - getTokenCacheRetainUntil(b[1]),
+    );
     for (let i = 0; i < keysToDelete && i < sorted.length; i++) {
       tokenCache.delete(sorted[i][0]);
     }
@@ -2757,7 +2779,8 @@ export async function getClerkUserIdFromToken(
   // Sjekk cache først
   const cached = tokenCache.get(tokenHash);
   if (cached) {
-    if (cached.exp >= Date.now()) {
+    const now = Date.now();
+    if (cached.cacheExpiresAt >= now) {
       // Cross-dyno sjekk: avvis token hvis clerkId er slettet (kontosletting) eller sesjon er slettet (logout)
       // Parallelle Redis-oppslag for bedre ytelse i auth-hot-path
       const [clerkDeleted, sessionDeleted] = await Promise.all([
@@ -2772,8 +2795,8 @@ export async function getClerkUserIdFromToken(
     }
     // Behold expired cache-entry til den er forbi stale-grace-vinduet —
     // brukes som fallback hvis verifyToken feiler med upstream-feil under en
-    // Clerk-outage. Når grace-vinduet er over, slett.
-    if (Date.now() - cached.exp >= TOKEN_STALE_GRACE_MS) {
+    // Clerk-outage. Når tokenet er forbi faktisk JWT-exp + grace, slett.
+    if (!canUseStaleToken(cached, now)) {
       tokenCache.delete(tokenHash);
     }
   }
@@ -2799,24 +2822,26 @@ export async function getClerkUserIdFromToken(
     ]);
     if (clerkDeleted2 || sessionDeleted2) return null;
 
-    // Cache aldri lengre enn tokenets faktiske utløpstid.
+    // Fresh cache varer kort, og aldri lengre enn tokenets faktiske utløpstid.
+    const tokenExpiry = resolveTokenExpiryTimes(payload);
     tokenCache.set(tokenHash, {
       sub,
       sid,
       fva: parseFactorVerificationAge(payload),
-      exp: resolveTokenCacheExpiry(payload),
+      ...tokenExpiry,
     });
     pruneTokenCache();
 
     return sub;
   } catch (err) {
     // Stale-token-toleranse ved Clerk-utfall: hvis verifyToken feilet med en
-    // upstream-feil (nettverk/5xx mot JWKS, ikke en TokenVerificationError),
+    // upstream-feil (nettverk/5xx mot JWKS, ikke token-spesifikk valideringsfeil),
     // og vi har en nylig verifisert cache-entry innenfor stale-grace-vinduet,
     // godta den midlertidig så brukeren ikke blir kastet ut under en kort
     // Clerk-blip. Tombstone-sjekkene kjører fortsatt — slettede kontoer/
     // sesjoner blir aldri akseptert som stale.
-    if (isUpstreamClerkFailure(err) && cached && Date.now() - cached.exp < TOKEN_STALE_GRACE_MS) {
+    const now = Date.now();
+    if (isUpstreamClerkFailure(err) && cached && canUseStaleToken(cached, now)) {
       const [clerkDeleted3, sessionDeleted3] = await Promise.all([
         isClerkIdDeleted(cached.sub),
         isSessionDeleted(cached.sid),
@@ -2825,7 +2850,11 @@ export async function getClerkUserIdFromToken(
         logger.warn(
           {
             sub: cached.sub,
-            expiredMinutes: Math.floor((Date.now() - cached.exp) / 60_000),
+            cacheExpiredMinutes: Math.floor((now - cached.cacheExpiresAt) / 60_000),
+            jwtExpiredMinutes:
+              cached.jwtExpiresAt === null
+                ? null
+                : Math.floor((now - cached.jwtExpiresAt) / 60_000),
           },
           "Clerk-verifisering feilet med upstream-feil — godtar stale token midlertidig",
         );

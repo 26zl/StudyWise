@@ -64,6 +64,7 @@ pnpm dev
 # Utvikling
 pnpm dev                  # Start alt
 pnpm dev:frontend         # Kun frontend
+pnpm dev:frontend:turbo   # Frontend med Turbopack (--turbopack).
 pnpm dev:backend          # Kun backend
 
 # Kvalitet
