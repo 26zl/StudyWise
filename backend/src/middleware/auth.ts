@@ -14,6 +14,7 @@ import type { IUser } from "../database/models/User.js";
 import {
   findOrCreateUserByClerkId,
   getClerkUserIdFromToken,
+  getFactorVerificationAgeFromTokenCache,
   getClerkSessionCreatedAt,
   isAccountConflict,
   isTurnstileRequired,
@@ -70,7 +71,11 @@ type AuthResolution =
   | { status: "user_locked"; clerkUserId: string; lockedReason?: string }
   | { status: "user_sync_failed"; clerkUserId: string };
 
-function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
+function settAutentisertBrukerPåRequest(
+  req: Request,
+  user: IUser,
+  context?: { clerkFactorVerificationAge?: [number, number] },
+): void {
   const rawRole = user.role ?? DEFAULT_ROLE;
   const role: UserRole = (APP_ROLES as readonly string[]).includes(rawRole)
     ? (rawRole as UserRole)
@@ -78,6 +83,9 @@ function settAutentisertBrukerPåRequest(req: Request, user: IUser): void {
   req.user = { id: user._id.toString() };
   (req as Request & { actorRole: UserRole }).actorRole = role;
   (req as Request & { authenticatedUser?: IUser }).authenticatedUser = user;
+  if (context?.clerkFactorVerificationAge) {
+    req.clerkFactorVerificationAge = context.clerkFactorVerificationAge;
+  }
 }
 
 // Eksportert for unit-testing — kalles internt fra requireAuth-middlewaren
@@ -103,6 +111,7 @@ export async function resolveAuthentication(req: Request): Promise<AuthResolutio
   const forceSync = req.query.forceSync === "true";
   const authTurnstileCookie = getCookieValue(req, AUTH_TURNSTILE_COOKIE_NAME);
   const sessionId = getSessionIdFromTokenCache(token) ?? undefined;
+  const clerkFactorVerificationAge = getFactorVerificationAgeFromTokenCache(token);
   // Spor om Turnstile-cookie ble brukt slik at den kan slettes etter autentisering (engangsbruk)
   const hadTurnstileCookie = !!authTurnstileCookie;
   const userResult = await findOrCreateUserByClerkId(clerkUserId, {
@@ -194,7 +203,7 @@ export async function resolveAuthentication(req: Request): Promise<AuthResolutio
     }
   }
 
-  settAutentisertBrukerPåRequest(req, userResult);
+  settAutentisertBrukerPåRequest(req, userResult, { clerkFactorVerificationAge });
   // Slett cookie etter konsumering — én cookie = én sesjon.
   // Andre sesjoner håndteres av TurnstileReChallenge (Cloudflare auto-pass).
   return { status: "authenticated", clerkUserId, clearTurnstileCookie: hadTurnstileCookie };

@@ -22,6 +22,12 @@ interface CircuitBreakerOptions {
     failureThreshold?: number;
     /** Hvor lenge circuit forblir åpen før half-open (ms, default: 30s) */
     resetTimeoutMs?: number;
+    /**
+     * Maks dynamisk reset-vindu (ms, default: 10 min). Hindrer at en upstream
+     * `Retry-After: 86400` låser breakeren i et helt døgn — vi vil prøve igjen
+     * tidligere uansett hva tjenesten påstår.
+     */
+    maxDynamicResetMs?: number;
     /** Hvilke feil som teller (default: alle) */
     isFailure?: (error: unknown) => boolean;
 }
@@ -30,29 +36,41 @@ export class CircuitBreaker {
     private state: CircuitState = "CLOSED";
     private failureCount = 0;
     private lastFailureTime = 0;
+    /**
+     * Hvis upstream-feilen som åpnet breakeren bar en `Retry-After`-verdi
+     * (f.eks. Canvas 503 med eksplisitt vedlikeholdstid), brukes denne i stedet
+     * for det statiske resetTimeoutMs for inneværende OPEN-periode. Nullstilles
+     * ved overgang til CLOSED.
+     */
+    private dynamicResetMs: number | null = null;
     private readonly name: string;
     private readonly failureThreshold: number;
     private readonly resetTimeoutMs: number;
+    private readonly maxDynamicResetMs: number;
     private readonly isFailure: (error: unknown) => boolean;
 
     constructor(name: string, options: CircuitBreakerOptions = {}) {
         this.name = name;
         this.failureThreshold = options.failureThreshold ?? 5;
         this.resetTimeoutMs = options.resetTimeoutMs ?? 30_000;
+        this.maxDynamicResetMs = options.maxDynamicResetMs ?? 10 * 60_000;
         this.isFailure = options.isFailure ?? (() => true);
     }
 
     async execute<T>(fn: () => Promise<T>): Promise<T> {
         // Sjekk om vi skal gå fra OPEN → HALF_OPEN
         if (this.state === "OPEN") {
+            const effectiveResetMs = this.dynamicResetMs ?? this.resetTimeoutMs;
             const elapsed = Date.now() - this.lastFailureTime;
-            if (elapsed >= this.resetTimeoutMs) {
+            if (elapsed >= effectiveResetMs) {
                 this.state = "HALF_OPEN";
                 logger.info({ circuit: this.name }, "Circuit breaker → HALF_OPEN (prøver igjen)");
             } else {
+                const retryAfterSeconds = Math.ceil((effectiveResetMs - elapsed) / 1000);
                 throw new CircuitBreakerError(
                     this.name,
-                    `${this.name} er midlertidig utilgjengelig. Prøv igjen om ${Math.ceil((this.resetTimeoutMs - elapsed) / 1000)} sekunder.`,
+                    `${this.name} er midlertidig utilgjengelig. Prøv igjen om ${retryAfterSeconds} sekunder.`,
+                    retryAfterSeconds,
                 );
             }
         }
@@ -63,7 +81,7 @@ export class CircuitBreaker {
             return result;
         } catch (error) {
             if (this.isFailure(error)) {
-                this.onFailure();
+                this.onFailure(error);
             }
             throw error;
         }
@@ -75,16 +93,35 @@ export class CircuitBreaker {
         }
         this.failureCount = 0;
         this.state = "CLOSED";
+        this.dynamicResetMs = null;
     }
 
-    private onFailure() {
+    private onFailure(error: unknown) {
         this.failureCount++;
         this.lastFailureTime = Date.now();
 
         if (this.failureCount >= this.failureThreshold) {
+            // Honor upstream Retry-After (sekunder) hvis feilen bar én. Cap mot
+            // maxDynamicResetMs så en patologisk høy verdi ikke låser oss ute.
+            const upstreamRetryAfter = (error as { retryAfter?: unknown }).retryAfter;
+            if (typeof upstreamRetryAfter === "number" && Number.isFinite(upstreamRetryAfter) && upstreamRetryAfter > 0) {
+                const requestedMs = upstreamRetryAfter * 1000;
+                this.dynamicResetMs = Math.min(
+                    Math.max(requestedMs, this.resetTimeoutMs),
+                    this.maxDynamicResetMs,
+                );
+            } else {
+                this.dynamicResetMs = null;
+            }
+
             this.state = "OPEN";
             logger.error(
-                { circuit: this.name, failureCount: this.failureCount, resetTimeoutMs: this.resetTimeoutMs },
+                {
+                    circuit: this.name,
+                    failureCount: this.failureCount,
+                    resetTimeoutMs: this.dynamicResetMs ?? this.resetTimeoutMs,
+                    dynamic: this.dynamicResetMs !== null,
+                },
                 "Circuit breaker → OPEN (for mange feil)",
             );
         }
@@ -99,10 +136,13 @@ export class CircuitBreaker {
 /** Feil som kastes når circuit er åpen (fail fast) */
 export class CircuitBreakerError extends Error {
     readonly circuit: string;
-    constructor(circuit: string, message: string) {
+    /** Sekunder igjen før breakeren går til HALF_OPEN — brukes til Retry-After-headere */
+    readonly retryAfterSeconds: number;
+    constructor(circuit: string, message: string, retryAfterSeconds: number) {
         super(message);
         this.name = "CircuitBreakerError";
         this.circuit = circuit;
+        this.retryAfterSeconds = retryAfterSeconds;
     }
 }
 

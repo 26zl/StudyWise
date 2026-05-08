@@ -78,9 +78,14 @@ function componentStatus(services: ServiceHealth[]): OverallStatus {
 }
 
 function computeOverall(components: PublicStatusResponse["components"]): OverallStatus {
-  const values = Object.values(components);
-  if (values.some((c) => c.status === "down")) return "down";
-  if (values.some((c) => c.status === "degraded")) return "degraded";
+  // Canvas er en EKSTERN integrasjon vi ikke eier. Den skal ikke kunne dra
+  // hele plattformen til "down" — vi degraderer maks "overall" til "degraded"
+  // når Canvas er borte, slik at brukerne ser at appen ellers fungerer.
+  const { canvas, ...platform } = components;
+  const platformValues = Object.values(platform);
+  if (platformValues.some((c) => c.status === "down")) return "down";
+  if (platformValues.some((c) => c.status === "degraded")) return "degraded";
+  if (canvas.status === "down" || canvas.status === "degraded") return "degraded";
   return "operational";
 }
 
@@ -121,6 +126,19 @@ publicStatusRouter.get("/status", rateLimitStatus, async (_req, res) => {
       // Varsler: BullMQ + Redis (ikke-kritisk, men degradert)
       notifications: {
         status: componentStatus([deps.bullmq, deps.redis]),
+      },
+      // Canvas: speiler circuit breaker-staten i `canvasCircuit`. Vi mapper
+      // direkte i stedet for å bruke `componentStatus`, fordi den fellesfunksjonen
+      // behandler `unknown` på ikke-kritiske tjenester som "operational" — for
+      // Canvas vil vi tvert imot at HALF_OPEN (status="unknown") skal vises som
+      // "degraded", siden det signaliserer aktiv recovery etter trippet breaker.
+      canvas: {
+        status:
+          deps.canvas.status === "down"
+            ? "down"
+            : deps.canvas.status === "unknown"
+              ? "degraded"
+              : "operational",
       },
     };
 

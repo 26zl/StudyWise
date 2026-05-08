@@ -1,8 +1,6 @@
 import { cookies } from "next/headers";
-import {
-  AUTH_TURNSTILE_COOKIE_NAME,
-  validateAuthTurnstileCookieValue,
-} from "common/auth";
+import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
+import { validateAuthTurnstileCookieValue } from "common/auth-server";
 import { turnstileEnabled } from "@/app/lib/validateEnv";
 
 export async function hasValidAuthTurnstileCookie(): Promise<boolean> {

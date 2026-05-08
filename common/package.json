@@ -39,6 +39,10 @@
       "types": "./dist/auth.d.ts",
       "import": "./dist/auth.js"
     },
+    "./auth-server": {
+      "types": "./dist/auth-server.d.ts",
+      "import": "./dist/auth-server.js"
+    },
     "./calendar": {
       "types": "./dist/calendar.d.ts",
       "import": "./dist/calendar.js"

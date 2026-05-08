@@ -434,6 +434,21 @@ async function hentCanvasDataImpl<T>(
                         logger.debug({ endpoint, errorCode, cacheTtl: negativeCacheTtl }, "Cachet negativ respons");
                     }
 
+                    // For 5xx (særlig 503 ved planlagt vedlikehold) leser vi Canvas sin
+                    // egen Retry-After-header når den finnes, slik at både circuit breakeren
+                    // og frontend-banneret kan vise faktisk forventet ventetid i stedet for
+                    // vår hardkodede 30s-fallback.
+                    let retryAfter: number | undefined;
+                    if (response.status >= 500) {
+                        const retryAfterHeader = response.headers.get("Retry-After");
+                        if (retryAfterHeader) {
+                            const parsed = parseInt(retryAfterHeader, 10);
+                            if (Number.isFinite(parsed) && parsed > 0) {
+                                retryAfter = parsed;
+                            }
+                        }
+                    }
+
                     // Opprett strukturert feil
                     const error = createCanvasError(
                         errorCode,
@@ -442,6 +457,7 @@ async function hentCanvasDataImpl<T>(
                             httpStatus: response.status,
                             endpoint,
                             details: errorText,
+                            retryAfter,
                         }
                     );
                     throw error;

@@ -20,6 +20,7 @@ const COMPONENT_ORDER: ComponentKey[] = [
   "aiChat",
   "knowledgeBase",
   "notifications",
+  "canvas",
 ];
 
 function statusDotClass(status: "operational" | "degraded" | "down"): string {

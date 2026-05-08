@@ -4,6 +4,7 @@
  * Hvis noe mangler, avsluttes prosessen med en tydelig feilmelding.
  */
 
+import { isIP } from "node:net";
 import { logger } from "./logger.js";
 import { getConfiguredWebOrigins, getInvalidConfiguredWebOrigins } from "./webOrigins.js";
 
@@ -14,6 +15,7 @@ interface EnvConfig {
   API_HOST?: string;
   INTERNAL_HOSTS?: string;
   TRUST_PROXY_HOPS?: string;
+  NODE_DNS_SERVERS?: string;
   MONGO_URI: string;
   REDIS_URL: string;
   CLERK_SECRET_KEY: string;
@@ -156,6 +158,48 @@ export const validateEnv = (): void => {
       "MONGO_URI peker ikke på 'studywise'-databasen - risikerer å skrive til 'test'-databasen",
     );
     manglende.push("MONGO_URI (må inneholde '/studywise')");
+  }
+
+  // NODE_DNS_SERVERS er HELT valgfri — brukes kun lokalt når mongodb+srv-oppslag
+  // feiler mot en stoppet systemresolver. Vi validerer KUN hvis utvikleren
+  // faktisk har satt variabelen, slik at fail-fast oppstart erstatter en stille
+  // runtime-warn fra dns.setServers().
+  const dnsServersRaw = process.env.NODE_DNS_SERVERS?.trim();
+  if (dnsServersRaw) {
+    const servers = dnsServersRaw
+      .split(",")
+      .map((server) => server.trim())
+      .filter(Boolean);
+
+    if (servers.length === 0) {
+      manglende.push("NODE_DNS_SERVERS (satt men inneholder ingen verdier)");
+    }
+
+    for (const server of servers) {
+      // dns.setServers() godtar "8.8.8.8", "8.8.8.8:53", "::1" og "[2001:db8::1]:53".
+      // Strategi: prøv først å valider som-er (dekker rå IPv4 og IPv6 uten port).
+      // Hvis det feiler, prøv å strippe port for de to støttede port-formatene.
+      // Vi kan IKKE bare regex-strippe ":\d+$" fra alle entries, fordi siste
+      // segment i en bare IPv6-adresse (f.eks. "::1") også matcher det mønsteret.
+      let valid = false;
+      if (isIP(server)) {
+        valid = true;
+      } else if (server.startsWith("[")) {
+        // Bracketed IPv6 med port: "[2001:db8::1]:53"
+        const closeBracket = server.indexOf("]");
+        if (closeBracket > 0) {
+          valid = isIP(server.slice(1, closeBracket)) !== 0;
+        }
+      } else if (server.split(":").length === 2) {
+        // IPv4 med port: "8.8.8.8:53" — én enkelt kolon skiller IP og port.
+        // Bare IPv6 har alltid ≥2 kolons og er allerede dekket av isIP(server).
+        valid = isIP(server.replace(/:\d+$/, "")) !== 0;
+      }
+
+      if (!valid) {
+        manglende.push(`NODE_DNS_SERVERS (ugyldig IP i listen: ${server})`);
+      }
+    }
   }
 
   // Valider REDIS_URL format - må peke til Redis Cloud i produksjon

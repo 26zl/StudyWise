@@ -23,6 +23,7 @@ import type { Request } from "express";
 vi.mock("../../rutere/auth/clerkAuth.js", () => ({
   findOrCreateUserByClerkId: vi.fn(),
   getClerkUserIdFromToken: vi.fn(),
+  getFactorVerificationAgeFromTokenCache: vi.fn(),
   getClerkSessionCreatedAt: vi.fn(),
   getSessionIdFromTokenCache: vi.fn(),
   isAccountConflict: (r: unknown): boolean =>
@@ -71,10 +72,13 @@ import { resolveAuthentication } from "../../middleware/auth.js";
 import {
   findOrCreateUserByClerkId,
   getClerkUserIdFromToken,
+  getFactorVerificationAgeFromTokenCache,
 } from "../../rutere/auth/clerkAuth.js";
 
 const mockedFindOrCreate = findOrCreateUserByClerkId as ReturnType<typeof vi.fn>;
 const mockedGetClerkUserId = getClerkUserIdFromToken as ReturnType<typeof vi.fn>;
+const mockedGetFactorVerificationAge =
+  getFactorVerificationAgeFromTokenCache as ReturnType<typeof vi.fn>;
 
 function buildRequest(overrides: Partial<Record<string, unknown>> = {}): Request {
   const req = {
@@ -92,6 +96,7 @@ describe("resolveAuthentication", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedGetClerkUserId.mockResolvedValue("user_clerk123");
+    mockedGetFactorVerificationAge.mockReturnValue([0, 0]);
   });
 
   afterEach(() => {
@@ -231,6 +236,7 @@ describe("resolveAuthentication", () => {
     if (result.status === "authenticated") {
       expect(result.clerkUserId).toBe("user_clerk123");
     }
+    expect(req.clerkFactorVerificationAge).toEqual([0, 0]);
   });
 
   // Defense-in-depth: bruker som ble låst ETTER innlogging

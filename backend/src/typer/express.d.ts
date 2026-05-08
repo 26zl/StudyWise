@@ -17,6 +17,8 @@ declare global {
       user?: AuthUser;
       /** Rolle for autentisert bruker (satt av requireAuth). */
       actorRole?: UserRole;
+      /** Clerk `fva` claim: minutter siden siste first/second-factor-verifisering. */
+      clerkFactorVerificationAge?: [firstFactorAge: number, secondFactorAge: number];
       canvasToken?: string;
       /** Canvas base URL for brukerens institusjon (multi-tenant). */
       canvasBaseUrl?: string;

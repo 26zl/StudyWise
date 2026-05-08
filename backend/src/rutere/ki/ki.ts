@@ -94,6 +94,22 @@ import {
 
 type ChatSource = import("common/ki").KIChatSource;
 
+/**
+ * Klemmer score til [0, 1] for KIChatSource-kontrakten i common/ki.
+ *
+ * Hybrid-søk og BM25 produserer rå relevans-scorer som kan ligge langt over 1
+ * (BM25-topscores rundt 7–12 er normalt, fusert hybrid kan også overstige 1).
+ * Schema-en for KIChatSource krever score ∈ [0, 1] siden verdien rendres som
+ * relativ kildevekt i UI. Uten clamp her krasjer hele chat-svaret med ZodError
+ * når Anthropic-kallet er ferdig.
+ */
+function clampScoreForChatSource(score: number | undefined): number | undefined {
+  if (typeof score !== "number" || !Number.isFinite(score)) return undefined;
+  if (score <= 0) return 0;
+  if (score >= 1) return 1;
+  return score;
+}
+
 function mapKBResultsToChatSources(
   results: import("../../services/kunnskapsbase-indeksering.service.js").KBSearchResult[],
   baseName: string,
@@ -143,7 +159,9 @@ function mergeChatSources(
       const key = `${source.sourceKind ?? "canvas_file"}:${source.courseId}:${source.fileId ?? "na"}:${source.fileName}:${source.sourceUrl ?? ""}:${source.sourceId ?? ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
-      merged.push(source);
+      // Klemm score til [0, 1] før vi releaser kilden — KIChatSource-schema
+      // krever det, og oppstrøms produsenter (BM25, hybrid-fusion) kan gi > 1.
+      merged.push({ ...source, score: clampScoreForChatSource(source.score) });
     }
   }
   return merged.length > 0 ? merged.slice(0, 100) : undefined;

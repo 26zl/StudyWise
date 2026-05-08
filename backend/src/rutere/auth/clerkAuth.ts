@@ -52,6 +52,8 @@ type ClerkProfile = {
   oauthAccounts: OAuthAccount[];
   /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
   mfaEnabled: boolean;
+  /** Om brukeren har generert backup-koder for MFA-recovery. */
+  backupCodesEnabled: boolean;
   /** True hvis Clerk returnerte OAuth-kontoer som ble hoppet over pga. ufullstendige data (intern ID uten e-post). */
   hadSkippedIncompleteOauth?: boolean;
   /** True hvis Clerk hadde et auto-satt brukernavn (f.eks. e-post fra Microsoft SSO) som ble filtrert bort. */
@@ -522,6 +524,7 @@ async function relinkUserToClerkId(
     clerkEnv: currentClerkEnv,
     authProviders: mergedAuthProviders,
     mfaEnabled: profile.mfaEnabled,
+    backupCodesEnabled: profile.backupCodesEnabled,
   };
   if (profile.firstName) updateFields.firstName = profile.firstName;
   if (profile.lastName) updateFields.lastName = profile.lastName;
@@ -953,6 +956,9 @@ async function getClerkProfile(
 
   // Clerk markerer MFA som aktivert når brukeren har minst én TOTP-faktor
   const mfaEnabled = clerkUser.twoFactorEnabled === true;
+  // Clerk eksponerer backupCodeEnabled separat — settes til true når brukeren
+  // har generert backup-koder via UserProfile / Account Portal.
+  const backupCodesEnabled = clerkUser.backupCodeEnabled === true;
 
   // Ignorer Clerk-brukernavn som er identisk med e-postadressen (case-insensitivt).
   // Microsoft SSO setter automatisk username = e-post i Clerk, mens Google lar det
@@ -972,6 +978,7 @@ async function getClerkProfile(
     authProviders,
     oauthAccounts,
     mfaEnabled,
+    backupCodesEnabled,
     hadSkippedIncompleteOauth,
   };
 }
@@ -1017,6 +1024,7 @@ function buildClerkProfileUpdate(
   }
 
   setFields.mfaEnabled = profile.mfaEnabled;
+  setFields.backupCodesEnabled = profile.backupCodesEnabled;
 
   // Synk alle innloggingsmetoder fra Clerk (liste over alle tilkoblede providere)
   if (profile.authProviders.length > 0) {
@@ -2016,6 +2024,7 @@ export async function findOrCreateUserByClerkId(
               canvasBaseUrl: 1,
               role: 1,
               mfaEnabled: 1,
+              backupCodesEnabled: 1,
             },
           },
         );
@@ -2090,6 +2099,7 @@ export async function findOrCreateUserByClerkId(
               clerkProfileSyncedAt,
               authProviders: profile.authProviders,
               mfaEnabled: profile.mfaEnabled,
+              backupCodesEnabled: profile.backupCodesEnabled,
               ...(oauthAccounts.length > 0 ? { oauthAccounts } : {}),
               ...(usernameAction.mode === "set"
                 ? { username: usernameAction.username, usernameNormalized: usernameAction.usernameNormalized }
@@ -2148,6 +2158,7 @@ export async function findOrCreateUserByClerkId(
       lastName,
       authProviders: profile.authProviders,
       mfaEnabled: profile.mfaEnabled,
+      backupCodesEnabled: profile.backupCodesEnabled,
       oauthAccounts: oauthAccounts.length > 0 ? oauthAccounts : undefined,
       termsAcceptedAt,
       termsVersionAccepted: TERMS_VERSION,
@@ -2407,7 +2418,57 @@ function getAuthorizedParties(): string[] | undefined {
  */
 const TOKEN_CACHE_TTL_MS = 30_000;
 const TOKEN_CACHE_MAX = 200;
-const tokenCache = new Map<string, { sub: string; sid?: string; exp: number }>();
+/**
+ * Stale-token-grace ved Clerk-utfall: hvor lenge etter token-exp vi godtar en
+ * tidligere verifisert cache-entry hvis verifyToken feiler med upstream-feil.
+ * 30 minutter dekker en typisk Clerk-blip uten å gi en betydelig sikkerhets-
+ * vindu for revoked/expired tokens. Tombstone-sjekkene (isClerkIdDeleted,
+ * isSessionDeleted) kjører fortsatt på stale-godtaket.
+ */
+const TOKEN_STALE_GRACE_MS = 30 * 60 * 1000;
+export type ClerkFactorVerificationAge = [firstFactorAge: number, secondFactorAge: number];
+type ClerkTokenCacheEntry = {
+  sub: string;
+  sid?: string;
+  exp: number;
+  fva?: ClerkFactorVerificationAge;
+};
+const tokenCache = new Map<string, ClerkTokenCacheEntry>();
+
+/**
+ * Klassifiserer en Clerk-verifyToken-feil som upstream (Clerk er nede / nettverk)
+ * vs. token-spesifikk (token er ugyldig/utløpt). Brukes til å avgjøre om vi kan
+ * akseptere en stale cache-entry midlertidig.
+ *
+ * @clerk/backend kaster `TokenVerificationError` for token-spesifikke feil
+ * (TokenInvalid, TokenExpired, TokenSignatureInvalid osv.). Alt annet — typisk
+ * fetch-feil mot JWKS-endepunktet eller `clerk.sessions.getSession()` —
+ * behandles som upstream. Vi feiler aldri til "upstream" på en
+ * TokenVerificationError, slik at ugyldige tokens IKKE blir akseptert som stale.
+ */
+function isUpstreamClerkFailure(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const name = (err as { name?: unknown }).name;
+  if (typeof name === "string" && name === "TokenVerificationError") {
+    return false;
+  }
+  return true;
+}
+
+function parseFactorVerificationAge(payload: { fva?: unknown }): ClerkFactorVerificationAge | undefined {
+  const fva = payload.fva;
+  if (!Array.isArray(fva) || fva.length < 2) return undefined;
+  const [firstFactorAge, secondFactorAge] = fva;
+  if (
+    typeof firstFactorAge !== "number" ||
+    typeof secondFactorAge !== "number" ||
+    !Number.isFinite(firstFactorAge) ||
+    !Number.isFinite(secondFactorAge)
+  ) {
+    return undefined;
+  }
+  return [firstFactorAge, secondFactorAge];
+}
 
 /**
  * Sesjonsbasert Turnstile-verifisering: holder styr på Clerk-sesjoner (sid)
@@ -2555,6 +2616,15 @@ export function getSessionIdFromTokenCache(bearerToken: string): string | undefi
   return cached?.sid;
 }
 
+/** Henter Clerk `fva` (factor verification age) fra token-cachen etter token-verifisering. */
+export function getFactorVerificationAgeFromTokenCache(
+  bearerToken: string,
+): ClerkFactorVerificationAge | undefined {
+  const tokenHash = hashToken(bearerToken);
+  const cached = tokenCache.get(tokenHash);
+  return cached?.fva;
+}
+
 /**
  * Invalider token-cache for en spesifikk sesjon (brukes ved logout).
  * Invaliderer kun gjeldende sesjon — andre faner/enheter forblir upåvirket.
@@ -2700,7 +2770,12 @@ export async function getClerkUserIdFromToken(
       }
       return cached.sub;
     }
-    tokenCache.delete(tokenHash);
+    // Behold expired cache-entry til den er forbi stale-grace-vinduet —
+    // brukes som fallback hvis verifyToken feiler med upstream-feil under en
+    // Clerk-outage. Når grace-vinduet er over, slett.
+    if (Date.now() - cached.exp >= TOKEN_STALE_GRACE_MS) {
+      tokenCache.delete(tokenHash);
+    }
   }
 
   try {
@@ -2728,12 +2803,35 @@ export async function getClerkUserIdFromToken(
     tokenCache.set(tokenHash, {
       sub,
       sid,
+      fva: parseFactorVerificationAge(payload),
       exp: resolveTokenCacheExpiry(payload),
     });
     pruneTokenCache();
 
     return sub;
-  } catch {
+  } catch (err) {
+    // Stale-token-toleranse ved Clerk-utfall: hvis verifyToken feilet med en
+    // upstream-feil (nettverk/5xx mot JWKS, ikke en TokenVerificationError),
+    // og vi har en nylig verifisert cache-entry innenfor stale-grace-vinduet,
+    // godta den midlertidig så brukeren ikke blir kastet ut under en kort
+    // Clerk-blip. Tombstone-sjekkene kjører fortsatt — slettede kontoer/
+    // sesjoner blir aldri akseptert som stale.
+    if (isUpstreamClerkFailure(err) && cached && Date.now() - cached.exp < TOKEN_STALE_GRACE_MS) {
+      const [clerkDeleted3, sessionDeleted3] = await Promise.all([
+        isClerkIdDeleted(cached.sub),
+        isSessionDeleted(cached.sid),
+      ]);
+      if (!clerkDeleted3 && !sessionDeleted3) {
+        logger.warn(
+          {
+            sub: cached.sub,
+            expiredMinutes: Math.floor((Date.now() - cached.exp) / 60_000),
+          },
+          "Clerk-verifisering feilet med upstream-feil — godtar stale token midlertidig",
+        );
+        return cached.sub;
+      }
+    }
     return null;
   }
 }

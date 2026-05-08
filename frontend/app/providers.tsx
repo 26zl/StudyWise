@@ -6,10 +6,11 @@
 // Dette er nødvendig for biblioteker som bruker React Context (som React Query).
 "use client";
 
-import { ClerkProvider, useAuth, useClerk, useUser } from "@clerk/nextjs";
+import { ClerkProvider, RedirectToTasks, useAuth, useClerk, useUser } from "@clerk/nextjs";
 import { enUS, nbNO } from "@clerk/localizations";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { MotionConfig } from "framer-motion";
 import { useAuthSync, clearClientAuthState } from "./hooks/use-auth-sync";
@@ -40,29 +41,111 @@ function ClerkProviderMedSprak({
   nonce?: string;
 }) {
   const { language } = useLanguage();
-  const baseLocale = language === "en" ? enUS : nbNO;
+  const isEnglish = language === "en";
+  const baseLocale = isEnglish ? enUS : nbNO;
+
+  const backupCodePageLocalization = isEnglish
+    ? {
+        infoText1: "Backup codes will be enabled for this account.",
+        infoText2:
+          "Keep your codes private and store them somewhere safe. Generate new codes if you think the old ones may be compromised.",
+        subtitle__codelist: "Store these codes somewhere safe. Each code can only be used once.",
+        successMessage:
+          "Backup codes are enabled. Use one of them to sign in if you lose access to your authenticator app. Each code can only be used once.",
+        successSubtitle: "Use one of these codes if you lose access to your authenticator app.",
+        title: "Enable backup codes",
+        title__codelist: "Backup codes",
+      }
+    : {
+        infoText1: "Backup-koder aktiveres for denne kontoen.",
+        infoText2:
+          "Hold kodene hemmelige og lagre dem trygt. Generer nye koder hvis du tror de kan være kompromittert.",
+        subtitle__codelist: "Lagre kodene et trygt sted. Hver kode kan bare brukes én gang.",
+        successMessage:
+          "Backup-koder er aktivert. Bruk én av dem for å logge inn hvis du mister tilgang til autentiseringsappen. Hver kode kan bare brukes én gang.",
+        successSubtitle: "Bruk én av kodene hvis du mister tilgang til autentiseringsappen.",
+        title: "Aktiver backup-koder",
+        title__codelist: "Backup-koder",
+      };
+
+  const backupCodesSectionLocalization = isEnglish
+    ? {
+        actionLabel__regenerate: "Generate new codes",
+        headerTitle: "Backup codes",
+        subtitle__regenerate:
+          "This creates a new set of backup codes. Old codes will be deleted and can no longer be used.",
+        title__regenerate: "Generate new backup codes",
+      }
+    : {
+        actionLabel__regenerate: "Generer nye koder",
+        headerTitle: "Backup-koder",
+        subtitle__regenerate:
+          "Dette lager et nytt sett backup-koder. Gamle koder slettes og kan ikke brukes.",
+        title__regenerate: "Generer nye backup-koder",
+      };
 
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKey ?? undefined}
       localization={{
         ...baseLocale,
+        formFieldInputPlaceholder__backupCode: isEnglish ? "Enter backup code" : "Skriv inn backup-kode",
+        formFieldLabel__backupCode: isEnglish ? "Backup code" : "Backup-kode",
+        reverification: {
+          ...baseLocale.reverification,
+          alternativeMethods: {
+            ...baseLocale.reverification?.alternativeMethods,
+            blockButton__backupCode: isEnglish ? "Use backup code" : "Bruk backup-kode",
+          },
+          backupCodeMfa: {
+            ...baseLocale.reverification?.backupCodeMfa,
+            subtitle: isEnglish
+              ? "Use a backup code you saved when you set up two-factor authentication."
+              : "Bruk en backup-kode du lagret da du satte opp tofaktor.",
+            title: isEnglish ? "Enter backup code" : "Skriv inn backup-kode",
+          },
+        },
+        signIn: {
+          ...baseLocale.signIn,
+          alternativeMethods: {
+            ...baseLocale.signIn?.alternativeMethods,
+            blockButton__backupCode: isEnglish ? "Use backup code" : "Bruk backup-kode",
+          },
+          backupCodeMfa: {
+            ...baseLocale.signIn?.backupCodeMfa,
+            subtitle: isEnglish
+              ? "Use a backup code you saved when you set up two-factor authentication."
+              : "Bruk en backup-kode du lagret da du satte opp tofaktor.",
+            title: isEnglish ? "Enter backup code" : "Skriv inn backup-kode",
+          },
+        },
         signUp: {
           ...baseLocale.signUp,
           emailCode: {
             ...baseLocale.signUp?.emailCode,
-            subtitle: language === "en"
+            subtitle: isEnglish
               ? "We sent a verification code to {{identifier}}. It may take a moment to arrive"
               : "Vi sendte en verifiseringskode til {{identifier}}. Det kan ta litt tid før den ankommer",
           },
         },
         userProfile: {
           ...baseLocale.userProfile,
+          backupCodePage: {
+            ...baseLocale.userProfile?.backupCodePage,
+            ...backupCodePageLocalization,
+          },
           start: {
             ...baseLocale.userProfile?.start,
+            mfaSection: {
+              ...baseLocale.userProfile?.start?.mfaSection,
+              backupCodes: {
+                ...baseLocale.userProfile?.start?.mfaSection?.backupCodes,
+                ...backupCodesSectionLocalization,
+              },
+            },
             profileSection: {
               ...baseLocale.userProfile?.start?.profileSection,
-              primaryButton: language === "en" ? "Update profile" : "Oppdater profil",
+              primaryButton: isEnglish ? "Update profile" : "Oppdater profil",
             },
           },
         },
@@ -77,12 +160,19 @@ function ClerkProviderMedSprak({
       }}
       signInUrl="/auth/sign-in"
       signUpUrl="/auth/sign-up"
+      taskUrls={{ "setup-mfa": "/auth/tasks/setup-mfa" }}
       nonce={nonce}
       dynamic
     >
       {children}
     </ClerkProvider>
   );
+}
+
+function SessionTaskRedirect() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/auth/tasks/")) return null;
+  return <RedirectToTasks />;
 }
 
 // Gir backend API tilgang til Clerk session token (for brukere som logger inn med Clerk)
@@ -399,6 +489,29 @@ function ClerkProfileCacheSync() {
     userId,
   ]);
 
+  // Spor backup-codes-status: brukeren genererer dem via Clerk UserProfile,
+  // og vi vil at BackupCodesBanner-en skal forsvinne umiddelbart etterpå
+  // i stedet for å vente på neste profile-sync (opptil 5 min).
+  const backupCodeEnabled = user?.backupCodeEnabled ?? false;
+  const prevBackupCodeRef = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    if (!authLoaded || !userId || !clerkUserLoaded) return;
+
+    const prev = prevBackupCodeRef.current;
+    prevBackupCodeRef.current = backupCodeEnabled;
+
+    if (prev === null || prev === backupCodeEnabled) return;
+
+    void triggerBackendProfileSync();
+  }, [
+    authLoaded,
+    clerkUserLoaded,
+    triggerBackendProfileSync,
+    backupCodeEnabled,
+    userId,
+  ]);
+
   return null;
 }
 
@@ -537,6 +650,7 @@ export function Providers({
             {/* reducedMotion="user" — framer-motion respekterer prefers-reduced-motion
                 automatisk på tvers av alle motion-komponenter (WCAG 2.3.3). */}
             <MotionConfig reducedMotion="user">
+              <SessionTaskRedirect />
               <ClerkTokenSync />
               <AuthSyncListener />
               <AuthConflictGuard />

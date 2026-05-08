@@ -116,10 +116,11 @@ describe("CircuitBreaker", () => {
   });
 
   it("CircuitBreakerError har korrekt name-egenskap", () => {
-    const error = new CircuitBreakerError("test", "melding");
+    const error = new CircuitBreakerError("test", "melding", 30);
     expect(error.name).toBe("CircuitBreakerError");
     expect(error.message).toBe("melding");
     expect(error.circuit).toBe("test");
+    expect(error.retryAfterSeconds).toBe(30);
   });
 
   // --- Overgang OPEN → HALF_OPEN ---
@@ -230,5 +231,71 @@ describe("CircuitBreaker", () => {
     const resultat = await cb.execute(() => Promise.resolve("tilbake"));
     expect(resultat).toBe("tilbake");
     expect(cb.getState()).toBe("CLOSED");
+  });
+
+  // --- Dynamisk Retry-After fra upstream-feil ---
+
+  it("forlenger OPEN-vinduet til upstream Retry-After når feilen bærer en", async () => {
+    const cb = new CircuitBreaker("test", {
+      failureThreshold: 1,
+      resetTimeoutMs: 30_000,
+    });
+
+    // Feil med upstream Retry-After=600s (10 min) — skal honoreres
+    await expect(
+      cb.execute(() => Promise.reject(Object.assign(new Error("vedlikehold"), { retryAfter: 600 }))),
+    ).rejects.toThrow();
+    expect(cb.getState()).toBe("OPEN");
+
+    // 30s (default reset) — fortsatt OPEN fordi upstream sa 600s
+    vi.advanceTimersByTime(30_000);
+    const e = await cb.execute(() => Promise.resolve("ok")).catch((err: unknown) => err);
+    expect(e).toBeInstanceOf(CircuitBreakerError);
+    expect((e as CircuitBreakerError).retryAfterSeconds).toBeGreaterThan(500);
+
+    // 600s totalt — nå skal breakeren prøve igjen
+    vi.advanceTimersByTime(570_000);
+    const resultat = await cb.execute(() => Promise.resolve("tilbake"));
+    expect(resultat).toBe("tilbake");
+  });
+
+  it("capper dynamisk reset til maxDynamicResetMs", async () => {
+    const cb = new CircuitBreaker("test", {
+      failureThreshold: 1,
+      resetTimeoutMs: 30_000,
+      maxDynamicResetMs: 60_000, // cap til 1 min
+    });
+
+    // Upstream sier 1 time, men cap'en gjør at vi prøver igjen etter 1 min
+    await expect(
+      cb.execute(() => Promise.reject(Object.assign(new Error("dos"), { retryAfter: 3600 }))),
+    ).rejects.toThrow();
+
+    vi.advanceTimersByTime(60_000);
+    const resultat = await cb.execute(() => Promise.resolve("ok"));
+    expect(resultat).toBe("ok");
+  });
+
+  it("nullstiller dynamisk reset etter suksess (HALF_OPEN → CLOSED)", async () => {
+    const cb = new CircuitBreaker("test", {
+      failureThreshold: 1,
+      resetTimeoutMs: 30_000,
+    });
+
+    // Åpne med upstream Retry-After=120
+    await expect(
+      cb.execute(() => Promise.reject(Object.assign(new Error("ned"), { retryAfter: 120 }))),
+    ).rejects.toThrow();
+
+    // Vent til half-open og bli oppe igjen
+    vi.advanceTimersByTime(120_000);
+    await cb.execute(() => Promise.resolve("ok"));
+    expect(cb.getState()).toBe("CLOSED");
+
+    // Neste utfall uten retryAfter — skal bruke default resetTimeoutMs (30s), ikke 120s
+    await expect(cb.execute(() => Promise.reject(new Error("ny feil")))).rejects.toThrow();
+    vi.advanceTimersByTime(30_000);
+    const resultat = await cb.execute(() => Promise.resolve("oppe"));
+    expect(resultat).toBe("oppe");
   });
 });

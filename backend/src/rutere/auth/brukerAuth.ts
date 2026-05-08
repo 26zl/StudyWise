@@ -280,6 +280,7 @@ function serializeAuthBruker(bruker: IUser) {
     role: bruker.role ?? "user",
     authProviders: bruker.authProviders ?? [],
     mfaEnabled: bruker.mfaEnabled ?? false,
+    backupCodesEnabled: bruker.backupCodesEnabled ?? false,
     syncConflicts:
       bruker.syncConflicts && bruker.syncConflicts.length > 0
         ? bruker.syncConflicts

@@ -34,7 +34,7 @@ export default function SSOCallbackPage() {
       {/* Påkrevd for Clerks bot-registreringsbeskyttelse */}
       <div id="clerk-captcha" className="flex justify-center" />
       <div className="w-full max-w-md space-y-4">
-        {/* MFA (TOTP) nødvendig etter SSO sign-up transfer til eksisterende konto */}
+        {/* MFA nødvendig etter SSO sign-up transfer til eksisterende konto */}
         {needsMfa ? (
           <AuthCard>
             <div className="flex items-center gap-3">
@@ -55,7 +55,7 @@ export default function SSOCallbackPage() {
                 <input
                   id="mfa-code"
                   type="text"
-                  inputMode="numeric"
+                  // Aksepterer både TOTP (6 sifre) og backup-koder (10 alfanumeriske).
                   autoComplete="one-time-code"
                   value={mfaCode}
                   onChange={(e) => setMfaCode(e.target.value)}
@@ -63,8 +63,10 @@ export default function SSOCallbackPage() {
                   className={`mt-1 ${AUTH_INPUT_CLASSES}`}
                   autoFocus
                   disabled={mfaSubmitting}
-                  maxLength={6}
                 />
+                <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  {t("auth.signIn.mfa.codeHint")}
+                </p>
               </div>
 
               <AuthError message={mfaError} />

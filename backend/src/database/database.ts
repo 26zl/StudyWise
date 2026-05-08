@@ -24,6 +24,11 @@ import { KBContentChunk } from "./models/KBContentChunk.js";
 import { ActivityLog } from "./models/ActivityLog.js";
 
 import { isProd } from "../utils/env.js";
+import {
+  configureDevDnsFallback,
+  configureNodeDnsServersFromEnv,
+  isRefusedDnsSrvLookup,
+} from "../utils/nodeDns.js";
 import { runMigrations } from "./migrations.js";
 
 // MongoDB klient opsjoner med connection pooling
@@ -98,6 +103,7 @@ export const connectToDatabase = async () => {
     if (!mongoURI) {
         throw new Error("MONGO_URI er ikke defineret i .env");
     }
+    configureNodeDnsServersFromEnv();
     try {
         await mongoose.connect(mongoURI, clientOptions);
         await runMigrations();
@@ -107,6 +113,22 @@ export const connectToDatabase = async () => {
             minPoolSize: clientOptions.minPoolSize,
         }, "Tilkoblet til MongoDB");
     } catch (error) {
+        if (isRefusedDnsSrvLookup(error) && configureDevDnsFallback()) {
+            try {
+                await mongoose.connect(mongoURI, clientOptions);
+                await runMigrations();
+                await ensureDatabaseIndexes();
+                logger.info({
+                    maxPoolSize: clientOptions.maxPoolSize,
+                    minPoolSize: clientOptions.minPoolSize,
+                }, "Tilkoblet til MongoDB etter DNS fallback");
+                return;
+            } catch (retryError) {
+                logger.error({ err: retryError }, "Kunne ikke koble til MongoDB etter DNS fallback");
+                process.exit(1);
+            }
+        }
+
         logger.error({ err: error }, "Kunne ikke koble til MongoDB");
         process.exit(1);
     }

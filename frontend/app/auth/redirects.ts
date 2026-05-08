@@ -16,7 +16,9 @@ function erAuthPath(pathname: string): boolean {
     pathname === "/auth/sign-up" ||
     pathname.startsWith("/auth/sign-up/") ||
     pathname === "/auth/forgot-password" ||
-    pathname.startsWith("/auth/forgot-password/")
+    pathname.startsWith("/auth/forgot-password/") ||
+    pathname === "/auth/tasks" ||
+    pathname.startsWith("/auth/tasks/")
   );
 }
 

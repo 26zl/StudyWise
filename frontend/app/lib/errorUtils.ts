@@ -24,6 +24,12 @@ export interface ApiErrorPayload {
   kode?: string;
   detaljer?: unknown;
   canvasKonflikt?: boolean;
+  /** Upstream-tjenesten som er nede (settes på 503-outage-responser, f.eks. "canvas"). */
+  kilde?: string;
+  /** Type utfall — "outage" eller "maintenance". */
+  status?: string;
+  /** Anbefalt ventetid før retry (sekunder), parsed fra Retry-After. */
+  retryAfter?: number;
 }
 
 export type FatalUserDataReason =

@@ -998,7 +998,15 @@ function MaintenanceFane() {
 }
 
 // Service Status Panel
-type ServiceKey = "mongo" | "redis" | "bullmq" | "anthropic" | "cohere" | "clerk" | "pinecone";
+type ServiceKey =
+  | "mongo"
+  | "redis"
+  | "bullmq"
+  | "anthropic"
+  | "cohere"
+  | "clerk"
+  | "pinecone"
+  | "canvas";
 
 function statusClasses(status: "up" | "down" | "unknown"): string {
   if (status === "up") return "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]";
@@ -1018,6 +1026,7 @@ function ServiceStatusPanel() {
     "cohere",
     "clerk",
     "pinecone",
+    "canvas",
   ];
 
   // Oppsummering: hvis en kritisk tjeneste er nede = "down", hvis en valgfri er nede = "degraded", ellers "allOk".

@@ -98,6 +98,7 @@ describe("common/admin.ts schemas", () => {
       harCanvasToken: false,
       opprettet: new Date("2024-01-01"),
       mfaEnabled: false,
+      backupCodesEnabled: false,
       locked: false,
     };
 
@@ -363,6 +364,7 @@ describe("common/admin.ts schemas", () => {
       opprettet: new Date(),
       oppdatert: new Date(),
       mfaEnabled: false,
+      backupCodesEnabled: false,
       oauthAccountCount: 1,
       locked: false,
       deleted: false,

@@ -29,6 +29,8 @@ export const AdminBrukerSchema = z.object({
   opprettet: z.coerce.date(),
   /** MFA-status — styrer om admin-rad-UI viser "Tilbakestill 2FA"-hurtigknappen. */
   mfaEnabled: z.boolean(),
+  /** Om brukeren har generert backup-koder for MFA-recovery. */
+  backupCodesEnabled: z.boolean(),
   /** Lock status — admin kan sperre kontoer uten å slette dem (engelsk feltnavn for konsistens med Mongoose-modellen). */
   locked: z.boolean(),
   lockedAt: z.coerce.date().optional(),
@@ -528,6 +530,7 @@ export const AdminBrukerDetaljSchema = z.object({
   clerkProfileSyncedAt: z.coerce.date().optional(),
   authProviders: AuthProvidersArraySchema.optional(),
   mfaEnabled: z.boolean(),
+  backupCodesEnabled: z.boolean(),
   oauthAccountCount: z.number().int().min(0),
 
   // Lifecycle

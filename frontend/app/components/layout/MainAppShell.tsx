@@ -8,10 +8,12 @@
  */
 "use client";
 
-import { lazy, Suspense, useEffect, useCallback } from "react";
+import { lazy, Suspense, useEffect, useCallback, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryState, parseAsStringLiteral } from "nuqs";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { ShieldAlert, X } from "lucide-react";
 import { Providers } from "@/app/providers";
 import { Header } from "@/app/components/layout/header";
 import { Toaster } from "@/app/components/ui/Toaster";
@@ -19,6 +21,8 @@ import { CookieBanner } from "@/app/components/layout/CookieBanner";
 import { DatadogRum } from "@/app/components/layout/DatadogRum";
 import { PostHogAnalytics } from "@/app/components/layout/PostHogAnalytics";
 import { SystemAnnouncementBanner } from "@/app/components/layout/SystemAnnouncementBanner";
+import { CanvasStatusBanner } from "@/app/components/layout/CanvasStatusBanner";
+import { CriticalServiceBanner } from "@/app/components/layout/CriticalServiceBanner";
 import { TermsReacceptModal } from "@/app/components/layout/TermsReacceptModal";
 import { ErrorBoundary } from "@/app/components/ui/ErrorBoundary";
 import { LandingBackdrop } from "@/app/components/layout/LandingBackdrop";
@@ -48,6 +52,89 @@ function SkipToContentLink() {
     >
       {t("common.accessibility.skipToContent")}
     </a>
+  );
+}
+
+function BackupCodesBanner() {
+  const { t } = useLanguage();
+  const pathname = usePathname();
+  const { isLoaded: authLoaded, userId } = useAuth();
+  const { isLoaded: userLoaded, user } = useUser();
+  const [dismissed, setDismissed] = useState(false);
+  const [dismissChecked, setDismissChecked] = useState(false);
+
+  useEffect(() => {
+    if (!authLoaded) return;
+    if (!userId) {
+      setDismissChecked(true);
+      setDismissed(false);
+      return;
+    }
+
+    try {
+      setDismissed(localStorage.getItem(`studywise:backup-codes-banner:${userId}`) === "dismissed");
+    } catch {
+      setDismissed(false);
+    } finally {
+      setDismissChecked(true);
+    }
+  }, [authLoaded, userId]);
+
+  const relevantPath =
+    pathname === "/dashboard" ||
+    pathname.startsWith("/dashboard/") ||
+    pathname === "/oversikt" ||
+    pathname === "/ai-breakdown";
+
+  if (
+    !relevantPath ||
+    !authLoaded ||
+    !userLoaded ||
+    !userId ||
+    !dismissChecked ||
+    dismissed ||
+    !user?.totpEnabled ||
+    user.backupCodeEnabled
+  ) {
+    return null;
+  }
+
+  const handleDismiss = () => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(`studywise:backup-codes-banner:${userId}`, "dismissed");
+    } catch {
+      // Lokal lagring kan være blokkert; dismiss varer da kun for denne renderingen.
+    }
+  };
+
+  return (
+    <div className="border-b border-amber-200 bg-amber-50/95 px-4 py-3 text-amber-950 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/90 dark:text-amber-50">
+      <div className="mx-auto flex max-w-7xl items-start gap-3">
+        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+        <div className="min-w-0 flex-1 text-sm leading-6">
+          <span className="font-semibold">{t("security.backupCodesBanner.title")}</span>{" "}
+          <span className="text-amber-900 dark:text-amber-100">
+            {t("security.backupCodesBanner.description")}
+          </span>{" "}
+          <Link
+            href="/account"
+            prefetch={false}
+            className="font-semibold text-blue-700 underline-offset-2 hover:underline dark:text-blue-300"
+          >
+            {t("security.backupCodesBanner.action")}
+          </Link>
+        </div>
+        <button
+          type="button"
+          onClick={handleDismiss}
+          className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-amber-700 transition-colors hover:bg-amber-100 hover:text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500/40 dark:text-amber-200 dark:hover:bg-amber-900/70 dark:hover:text-amber-50"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+          <span className="sr-only">{t("security.backupCodesBanner.dismiss")}</span>
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -221,6 +308,9 @@ export function MainAppShell({
       <div className={`relative z-10 flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
         <SkipToContentLink />
         <SystemAnnouncementBanner />
+        <CriticalServiceBanner />
+        <CanvasStatusBanner />
+        <BackupCodesBanner />
         <Header />
         <main
           id="main-content"

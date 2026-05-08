@@ -8,8 +8,8 @@ import type { Response, CookieOptions } from "express";
 import {
   AUTH_TURNSTILE_COOKIE_NAME,
   AUTH_TURNSTILE_COOKIE_VERSION,
-  parseAuthTurnstileCookie,
 } from "common/auth";
+import { parseAuthTurnstileCookie } from "common/auth-server";
 import { isProd } from "./env.js";
 import { setCacheNX, isRedisReady } from "../cache/redis.js";
 import { logger } from "./logger.js";

@@ -12,6 +12,7 @@ import { isClerkHealthy } from "../rutere/auth/clerkAuth.js";
 import { isCohereHealthy } from "../services/cohere-rerank.service.js";
 import { ensurePineconeIndex } from "../services/pinecone.service.js";
 import { isWorkerRunning } from "../queues/index.js";
+import { canvasCircuit } from "./circuitBreaker.js";
 import { logger } from "./logger.js";
 
 /** Intervall i ms for periodisk oppdatering av Clerk/Pinecone-helse (5 min). */
@@ -161,6 +162,16 @@ export function getDependenciesHealth() {
         status: statusFromBoolean(cachedExternalDependencyHealth.pinecone),
         critical: false,
       },
+      // Canvas: utledet fra circuit breaker. OPEN = vi har sett nok feil til å
+      // avvise alle Canvas-kall (= "down" på status-siden), HALF_OPEN = prøver
+      // gjenopprettelse (= "unknown"/"degraded"), CLOSED = ingen kjente feil.
+      // Aldri kritisk: Canvas er en ekstern integrasjon, app fungerer uten.
+      canvas: (() => {
+        const state = canvasCircuit.getState();
+        if (state === "OPEN") return { ok: false, status: "down" as const, critical: false };
+        if (state === "HALF_OPEN") return { ok: null, status: "unknown" as const, critical: false };
+        return { ok: true, status: "up" as const, critical: false };
+      })(),
     },
   };
 }

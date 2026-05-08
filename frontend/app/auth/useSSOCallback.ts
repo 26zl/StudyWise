@@ -5,7 +5,7 @@
  * Brukes av både sign-in og sign-up SSO-callback-sider.
  *
  * Håndterer: OAuth-token-prosessering, Clerk-redirect-callback,
- * transfer-flows, konflikthåndtering, MFA (TOTP) og feil-redirects.
+ * transfer-flows, konflikthåndtering, MFA (TOTP/backup-kode) og feil-redirects.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,6 +14,7 @@ import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
 import { appendQueryParam, getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { parseClerkError, withAuthTimeout, AuthTimeoutError } from "@/app/auth/authUI";
+import { detectSecondFactorStrategy } from "@/app/auth/mfaStrategy";
 import { useLanguage } from "@/app/i18n";
 import { fetchApi } from "@/app/lib/apiClient";
 
@@ -28,7 +29,7 @@ interface SSOCallbackResult {
   redirectUrl: string;
   signInHref: string;
   signUpHref: string;
-  /** MFA (TOTP) kreves etter SSO-innlogging */
+  /** MFA kreves etter SSO-innlogging */
   needsMfa: boolean;
   mfaCode: string;
   setMfaCode: (code: string) => void;
@@ -109,8 +110,11 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
       e.preventDefault();
       if (!signIn || mfaSubmitting) return;
 
-      const code = mfaCode.trim();
-      if (!code) {
+      // Auto-detekter TOTP (6 sifre) eller backup-kode (alfanumerisk). Samme
+      // input-felt brukes for begge, og Clerk gir tydelig feilmelding hvis
+      // koden ikke matcher noen registrert second factor.
+      const attempt = detectSecondFactorStrategy(mfaCode);
+      if (!attempt) {
         setMfaError(t("auth.signIn.mfa.codeRequired"));
         return;
       }
@@ -120,7 +124,7 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
 
       try {
         const result = await withAuthTimeout(
-          signIn.attemptSecondFactor({ strategy: "totp", code }),
+          signIn.attemptSecondFactor(attempt),
           MFA_TIMEOUT_MS,
           "sso_mfa_attempt",
         );

@@ -87,7 +87,8 @@ All commands run from the repo root via pnpm:
 # Development
 pnpm dev                    # Starts all services. Backend starts first; frontend and docs wait on http://localhost:4000/health before launching.
 pnpm dev:backend            # Backend only (tsx watch, port 4000)
-pnpm dev:frontend           # Frontend only (Next.js turbopack, port 3000)
+pnpm dev:frontend           # Frontend only (Next.js Webpack, port 3000) — default. Stabil minnebruk over lange økter.
+pnpm dev:frontend:turbo     # Frontend med Turbopack (--turbopack). Raskere HMR, men har en kjent memory-leak i Next.js 16 som krasjer dev-serveren etter 6–15 min med tung fil-redigering. Bruk kun for korte økter.
 pnpm dev:docs               # Docs only (VitePress, port 5173)
 pnpm kill:dev               # Kill dev servers
 

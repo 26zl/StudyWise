@@ -114,7 +114,7 @@ router.get("/brukere", async (req, res) => {
         // canvasApiToken har `select: false`; må eksplisitt bes om med `+canvasApiToken`.
         // Vi leser kun `Boolean(...)` på den, ikke selve verdien — ingen tokens lekker
         // gjennom audit/logger eller responsen siden vi mapper til boolean under.
-        .select("email role username firstName lastName canvasBaseUrl +canvasApiToken authProviders mfaEnabled createdAt lockedAt lockedReason deletedAt")
+        .select("email role username firstName lastName canvasBaseUrl +canvasApiToken authProviders mfaEnabled backupCodesEnabled createdAt lockedAt lockedReason deletedAt")
         .sort({ createdAt: -1 })
         .skip(offset)
         .limit(limit)
@@ -148,6 +148,7 @@ router.get("/brukere", async (req, res) => {
         authProviders: b.authProviders ?? [],
         opprettet: b.createdAt,
         mfaEnabled: b.mfaEnabled ?? false,
+        backupCodesEnabled: b.backupCodesEnabled ?? false,
         locked: !!b.lockedAt,
         lockedAt: b.lockedAt ?? undefined,
         lockedReason: b.lockedReason ?? undefined,
@@ -376,7 +377,7 @@ router.get("/brukere/:id/detalj", async (req, res) => {
     const bruker = await User.findById(targetId)
       .select(
         "email role username firstName lastName createdAt updatedAt clerkId clerkEnv " +
-          "clerkProfileSyncedAt authProviders mfaEnabled oauthAccounts canvasBaseUrl " +
+          "clerkProfileSyncedAt authProviders mfaEnabled backupCodesEnabled oauthAccounts canvasBaseUrl " +
           "canvasUser notionApiKey lockedAt lockedReason lockedBy deletedAt syncConflicts uiPreferences",
       )
       .lean();
@@ -483,6 +484,7 @@ router.get("/brukere/:id/detalj", async (req, res) => {
       clerkProfileSyncedAt: bruker.clerkProfileSyncedAt,
       authProviders: bruker.authProviders,
       mfaEnabled: !!bruker.mfaEnabled,
+      backupCodesEnabled: !!bruker.backupCodesEnabled,
       oauthAccountCount: Array.isArray(bruker.oauthAccounts) ? bruker.oauthAccounts.length : 0,
       locked: !!bruker.lockedAt,
       lockedAt: bruker.lockedAt ?? undefined,
@@ -657,9 +659,11 @@ router.post("/brukere/:id/reset-mfa", requireRecentAuth, async (req, res) => {
     // Speil endringen til lokal state umiddelbart — neste /me-sync henter
     // uansett fra Clerk (twoFactorEnabled=false), men forhindrer kort vindu
     // der admin-UI og andre MFA-baserte sjekker ser stale mfaEnabled=true.
+    // Backup-koder følger TOTP-faktoren i Clerk: når admin disabler MFA
+    // forsvinner også backup-codes-faktoren, så vi nullstiller begge speilene.
     await User.updateOne(
       { _id: targetId, deletedAt: { $exists: false } },
-      { $set: { mfaEnabled: false } },
+      { $set: { mfaEnabled: false, backupCodesEnabled: false } },
     );
 
     // Revokér aktive Clerk-sesjoner: hvis kontoen er kompromittert og en

@@ -146,7 +146,7 @@ export const enMessages = {
       },
       mfa: {
         description:
-          "Your password is updated, but this account requires two-factor authentication before sign-in can finish. Go back to sign in to continue.",
+          "Your password is updated. Complete two-factor authentication to sign in.",
         title: "Two-factor authentication required",
       },
       setCredential: {
@@ -213,15 +213,17 @@ export const enMessages = {
       },
       mfa: {
         title: "Two-factor authentication",
-        subtitle: "Enter the code from your authenticator app.",
+        subtitle: "Enter the code from your authenticator app, or a backup code.",
         codeLabel: "Verification code",
         codePlaceholder: "123456",
+        codeHint:
+          "Or a backup code you saved when setting up two-factor.",
         codeRequired: "Verification code is required.",
         verifyButton: "Verify",
         verifying: "Verifying...",
         verificationFailed: "Invalid code. Please try again.",
         backToSignIn: "Back to sign in",
-        lostAccess: "Lost access to your authenticator app?",
+        lostAccess: "Lost both your phone and your backup codes?",
         lostAccessLink: "Contact us",
       },
       noAccount: "Don't have an account?",
@@ -329,6 +331,15 @@ export const enMessages = {
         description:
           "Your session needs a new security check. Complete the verification to continue.",
       },
+    },
+  },
+  security: {
+    backupCodesBanner: {
+      title: "Add backup codes",
+      description:
+        "You have two-factor authentication enabled, but no backup codes. Generate them in account settings so you do not get locked out if you lose your phone.",
+      action: "Generate codes",
+      dismiss: "Dismiss reminder",
     },
   },
   errors: {
@@ -1019,6 +1030,7 @@ export const enMessages = {
         cohere: "Cohere",
         clerk: "Clerk (auth)",
         pinecone: "Pinecone (vector search)",
+        canvas: "Canvas",
       },
       criticalLabel: "Critical",
       optionalLabel: "Optional",
@@ -2808,6 +2820,7 @@ export const enMessages = {
       aiChat: "AI chat",
       knowledgeBase: "Knowledge base and search",
       notifications: "Notifications and background jobs",
+      canvas: "Canvas integration",
     },
     componentStatus: {
       operational: "Operational",

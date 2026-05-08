@@ -63,6 +63,14 @@ export const DependenciesHealthSchema = z.object({
     cohere: DependencyEntrySchema,
     clerk: DependencyEntrySchema,
     pinecone: DependencyEntrySchema,
+    /**
+     * Canvas LMS — utledet fra circuit breaker-staten i `canvasCircuit`. Vi kan
+     * ikke probe Canvas server-side (krever brukerens token), men breakeren gir
+     * et systemnivå-signal: OPEN = vi har sett nok feil til å avvise kall,
+     * HALF_OPEN = degradert (prøver igjen), CLOSED = ingen kjente feil. Aldri
+     * markert som critical — Canvas-utfall skal ikke gjøre app `ok=false`.
+     */
+    canvas: DependencyEntrySchema,
   }),
 });
 export type DependenciesHealth = z.infer<typeof DependenciesHealthSchema>;
@@ -185,6 +193,12 @@ export const PublicStatusResponseSchema = z.object({
     aiChat: ComponentEntrySchema,
     knowledgeBase: ComponentEntrySchema,
     notifications: ComponentEntrySchema,
+    /**
+     * Canvas LMS-integrasjon — degradert/down når circuit breakeren har tripped
+     * pga. upstream Canvas-feil (typisk planlagt vedlikehold). Ikke kritisk for
+     * "overall"-statusen siden Canvas er en ekstern integrasjon vi ikke eier.
+     */
+    canvas: ComponentEntrySchema,
   }),
   announcement: z
     .object({

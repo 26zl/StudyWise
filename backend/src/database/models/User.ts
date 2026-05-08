@@ -72,6 +72,8 @@ export interface IUser extends Document {
     role: UserRole;
     /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP) i Clerk. */
     mfaEnabled?: boolean;
+    /** Om brukeren har generert backup-koder for MFA-recovery i Clerk. */
+    backupCodesEnabled?: boolean;
     /** Innloggingsmetoder brukeren har brukt (f.eks. ["microsoft", "google"]). Oppdateres ved sync fra Clerk. */
     authProviders?: AuthProvider[];
     /** OAuth-kontoer koblet til brukeren (provider + providerAccountId for unikhet). */
@@ -171,6 +173,10 @@ const UserSchema: Schema = new Schema(
             default: "user",
         },
         mfaEnabled: {
+            type: Boolean,
+            default: false,
+        },
+        backupCodesEnabled: {
             type: Boolean,
             default: false,
         },

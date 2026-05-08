@@ -27,6 +27,7 @@ import {
   AUTH_INPUT_CLASSES,
   AUTH_LABEL_CLASSES,
 } from "@/app/auth/authUI";
+import { detectSecondFactorStrategy } from "@/app/auth/mfaStrategy";
 
 type SignInClientProps = {
   initialVerified: boolean;
@@ -67,7 +68,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
     window.history.replaceState(null, "", nyUrl);
   }, [urlError]);
 
-  // MFA (TOTP) — aktiveres når Clerk returnerer needs_second_factor
+  // MFA — aktiveres når Clerk returnerer needs_second_factor
   const [mfaStep, setMfaStep] = useState(false);
   const [mfaCode, setMfaCode] = useState("");
   const [mfaError, setMfaError] = useState<string | null>(null);
@@ -151,14 +152,17 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
     [signIn, setActive, identifier, password, isSubmitting, t, redirectEtterAuth, getSignInErrorMessage],
   );
 
-  // MFA: verifiser TOTP-kode
+  // MFA: verifiser TOTP- eller backup-kode
   const handleMfa = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!signIn || mfaSubmitting) return;
 
-      const code = mfaCode.trim();
-      if (!code) {
+      // Auto-detekter om input er TOTP (6 sifre) eller backup-kode (alfanumerisk).
+      // Brukeren slipper å bytte modus før de taster — Clerk validerer formatet
+      // selv og returnerer en tydelig feil hvis koden ikke matcher noen faktor.
+      const attempt = detectSecondFactorStrategy(mfaCode);
+      if (!attempt) {
         setMfaError(t("auth.signIn.mfa.codeRequired"));
         return;
       }
@@ -168,7 +172,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
 
       try {
         const result = await withAuthTimeout(
-          signIn.attemptSecondFactor({ strategy: "totp", code }),
+          signIn.attemptSecondFactor(attempt),
           MFA_TIMEOUT_MS,
           "mfa_attempt",
         );
@@ -298,7 +302,9 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
               <input
                 id="mfa-code"
                 type="text"
-                inputMode="numeric"
+                // Ingen `inputMode="numeric"` eller `maxLength={6}` her: feltet
+                // aksepterer både TOTP (6 sifre) og backup-koder (10 alfanumeriske).
+                // Strategien velges av detectSecondFactorStrategy ved submit.
                 autoComplete="one-time-code"
                 value={mfaCode}
                 onChange={(e) => setMfaCode(e.target.value)}
@@ -306,8 +312,10 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
                 className={`mt-1 ${AUTH_INPUT_CLASSES}`}
                 autoFocus
                 disabled={mfaSubmitting}
-                maxLength={6}
               />
+              <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                {t("auth.signIn.mfa.codeHint")}
+              </p>
             </div>
 
             <AuthError message={mfaError} />

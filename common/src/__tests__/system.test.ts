@@ -174,7 +174,7 @@ describe("AnnouncementResponseSchema (public)", () => {
 });
 
 describe("DependenciesHealthSchema", () => {
-  it("aksepterer full helserespons med alle 7 tjenester", () => {
+  it("aksepterer full helserespons med alle 8 tjenester", () => {
     const result = DependenciesHealthSchema.safeParse({
       ok: true,
       type: "dependencies",
@@ -188,6 +188,7 @@ describe("DependenciesHealthSchema", () => {
         cohere: { ok: true, status: "up", critical: false },
         clerk: { ok: true, status: "up", critical: true },
         pinecone: { ok: true, status: "up", critical: false },
+        canvas: { ok: true, status: "up", critical: false },
       },
     });
     expect(result.success).toBe(true);
@@ -207,6 +208,7 @@ describe("DependenciesHealthSchema", () => {
         cohere: { ok: true, status: "up", critical: false },
         clerk: { ok: null, status: "unknown", critical: true },
         pinecone: { ok: null, status: "unknown", critical: false },
+        canvas: { ok: null, status: "unknown", critical: false },
       },
     });
     expect(result.success).toBe(true);

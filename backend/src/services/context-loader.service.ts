@@ -1506,6 +1506,33 @@ export function isTimetableQuery(message: string): boolean {
   return TIMETABLE_PATTERN.test(message);
 }
 
+const CANVAS_CONTEXT_SIGNAL_PATTERN = /\b(canvas|emne|emnet|kurs|kurset|fag|faget|modul|modulen|leksjon|leksjonen|leksjoner|forelesning|forelesningen|forelesninger|kapittel|kapitlet|chapter|lecture|lesson|pdf|pptx?|docx?|xlsx?|fil|fila|filen|materiale|materialet|pensum|oppgave|oppgaven|assignment|kunngj[øo]ring|timeplan|kalender|l[æa]ringsm[åa]l)\b/i;
+
+export function hasExplicitCanvasContextSignal(
+  message: string,
+  target?: TargetedQuery,
+): boolean {
+  return Boolean(
+    target?.moduleHint ||
+    target?.fileHint ||
+    CANVAS_CONTEXT_SIGNAL_PATTERN.test(message),
+  );
+}
+
+const LOW_CONFIDENCE_VECTOR_ONLY_RELEVANCE = 0.3;
+
+export function isWeakVectorOnlyHybridContext(input: {
+  retrievalSources?: { vector: boolean; bm25: boolean; reranked: boolean };
+  topScore?: number;
+  fullDocumentMode?: boolean;
+  hasLexicalMatch?: boolean;
+}): boolean {
+  if (input.fullDocumentMode) return false;
+  if (input.hasLexicalMatch) return false;
+  if (!input.retrievalSources?.vector || input.retrievalSources.bm25) return false;
+  return (input.topScore ?? 0) < LOW_CONFIDENCE_VECTOR_ONLY_RELEVANCE;
+}
+
 interface AnnouncementEntry {
   title: string;
   message?: string | null;
@@ -2292,9 +2319,60 @@ interface FilterResult {
   moduleHintMissed: boolean;
 }
 
+const ROMAN_ORDINAL_TO_NUMBER: Record<string, string> = {
+  i: "1",
+  ii: "2",
+  iii: "3",
+  iv: "4",
+  v: "5",
+  vi: "6",
+  vii: "7",
+  viii: "8",
+  ix: "9",
+  x: "10",
+  xi: "11",
+  xii: "12",
+  xiii: "13",
+  xiv: "14",
+  xv: "15",
+  xvi: "16",
+  xvii: "17",
+  xviii: "18",
+  xix: "19",
+  xx: "20",
+};
+
+function normalizeNumberToken(value: string): string {
+  return value.replace(/^0+(?=\d)/, "");
+}
+
+function normaliserLedendeRomertall(text: string): string {
+  const leadingWhitespace = text.match(/^\s*/)?.[0] ?? "";
+  const rest = text.slice(leadingWhitespace.length);
+  const match = rest.match(/^([IVXLCDM]{1,8})(?=[.)\s:-])[.)]?/);
+  if (!match) return text;
+
+  const number = ROMAN_ORDINAL_TO_NUMBER[match[1].toLowerCase()];
+  if (!number) return text;
+
+  return `${leadingWhitespace}${number}${rest.slice(match[0].length)}`;
+}
+
+function isOrdinalModuleReferenceHint(normHint: string): boolean {
+  if (/\b(oppgave|oppgaven|exercise|task|side|page|slide|lysark)\b/.test(normHint)) {
+    return false;
+  }
+  return /\b(forele|forelesing|lecture|leksjon|lesson|kapit|kap|chapter|modul|module|uke|week|tema|sesjon|session|time|okt|del|seksj|section)\b/.test(normHint);
+}
+
+function leadingNumericOrdinal(normTitle: string): string | null {
+  const match = normTitle.match(/^(\d{1,3})(?:\b|[.)])/);
+  return match ? normalizeNumberToken(match[1]) : null;
+}
+
 /** Normaliserer streng for modul-matching: lowercase, fjern ekstra mellomrom/bindestreker */
 function normaliserModulNavn(text: string): string {
-  return text
+  return normaliserLedendeRomertall(text)
     .toLowerCase()
     // Fjern URL-escape-sekvenser (%XX) og "+" fra eventuelle URL-encodede filnavn
     // slik at tall inne i escape-sekvenser ikke lekker inn i tall-matching.
@@ -2316,7 +2394,7 @@ function normaliserModulNavn(text: string): string {
 }
 
 /** Sjekker om moduleTitle matcher moduleHint med fleksibel substring-matching */
-function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
+export function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
   const normTitle = normaliserModulNavn(moduleTitle);
   const normHint = normaliserModulNavn(hint);
 
@@ -2325,17 +2403,27 @@ function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
   const hintNumbers = normHint.match(/\b\d{1,3}\b/g) ?? [];
   if (hintNumbers.length > 0) {
     const titleNumberStrings = normTitle.match(/\b\d{1,4}\b/g) ?? [];
-    const titleNumbers = new Set(titleNumberStrings);
-    const hasExactOverlap = hintNumbers.some((num) => titleNumbers.has(num));
+    const normalizedHintNumbers = hintNumbers.map(normalizeNumberToken);
+    const titleNumbers = new Set(titleNumberStrings.map(normalizeNumberToken));
+    const hasExactOverlap = normalizedHintNumbers.some((num) => titleNumbers.has(num));
     // Aksepter prefix-match når filnavn har sammensatt tall som starter med
     // hint-tallet og slutter med nøyaktig 2 sifre (typisk årssuffiks, f.eks.
     // "Forelesning126.pdf" = forelesning 1 + semester-suffiks 26).
-    const hasYearSuffixMatch = hintNumbers.some((num) =>
+    const hasYearSuffixMatch = normalizedHintNumbers.some((num) =>
       titleNumberStrings.some((tnum) =>
         tnum.length === num.length + 2 && tnum.startsWith(num),
       ),
     );
     if (!hasExactOverlap && !hasYearSuffixMatch) return false;
+
+    const leadingOrdinal = leadingNumericOrdinal(normTitle);
+    if (
+      leadingOrdinal
+      && normalizedHintNumbers.includes(leadingOrdinal)
+      && isOrdinalModuleReferenceHint(normHint)
+    ) {
+      return true;
+    }
   }
 
   // Direkte substring-match
@@ -2355,6 +2443,82 @@ function modulTitleMatcherHint(moduleTitle: string, hint: string): boolean {
     return false;
   }).length;
   return matchCount >= Math.ceil(hintWords.length / 2);
+}
+
+const HYBRID_LEXICAL_GUARD_STOPWORDS = new Set([
+  ...COURSE_MATCH_STOPWORDS,
+  "hvem", "hva", "hvilken", "hvilke", "hvordan", "hvorfor", "hvor", "nar", "når",
+  "kan", "kunne", "du", "jeg", "meg", "det", "den", "dette", "disse", "ogsa", "også",
+  "forklar", "forklare", "fortell", "vis", "si", "var", "er",
+  "who", "what", "which", "how", "why", "where", "when",
+  "can", "could", "you", "me", "explain", "tell",
+]);
+
+function tokensForHybridLexicalGuard(value: string): string[] {
+  return normaliserCanvasSporsmal(value)
+    .replace(/-/g, " ")
+    .split(" ")
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3)
+    .filter((token) => !/^\d+$/.test(token))
+    .filter((token) => !HYBRID_LEXICAL_GUARD_STOPWORDS.has(token));
+}
+
+function boundedEditDistanceAtMostOne(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+
+    edits++;
+    if (edits > 1) return false;
+
+    if (a.length > b.length) {
+      i++;
+    } else if (b.length > a.length) {
+      j++;
+    } else {
+      i++;
+      j++;
+    }
+  }
+
+  return edits + (i < a.length || j < b.length ? 1 : 0) <= 1;
+}
+
+export function hasStrongLexicalMatchForHybridResults(
+  query: string,
+  results: HybridSearchResult[],
+): boolean {
+  const queryTokens = tokensForHybridLexicalGuard(query);
+  if (queryTokens.length === 0 || results.length === 0) return false;
+
+  const sourceTokens = tokensForHybridLexicalGuard(
+    results
+      .map((result) =>
+        `${result.source.fileName} ${result.source.moduleTitle} ${result.text}`,
+      )
+      .join(" "),
+  );
+
+  return queryTokens.some((queryToken) =>
+    sourceTokens.some((sourceToken) => {
+      if (sourceToken.includes(queryToken) || queryToken.includes(sourceToken)) {
+        return true;
+      }
+      return queryToken.length >= 6 && sourceToken.length >= 6
+        ? boundedEditDistanceAtMostOne(queryToken, sourceToken)
+        : false;
+    }),
+  );
 }
 
 function filtrerHybridResultater(
@@ -2430,6 +2594,9 @@ async function byggKontekstFraHybridSearch(
   fullDocumentTriggerWord?: string;
   primaryFileId?: number;
   kilder: ContextSource[];
+  retrievalSources?: { vector: boolean; bm25: boolean; reranked: boolean };
+  topScore?: number;
+  hasLexicalMatch?: boolean;
 } | null> {
   try {
     const relevantCourses = await finnRelevanteEmner(userId, target, hiddenCourseIds);
@@ -2578,6 +2745,7 @@ async function byggKontekstFraHybridSearch(
       );
       return null;
     }
+    const hasLexicalMatch = hasStrongLexicalMatchForHybridResults(searchQuery, filteredResults);
 
     // Full dokument-mode
     const fullDocumentDecision = shouldUseFullDocumentMode(
@@ -3251,6 +3419,9 @@ async function byggKontekstFraHybridSearch(
             : {}),
           primaryFileId: primary.source.fileId,
           kilder: fullDocKilder,
+          retrievalSources: sources,
+          topScore: filteredResults[0]?.score,
+          hasLexicalMatch,
         };
       }
     }
@@ -3450,6 +3621,9 @@ async function byggKontekstFraHybridSearch(
       hasSparseChunks,
       fullDocumentMode: false,
       kilder,
+      retrievalSources: sources,
+      topScore: filteredResults[0]?.score,
+      hasLexicalMatch,
     };
   } catch (error) {
     logger.warn({ err: error }, "Feil ved hybrid søk — faller tilbake til keyword-søk");
@@ -3476,7 +3650,7 @@ async function hentModulFilerOnDemand(
   moduleHint: string,
   baseUrl?: string,
   courseIdHint?: number,
-): Promise<string | null> {
+): Promise<{ kontekst: string; kilder: ContextSource[] } | null> {
   try {
     // Finn modulen fra CanvasStructure — prioriter korrekt kurs
     const query: Record<string, unknown> = { userId };
@@ -3498,9 +3672,13 @@ async function hentModulFilerOnDemand(
 
     if (!matchedStructure || !matchedModule || !matchedModule.items) return null;
 
-    // Filtrer til filer som kan prosesseres
+    // On-demand-filparseren støtter kun Canvas File-items. Page/ExternalUrl
+    // håndteres av crawler/sync-sporet; hvis vi sender dem hit mangler
+    // content_id og Canvas-kallet blir /api/v1/files/undefined.
+    type OnDemandFileItem = ICanvasStructure["moduler"][0]["items"][number] & { content_id: number };
     const filItems = matchedModule.items.filter(
-      (item) => item.type === "File" ? item.content_id != null : item.type === "Page" || item.type === "ExternalUrl",
+      (item): item is OnDemandFileItem =>
+        item.type === "File" && typeof item.content_id === "number",
     );
 
     if (filItems.length === 0) return null;
@@ -3511,33 +3689,57 @@ async function hentModulFilerOnDemand(
     kontekst += `### ${matchedModule.name}\n`;
 
     // Parallell filhenting med per-fil timeout
+    interface OnDemandFileData {
+      filename: string;
+      id: number;
+      url: string;
+      size: number;
+      mime_type?: string;
+    }
+
+    interface FetchedFileContent {
+      content: string | null;
+      fileData: OnDemandFileData | null;
+    }
+
     interface FileResult {
       title: string;
       type: string;
       content: string | null;
-      fileData: { filename: string; id: number } | null;
+      fileData: OnDemandFileData | null;
     }
 
     const filesToFetch = filItems.slice(0, ON_DEMAND_MAX_FILES);
     
     const fetchFileWithTimeout = async (item: typeof filItems[0]): Promise<FileResult> => {
-      const contentId = item.content_id!;
+      const contentId = item.content_id;
       
       // Wrapper med timeout
       const timeoutPromise = new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), ON_DEMAND_PER_FILE_TIMEOUT_MS),
       );
 
-      const fetchPromise = (async (): Promise<string | null> => {
+      const fetchPromise = (async (): Promise<FetchedFileContent> => {
         try {
-          const { data: fileData } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
-          if (!fileData || fileData.size > ON_DEMAND_MAX_FILE_SIZE) return null;
-          if (!isSupportedFileType(fileData.filename)) return null;
+          const { data } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
+          if (!data) return { content: null, fileData: null };
+
+          const fileData: OnDemandFileData = {
+            filename: data.filename,
+            id: data.id,
+            url: data.url,
+            size: data.size,
+            mime_type: data.mime_type,
+          };
+
+          if (fileData.size > ON_DEMAND_MAX_FILE_SIZE) return { content: null, fileData };
+          if (!isSupportedFileType(fileData.filename)) return { content: null, fileData };
 
           const isPdf =
             fileData.mime_type === "application/pdf" ||
             fileData.filename.toLowerCase().endsWith(".pdf");
 
+          let content: string | null = null;
           if (isPdf) {
             const pdfResult = await fetchPdfContent(canvasToken, {
               id: fileData.id,
@@ -3546,7 +3748,7 @@ async function hentModulFilerOnDemand(
               size: fileData.size,
               mime_type: fileData.mime_type,
             }, baseUrl);
-            return pdfResult?.content ?? null;
+            content = pdfResult?.content ?? null;
           } else {
             const buf = await fetchFileContent(canvasToken, {
               id: fileData.id,
@@ -3556,26 +3758,19 @@ async function hentModulFilerOnDemand(
             }, baseUrl);
             if (buf) {
               const result = await extractTextFromFile(buf, fileData.filename);
-              if (result && result.content.trim().length > 0) return result.content;
+              if (result && result.content.trim().length > 0) content = result.content;
             }
           }
-          return null;
+          return { content, fileData };
         } catch (err) {
           logger.warn({ err, userId, fileId: contentId }, "On-demand fil-fetch feilet");
-          return null;
+          return { content: null, fileData: null };
         }
       })();
 
-      const content = await Promise.race([fetchPromise, timeoutPromise]);
-      
-      // Hent fileData for lagring (gjøres separat for å ikke blokkere)
-      let fileData: { filename: string; id: number } | null = null;
-      try {
-        const { data } = await fetchFileMetadata(canvasToken, contentId, baseUrl);
-        if (data) fileData = { filename: data.filename, id: data.id };
-      } catch {
-        // Ignorer — ikke kritisk for kontekst
-      }
+      const fetched = await Promise.race([fetchPromise, timeoutPromise]);
+      const content = fetched?.content ?? null;
+      const fileData = fetched?.fileData ?? null;
 
       return { title: item.title, type: item.type ?? "File", content, fileData };
     };
@@ -3584,6 +3779,7 @@ async function hentModulFilerOnDemand(
     const results = await Promise.allSettled(filesToFetch.map(fetchFileWithTimeout));
     
     let hentetFiler = 0;
+    const kilderByFileId = new Map<number, ContextSource>();
     for (const result of results) {
       if (result.status !== "fulfilled") continue;
       const { title, type, content, fileData } = result.value;
@@ -3599,6 +3795,16 @@ async function hentModulFilerOnDemand(
 
       // Lagre i MongoDB for fremtidige forespørsler (fire-and-forget)
       if (fileData) {
+        const existingSource = kilderByFileId.get(fileData.id);
+        kilderByFileId.set(fileData.id, {
+          courseId,
+          courseName: matchedStructure.courseName,
+          fileId: fileData.id,
+          fileName: fileData.filename,
+          score: 1,
+          chunkCount: (existingSource?.chunkCount ?? 0) + 1,
+        });
+
         const chunks = createChunksFromContent(content, {
           courseId,
           courseName: matchedStructure.courseName,
@@ -3628,13 +3834,15 @@ async function hentModulFilerOnDemand(
     if (hentetFiler === 0) return null;
 
     kontekst += "\n</canvas-kursdata>";
+    const kilder = Array.from(kilderByFileId.values()).slice(0, ON_DEMAND_MAX_FILES);
+    await backfillMissingSourceUrls(userId, kilder, baseUrl);
 
     logger.info(
-      { userId, moduleHint, hentetFiler, courseId },
+      { userId, moduleHint, hentetFiler, courseId, sources: kilder.length },
       "On-demand filhenting fullført for modul",
     );
 
-    return kontekst;
+    return { kontekst, kilder };
   } catch (error) {
     logger.warn({ err: error, userId, moduleHint }, "On-demand filhenting feilet");
     return null;
@@ -3968,6 +4176,11 @@ async function loadCanvasContextCore(
     target?.moduleHint ||
     target?.fileHint
   );
+  const hasExplicitCanvasSignal = Boolean(
+    message && hasExplicitCanvasContextSignal(message, target),
+  );
+  const shouldProtectImplicitCanvasLight =
+    intent === "canvas_light" && Boolean(message) && !hasExplicitCanvasSignal;
 
   // Bygg strukturert-data-blokker (kunngjøringer, timeplan) tidlig slik at
   // de kan injiseres i ALLE kontekst-pather, ikke bare canvas_full-grenen.
@@ -4249,6 +4462,24 @@ async function loadCanvasContextCore(
     hybridAlreadyAttempted = true;
     const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
     if (hybridResult) {
+      if (
+        shouldProtectImplicitCanvasLight &&
+        isWeakVectorOnlyHybridContext(hybridResult)
+      ) {
+        logger.info(
+          {
+            userId,
+            intent,
+            chunkHint: target.chunkHint,
+            topScore: hybridResult.topScore ?? null,
+            retrievalSources: hybridResult.retrievalSources ?? null,
+            hasLexicalMatch: hybridResult.hasLexicalMatch ?? false,
+          },
+          "Canvas-light hybridtreff droppet: lav tillit og ingen eksplisitt Canvas-signal",
+        );
+        return { kontekst: "", hasCanvasData: false, source: "none" };
+      }
+
       // Berik med modulstruktur-oversikt slik at KI vet hva som finnes i emnet
       let kontekst = hybridResult.kontekst;
       if (hasCourseTarget(target)) {
@@ -4289,6 +4520,13 @@ async function loadCanvasContextCore(
       { userId, intent, chunkHint: target.chunkHint },
       "Hybrid søk (chunkHint) ga ingen resultater — fortsetter med intent-basert flyt",
     );
+    if (shouldProtectImplicitCanvasLight) {
+      logger.info(
+        { userId, intent, chunkHint: target.chunkHint },
+        "Canvas-light kontekst droppet: ingen hybridtreff og ingen eksplisitt Canvas-signal",
+      );
+      return { kontekst: "", hasCanvasData: false, source: "none" };
+    }
   }
 
   // canvas_light
@@ -4298,6 +4536,23 @@ async function loadCanvasContextCore(
     if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message && !wantsAnnouncements && !wantsTimetable) {
       const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
       if (hybridResult) {
+        if (
+          shouldProtectImplicitCanvasLight &&
+          isWeakVectorOnlyHybridContext(hybridResult)
+        ) {
+          logger.info(
+            {
+              userId,
+              intent,
+              topScore: hybridResult.topScore ?? null,
+              retrievalSources: hybridResult.retrievalSources ?? null,
+              hasLexicalMatch: hybridResult.hasLexicalMatch ?? false,
+            },
+            "Canvas-light hybridtreff droppet: lav tillit og ingen eksplisitt Canvas-signal",
+          );
+          return { kontekst: "", hasCanvasData: false, source: "none" };
+        }
+
         let kontekst = hybridResult.kontekst;
         if (hasCourseTarget(target)) {
           const strukturOversikt = await byggModulStrukturOversikt(userId, target!, hiddenCourseIds);
@@ -4318,6 +4573,14 @@ async function loadCanvasContextCore(
           kilder: hybridResult.kilder,
         };
       }
+    }
+
+    if (shouldProtectImplicitCanvasLight) {
+      logger.info(
+        { userId, intent },
+        "Canvas-light kontekst droppet: ingen eksplisitt Canvas-signal",
+      );
+      return { kontekst: "", hasCanvasData: false, source: "none" };
     }
 
     if (wantsAnnouncements && !hasSpecificTarget) {
@@ -4544,14 +4807,26 @@ async function loadCanvasContextCore(
             userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined,
           );
           const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), ON_DEMAND_TIMEOUT_MS));
-          const onDemandKontekst = await Promise.race([onDemandPromise, timeoutPromise]);
+          const onDemandResult = await Promise.race([onDemandPromise, timeoutPromise]);
 
-          if (onDemandKontekst) {
+          if (onDemandResult) {
             logger.info(
-              { userId, intent, target, source: "on-demand-enriched", contextLength: onDemandKontekst.length },
+              {
+                userId,
+                intent,
+                target,
+                source: "on-demand-enriched",
+                contextLength: onDemandResult.kontekst.length,
+                sources: onDemandResult.kilder.length,
+              },
               "On-demand berikelse fullført — bruker modulfilinnhold",
             );
-            return { kontekst: onDemandKontekst, hasCanvasData: true, source: "api" };
+            return {
+              kontekst: onDemandResult.kontekst,
+              hasCanvasData: true,
+              source: "api",
+              kilder: onDemandResult.kilder,
+            };
           }
 
           logger.info(
@@ -4577,9 +4852,14 @@ async function loadCanvasContextCore(
         { userId, intent, target, source: "on-demand" },
         "Redis+MongoDB mangler all data — prøver on-demand henting fra Canvas API",
       );
-      const onDemandKontekst = await hentModulFilerOnDemand(userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined);
-      if (onDemandKontekst) {
-        return { kontekst: onDemandKontekst, hasCanvasData: true, source: "api" };
+      const onDemandResult = await hentModulFilerOnDemand(userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined);
+      if (onDemandResult) {
+        return {
+          kontekst: onDemandResult.kontekst,
+          hasCanvasData: true,
+          source: "api",
+          kilder: onDemandResult.kilder,
+        };
       }
     }
 

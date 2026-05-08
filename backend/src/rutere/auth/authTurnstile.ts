@@ -9,8 +9,8 @@ import {
   AuthTurnstileVerifyRequestSchema,
   AuthTurnstileVerifyResponseSchema,
   AUTH_TURNSTILE_COOKIE_NAME,
-  validateAuthTurnstileCookieValue,
 } from "common/auth";
+import { validateAuthTurnstileCookieValue } from "common/auth-server";
 import { rateLimitAuthTurnstile } from "../../middleware/rate-limit.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { isProd, turnstileEnabled } from "../../utils/env.js";

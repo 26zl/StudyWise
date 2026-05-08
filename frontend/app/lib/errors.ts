@@ -19,8 +19,15 @@ export type KIErrorCode =
 // Auth-spesifikke feilkoder
 export type AuthErrorCode = "auth_error" | "auth_expired" | "forbidden";
 
+// Service-utfall (oppstrøms tjeneste midlertidig nede)
+export type ServiceErrorCode = "service_unavailable";
+
 // Alle feilkoder kombinert
-export type AppErrorCode = CanvasErrorCode | KIErrorCode | AuthErrorCode;
+export type AppErrorCode =
+  | CanvasErrorCode
+  | KIErrorCode
+  | AuthErrorCode
+  | ServiceErrorCode;
 
 /**
  * Base-klasse for alle applikasjonsfeil.
@@ -215,6 +222,44 @@ export class CanvasApiError extends AppError {
       retryable: code === "rate_limited" || code === "timeout",
     });
     this.code = code;
+  }
+}
+
+/**
+ * Canvas er midlertidig utilgjengelig — utløses av 503-respons fra backend
+ * når enten sirkulærbreakeren har trippet eller Canvas selv svarer 5xx (typisk
+ * planlagt vedlikehold). Skilles fra `CanvasApiError` slik at UI kan vise én
+ * statusbanner i stedet for N feilkort, og kan honoreres som retryable.
+ */
+export type CanvasOutageStatus = "outage" | "maintenance";
+
+export class CanvasOutageError extends AppError {
+  readonly code = "service_unavailable" as const;
+  readonly name = "CanvasOutageError";
+  /** Hvilken upstream tjeneste som er nede — alltid "canvas" for nå. */
+  readonly kilde: "canvas";
+  /** Type utfall — `outage` for uventet, `maintenance` for planlagt. */
+  readonly outageStatus: CanvasOutageStatus;
+  /** Anbefalt ventetid før retry (sekunder). */
+  readonly retryAfterSeconds?: number;
+
+  constructor(options: {
+    message?: string;
+    kilde?: "canvas";
+    outageStatus?: CanvasOutageStatus;
+    retryAfterSeconds?: number;
+  } = {}) {
+    super(
+      options.message ?? "Canvas er midlertidig utilgjengelig. Prøv igjen senere.",
+      { httpStatus: 503, retryable: true },
+    );
+    this.kilde = options.kilde ?? "canvas";
+    this.outageStatus = options.outageStatus ?? "outage";
+    this.retryAfterSeconds = options.retryAfterSeconds;
+  }
+
+  static isCanvasOutage(error: unknown): error is CanvasOutageError {
+    return error instanceof CanvasOutageError;
   }
 }
 

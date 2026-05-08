@@ -61,6 +61,7 @@ import {
   CanvasPermissionError,
   CanvasResourceError,
   CanvasApiError,
+  CanvasOutageError,
   SessionExpiredError,
 } from "../lib/errors";
 import { parseApiErrorBody, erTokenFeilmelding } from "../lib/errorUtils";
@@ -179,8 +180,35 @@ async function håndterFeilRespons(
   // Håndter 5xx - server error (504 er timeout, resten er server_error)
   if (res.status >= 500) {
     const defaultCode: CanvasErrorCode = res.status === 504 ? "timeout" : "server_error";
-    const { errorMessage, errorCode } = await parseErrorBody("Serverfeil", defaultCode);
-    throw new CanvasApiError(errorCode, errorMessage, res.status);
+    const { errorMessage, errorCode, payload } = await parseApiErrorBody(
+      res,
+      "Serverfeil",
+      defaultCode,
+    );
+    // 503 med strukturert utfall-payload → CanvasOutageError. Skiller "Canvas
+    // er nede" fra ekte 5xx-bugs i StudyWise-koden, slik at frontend-banneret
+    // kan vise én "Canvas er midlertidig utilgjengelig"-melding i stedet for
+    // N enkelt-feilkort. Retry-After leses primært fra HTTP-headeren (autoritativ),
+    // med fallback til payload-feltet.
+    if (
+      res.status === 503 &&
+      payload?.kilde === "canvas" &&
+      (payload.status === "outage" || payload.status === "maintenance")
+    ) {
+      const headerRetry = res.headers.get("Retry-After");
+      const headerSeconds = headerRetry ? parseInt(headerRetry, 10) : NaN;
+      const retryAfterSeconds = Number.isFinite(headerSeconds) && headerSeconds > 0
+        ? headerSeconds
+        : (typeof payload.retryAfter === "number" && payload.retryAfter > 0
+          ? payload.retryAfter
+          : undefined);
+      throw new CanvasOutageError({
+        message: errorMessage,
+        outageStatus: payload.status,
+        retryAfterSeconds,
+      });
+    }
+    throw new CanvasApiError(errorCode as CanvasErrorCode, errorMessage, res.status);
   }
 
   // Generell feil for andre ikke-OK statuser

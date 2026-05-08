@@ -144,7 +144,7 @@ export const nbMessages = {
       },
       mfa: {
         description:
-          "Passordet er oppdatert, men kontoen krever totrinnsbekreftelse før innloggingen kan fullføres. Gå tilbake til innlogging for å fortsette.",
+          "Passordet er oppdatert. Fullfør totrinnsbekreftelse for å logge inn.",
         title: "Tofaktor kreves",
       },
       setCredential: {
@@ -211,15 +211,17 @@ export const nbMessages = {
       },
       mfa: {
         title: "To-faktorautentisering",
-        subtitle: "Skriv inn koden fra autentiseringsappen din.",
+        subtitle: "Skriv inn koden fra autentiseringsappen din, eller en backup-kode.",
         codeLabel: "Verifiseringskode",
         codePlaceholder: "123456",
+        codeHint:
+          "Eller en backup-kode du lagret da du satte opp tofaktor.",
         codeRequired: "Verifiseringskode er påkrevd.",
         verifyButton: "Verifiser",
         verifying: "Verifiserer...",
         verificationFailed: "Ugyldig kode. Prøv igjen.",
         backToSignIn: "Tilbake til innlogging",
-        lostAccess: "Har du mistet tilgang til autentiseringsappen?",
+        lostAccess: "Har du mistet både telefonen og backup-kodene?",
         lostAccessLink: "Kontakt oss",
       },
       noAccount: "Har du ikke en konto?",
@@ -328,6 +330,15 @@ export const nbMessages = {
         description:
           "Sesjonen din trenger en ny sikkerhetssjekk. Fullfør verifiseringen for å fortsette.",
       },
+    },
+  },
+  security: {
+    backupCodesBanner: {
+      title: "Legg til backup-koder",
+      description:
+        "Du har tofaktor aktivert, men ingen backup-koder. Generer dem i kontoinnstillingene for å unngå å bli låst ute hvis du mister telefonen.",
+      action: "Generer koder",
+      dismiss: "Skjul påminnelse",
     },
   },
   errors: {
@@ -1017,6 +1028,7 @@ export const nbMessages = {
         cohere: "Cohere",
         clerk: "Clerk (auth)",
         pinecone: "Pinecone (vektorsøk)",
+        canvas: "Canvas",
       },
       criticalLabel: "Kritisk",
       optionalLabel: "Valgfri",
@@ -2803,6 +2815,7 @@ export const nbMessages = {
       aiChat: "KI-chat",
       knowledgeBase: "Kunnskapsbase og søk",
       notifications: "Varsler og bakgrunnsjobber",
+      canvas: "Canvas-integrasjon",
     },
     componentStatus: {
       operational: "I drift",

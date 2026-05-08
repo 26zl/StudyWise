@@ -75,12 +75,54 @@ import {
   getHttpStatusForCode,
   classifyHttpStatus,
 } from "./canvasErrors.js";
+import { CircuitBreakerError } from "../../utils/circuitBreaker.js";
 
 /** Én felles oversetter: Canvas/Zod-feil → strukturert JSON-respons. Brukes av både handleCanvasError og router.use. */
 function sendCanvasErrorResponse(
   res: import("express").Response,
   error: unknown,
 ): void {
+  // CircuitBreakerError → 503 Service Unavailable med Retry-After.
+  // Differensierer "Canvas er nede" fra "vi har en bug" overfor frontend, slik
+  // at dashboardet kan rendre én banner i stedet for N ødelagte kort.
+  if (error instanceof CircuitBreakerError) {
+    res.setHeader("Retry-After", String(error.retryAfterSeconds));
+    res.status(503).json({
+      feil: "Tjenesten er midlertidig utilgjengelig",
+      melding: error.message,
+      kode: "service_unavailable",
+      kilde: "canvas",
+      status: "outage",
+      retryAfter: error.retryAfterSeconds,
+    });
+    return;
+  }
+  // Upstream Canvas 5xx (de første requestene før breakeren har trippet, eller
+  // når breakeren går HALF_OPEN). Surface som outage med Canvas sin egen
+  // Retry-After-verdi når den ble lest, slik at frontend-banneret stemmer med
+  // det Canvas selv lover.
+  const upstreamErr = error as CanvasApiError;
+  if (
+    upstreamErr.name === "CanvasApiError" &&
+    typeof upstreamErr.httpStatus === "number" &&
+    upstreamErr.httpStatus >= 500 &&
+    upstreamErr.httpStatus < 600
+  ) {
+    const retryAfter = typeof upstreamErr.retryAfter === "number" && upstreamErr.retryAfter > 0
+      ? upstreamErr.retryAfter
+      : 30;
+    res.setHeader("Retry-After", String(retryAfter));
+    res.status(503).json({
+      feil: "Canvas er midlertidig utilgjengelig",
+      melding:
+        "Canvas svarer ikke akkurat nå (kan være planlagt vedlikehold). Prøv igjen senere.",
+      kode: "service_unavailable",
+      kilde: "canvas",
+      status: "outage",
+      retryAfter,
+    });
+    return;
+  }
   if (error instanceof ZodError) {
     // Ikke send error.message til klient – kan inneholde interne feltstier (f.eks. courses.0.name)
     res.status(500).json({

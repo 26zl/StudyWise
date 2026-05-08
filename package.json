@@ -16,6 +16,7 @@
     "dev:common": "pnpm --filter common typecheck --watch",
     "dev:docs": "pnpm --filter docs dev",
     "dev:frontend": "pnpm --filter frontend dev",
+    "dev:frontend:turbo": "pnpm --filter frontend dev:turbo",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "heroku-postbuild": "pnpm --filter common build && pnpm --filter backend build",
@@ -69,7 +70,6 @@
     "update:tests": "pnpm --filter tests update && pnpm install && pnpm syncpack:fix && pnpm install"
   },
   "devDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15",
     "@types/node": "^25.6.1",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
@@ -96,6 +96,9 @@
     "*.{json,md,yml,yaml,css}": [
       "prettier --write"
     ]
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15"
   },
   "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
   "pnpm": {

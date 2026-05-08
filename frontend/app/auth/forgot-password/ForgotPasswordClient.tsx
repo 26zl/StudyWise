@@ -4,13 +4,14 @@ import Link from "next/link";
 import { useState, type SubmitEvent } from "react";
 import { useSignIn } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { AuthTurnstileInline } from "@/app/auth/AuthTurnstileInline";
 import { checkAuthTurnstileGate } from "@/app/auth/auth-turnstile-api";
 import { getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
+import { detectSecondFactorStrategy } from "@/app/auth/mfaStrategy";
 import {
   AuthCard,
   AuthHeader,
@@ -18,11 +19,15 @@ import {
   AuthPrimaryButton,
   AuthFooterLink,
   SecuredByClerk,
+  parseClerkError,
+  withAuthTimeout,
+  AuthTimeoutError,
   AUTH_INPUT_CLASSES,
   AUTH_LABEL_CLASSES,
 } from "@/app/auth/authUI";
 
 type Gjenopprettingssteg = "identify" | "verify" | "setCredential" | "mfa";
+const MFA_TIMEOUT_MS = 15_000;
 
 type ForgotPasswordClientProps = {
   initialVerified: boolean;
@@ -43,6 +48,9 @@ export function ForgotPasswordClient({
   const [epostadresse, setEpostadresse] = useState("");
   const [kode, setKode] = useState("");
   const [passord, setPassord] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaSubmitting, setMfaSubmitting] = useState(false);
 
   const erLaster = fetchStatus === "fetching";
   const generellFeil = errors.global?.[0]?.message ?? null;
@@ -123,6 +131,8 @@ export function ForgotPasswordClient({
     }
 
     if (signIn.status === "needs_second_factor") {
+      setMfaCode("");
+      setMfaError(null);
       setSteg("mfa");
       return;
     }
@@ -141,6 +151,78 @@ export function ForgotPasswordClient({
         t("auth.forgotPassword.complete.description"),
       );
       window.location.replace(redirectUrl);
+    }
+  }
+
+  async function bekreftMfa(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!signIn || mfaSubmitting) return;
+
+    const attempt = detectSecondFactorStrategy(mfaCode);
+    if (!attempt) {
+      setMfaError(t("auth.signIn.mfa.codeRequired"));
+      return;
+    }
+
+    setMfaSubmitting(true);
+    setMfaError(null);
+
+    try {
+      const { error } = await withAuthTimeout(
+        attempt.strategy === "totp"
+          ? signIn.mfa.verifyTOTP({ code: attempt.code })
+          : signIn.mfa.verifyBackupCode({ code: attempt.code }),
+        MFA_TIMEOUT_MS,
+        "forgot_password_mfa_attempt",
+      );
+
+      if (error) {
+        setMfaError(parseClerkError(error, t("auth.signIn.mfa.verificationFailed")));
+        return;
+      }
+
+      if (signIn.status === "complete") {
+        setIsRedirectingToDashboard(true);
+        const { error: finalizeError } = await withAuthTimeout(
+          signIn.finalize(),
+          MFA_TIMEOUT_MS,
+          "forgot_password_mfa_finalize",
+        );
+
+        if (finalizeError) {
+          setIsRedirectingToDashboard(false);
+          setMfaError(parseClerkError(finalizeError, t("auth.signIn.mfa.verificationFailed")));
+          return;
+        }
+
+        showToast.success(
+          t("auth.forgotPassword.complete.title"),
+          t("auth.forgotPassword.complete.description"),
+        );
+        window.location.replace(redirectUrl);
+        return;
+      }
+
+      setMfaError(t("auth.signIn.mfa.verificationFailed"));
+    } catch (err) {
+      if (signIn.status === "complete") {
+        setIsRedirectingToDashboard(true);
+        try {
+          await withAuthTimeout(signIn.finalize(), MFA_TIMEOUT_MS, "forgot_password_mfa_recover_finalize");
+        } catch {
+          // falle gjennom til redirect
+        }
+        window.location.replace(redirectUrl);
+        return;
+      }
+
+      if (err instanceof AuthTimeoutError) {
+        setMfaError(t("errors.generic.timeout"));
+      } else {
+        setMfaError(parseClerkError(err, t("auth.signIn.mfa.verificationFailed")));
+      }
+    } finally {
+      setMfaSubmitting(false);
     }
   }
 
@@ -327,30 +409,62 @@ export function ForgotPasswordClient({
             </AuthCard>
           )}
 
-          {/* MFA nødvendig */}
+          {/* Steg 4: MFA nødvendig */}
           {steg === "mfa" && (
             <AuthCard>
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-amber-100 p-2.5 text-amber-700 dark:bg-amber-900/60 dark:text-amber-100">
-                  <ShieldCheck className="h-5 w-5" />
+              <div className="flex items-center gap-3">
+                <div className="rounded-xl bg-blue-100 p-2 dark:bg-blue-900/40">
+                  <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-300" />
                 </div>
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                    {t("auth.forgotPassword.mfa.title")}
-                  </h2>
-                  <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                    {t("auth.forgotPassword.mfa.description")}
+                <AuthHeader
+                  title={t("auth.forgotPassword.mfa.title")}
+                  subtitle={t("auth.forgotPassword.mfa.description")}
+                />
+              </div>
+
+              <form className="mt-4 space-y-4" onSubmit={bekreftMfa} noValidate>
+                <div>
+                  <label htmlFor="forgot-password-mfa-code" className={AUTH_LABEL_CLASSES}>
+                    {t("auth.signIn.mfa.codeLabel")}
+                  </label>
+                  <input
+                    id="forgot-password-mfa-code"
+                    type="text"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    aria-required="true"
+                    aria-invalid={!!mfaError}
+                    aria-describedby={mfaError ? "forgot-password-mfa-error" : undefined}
+                    value={mfaCode}
+                    onChange={(event) => setMfaCode(event.target.value)}
+                    placeholder={t("auth.signIn.mfa.codePlaceholder")}
+                    className={`mt-1 ${AUTH_INPUT_CLASSES}`}
+                    disabled={mfaSubmitting}
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    {t("auth.signIn.mfa.codeHint")}
                   </p>
                 </div>
-              </div>
+
+                <div id="forgot-password-mfa-error">
+                  <AuthError message={mfaError ?? generellFeil} />
+                </div>
+
+                <AuthPrimaryButton
+                  isLoading={mfaSubmitting}
+                  loadingText={t("auth.signIn.mfa.verifying")}
+                >
+                  {t("auth.signIn.mfa.verifyButton")}
+                </AuthPrimaryButton>
+              </form>
 
               <Link
                 href={signInHref}
                 prefetch={false}
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
               >
-                {t("common.actions.backToSignIn")}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowLeft className="h-4 w-4" />
+                {t("auth.signIn.mfa.backToSignIn")}
               </Link>
             </AuthCard>
           )}

@@ -322,6 +322,8 @@ export const AuthBrukerSchema = z.object({
   authProviders: AuthProvidersArraySchema.optional(),
   /** Om brukeren har aktivert tofaktorautentisering (MFA/TOTP). */
   mfaEnabled: z.boolean().optional(),
+  /** Om brukeren har generert backup-koder for MFA-recovery. */
+  backupCodesEnabled: z.boolean().optional(),
   /** Aktive Clerk↔lokal synkroniseringskonflikter som bruker må se. */
   syncConflicts: z.array(SyncConflictSchema).optional(),
   /** Versjonsstreng for siste aksept av vilkår/personvern (se TERMS_VERSION i common/system.ts). */
@@ -449,57 +451,11 @@ export const AUTH_TURNSTILE_ACTION = "studywise-auth";
 export const AUTH_TURNSTILE_COOKIE_VERSION = "v1";
 
 /**
- * Validerer en rå Turnstile-cookie-verdi mot en HMAC-signatur.
- * Format: v1.<nonce>.<expiresAt>.<signature>
- * HMAC dekker versjon, nonce og utløpstid for å binde cookien til en unik challenge.
- * Felles implementasjon brukes av både frontend (SSR) og backend.
- * Bruker dynamisk import av crypto for å unngå top-level import
- * som kan feile i edge-runtimes.
- * Returnerer { valid, nonce } slik at backend kan håndheve server-side single-use via Redis.
+ * HMAC-validatorer for Turnstile-cookien er flyttet til `common/auth-server`
+ * fordi de bruker `node:crypto`. Klient-React skal aldri importere disse —
+ * server-side helpers (Express + Next.js SSR) bruker dem fra ny modul:
+ *   import { validateAuthTurnstileCookieValue } from "common/auth-server";
  */
-export async function validateAuthTurnstileCookieValue(
-  rawValue: string | undefined,
-  secret: string,
-): Promise<boolean> {
-  const result = await parseAuthTurnstileCookie(rawValue, secret);
-  return result.valid;
-}
-
-export async function parseAuthTurnstileCookie(
-  rawValue: string | undefined,
-  secret: string,
-): Promise<{ valid: boolean; nonce: string | null }> {
-  if (!rawValue || !secret) return { valid: false, nonce: null };
-
-  const parts = rawValue.split(".");
-  if (parts.length !== 4) return { valid: false, nonce: null };
-
-  const [version, nonce, expiresAt, signature] = parts;
-  if (version !== AUTH_TURNSTILE_COOKIE_VERSION || !nonce || !expiresAt || !signature) {
-    return { valid: false, nonce: null };
-  }
-
-  if (!/^[a-f0-9]{32}$/i.test(nonce) || !/^\d+$/.test(expiresAt) || !/^[a-f0-9]{64}$/i.test(signature)) {
-    return { valid: false, nonce: null };
-  }
-
-  const crypto = await import("node:crypto");
-  const expected = crypto
-    .createHmac("sha256", secret)
-    .update(`${AUTH_TURNSTILE_COOKIE_VERSION}:${nonce}:${expiresAt}`)
-    .digest("hex");
-
-  const isValid = crypto.timingSafeEqual(
-    Buffer.from(signature, "hex"),
-    Buffer.from(expected, "hex"),
-  );
-
-  if (!isValid || Number(expiresAt) <= Date.now()) {
-    return { valid: false, nonce: null };
-  }
-
-  return { valid: true, nonce };
-}
 
 export const AuthTurnstileVerifyRequestSchema = z.object({
   turnstileToken: z
