@@ -16,8 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@clerk/localizations": "^4.6.1",
-    "@clerk/nextjs": "^7.3.2",
+    "@clerk/localizations": "^4.6.2",
+    "@clerk/nextjs": "^7.3.3",
     "@datadog/browser-rum": "^6.33.0",
     "@datadog/browser-rum-react": "^6.33.0",
     "@tailwindcss/typography": "^0.5.19",
@@ -52,7 +52,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "@tailwindcss/postcss": "^4.2.4",
-    "@types/node": "^25.6.2",
+    "@types/node": "^24.12.3",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.59.2",
