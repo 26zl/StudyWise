@@ -42,6 +42,12 @@ jobs:
       - name: Run actionlint
         uses: raven-actions/actionlint@205b530c5d9fa8f44ae9ed59f341a0db994aa6f8 # v2.1.2
 
+      - name: Enforce workflow security guardrails
+        run: node scripts/lint-github-actions-security.mjs
+
+      - name: Enforce pnpm supply-chain guardrails
+        run: node scripts/lint-pnpm-security.mjs
+
   # 2. Kodekvalitet og build (kjører kun når actionlint er grønn)
   quality:
     name: Code Quality
@@ -69,14 +75,9 @@ jobs:
           node-version: 24
           cache: "pnpm"
 
-      - name: Install safe-chain (pinned release)
+      - name: Install safe-chain (pinned checksum)
         shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
-            https://github.com/AikidoSec/safe-chain/releases/download/1.4.7/install-safe-chain.sh \
-            -o /tmp/install-safe-chain.sh
-          sh /tmp/install-safe-chain.sh --ci
+        run: bash scripts/install-safe-chain-ci.sh
 
       - name: Verify safe-chain is installed
         shell: bash
@@ -137,7 +138,77 @@ jobs:
           scan-args: |-
             --lockfile=pnpm-lock.yaml
 
-  # 4. Scan etter leaks
+  # 4. SBOM — genererer CycloneDX-oversikt fra package.json + pnpm-lock.yaml
+  sbom:
+    name: Generate SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [actionlint]
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Generate CycloneDX SBOM
+        run: node scripts/generate-cyclonedx-sbom.mjs
+
+      - name: Upload CycloneDX SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: studywise-cyclonedx-sbom
+          path: artifacts/sbom/studywise.cyclonedx.json
+          retention-days: 30
+
+  # 5. Container/Dockerfile-scan — Docker brukes lokalt, men bør ikke råtne sikkerhetsmessig.
+  container-scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [actionlint]
+
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@a5ad31d6a139d249332a2605b85202e8c0b78450 # v2
+        with:
+          egress-policy: audit
+
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Scan Dockerfile configuration
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          hide-progress: true
+
+      - name: Build backend image for scanning
+        run: docker build --target backend -t studywise-backend-ci:${{ github.sha }} .
+
+      - name: Scan backend image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: studywise-backend-ci:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          vuln-type: os,library
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+          skip-setup-trivy: true
+
+  # 6. Scan etter leaks
   secret-scan:
     name: Secret Scan (TruffleHog)
     runs-on: ubuntu-latest

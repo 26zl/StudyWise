@@ -7,7 +7,7 @@ flowchart TB
     REQ["HTTP-request"]
     L1["Lag 1: Transport<br/>HTTPS, HSTS preload<br/>TLS 1.2+ edge + Full (strict) origin<br/>trust proxy"]
     L2["Lag 2: Host & edge<br/>API_HOST + INTERNAL_HOSTS<br/>WEB_ORIGINS allowlist<br/>requireCloudflare (CF-Connecting-IP +<br/>X-Forwarded-For peer i CF-ranges)"]
-    L3["Lag 3: Helmet headers<br/>CSP m/ nonce, frameAncestors none, X-Powered-By off"]
+    L3["Lag 3: Security headers<br/>Frontend CSP m/ nonce<br/>Helmet API-CSP, HSTS, X-Powered-By off"]
     L4["Lag 4: Anti-bot<br/>Cloudflare Turnstile på sensitive flyter"]
     L5["Lag 5: CSRF<br/>x-studywise-csrf + origin/referer-sjekk"]
     L6["Lag 6: Rate limit<br/>public abuse-endepunkter<br/>per IP / bruker / rute"]
@@ -16,10 +16,10 @@ flowchart TB
     L9["Lag 9: AuthZ<br/>requireRole, requireAcceptedTerms"]
     L10["Lag 10: Validering<br/>Zod-skjemaer fra common/"]
     L11["Lag 11: Lagring<br/>AES-256-GCM (kryptering.ts)<br/>ENCRYPTION_KEY + ENCRYPTION_KEY_PREV"]
-    L12["Lag 12: PII-grense<br/>Sanitize regex før Pinecone"]
+    L12["Lag 12: PII-grense<br/>Best-effort maskering ved dokumentuttrekk<br/>Pinecone userId/base-filter"]
     L13["Lag 13: Observabilitet<br/>Pino strukturert logging<br/>(aldri token/PII/chat-innhold)"]
     L14["Lag 14: Audit<br/>AuditLog pseudonymiseres ved sletting"]
-    L15["Lag 15: CI<br/>TruffleHog hemmelighetsskanning"]
+    L15["Lag 15: CI supply-chain<br/>TruffleHog, OSV, SBOM, Trivy<br/>Actions/pnpm guardrails"]
     APP["Forretningslogikk"]
 
     REQ --> L1 --> L2 --> L3 --> L4 --> L5 --> L6 --> L7 --> L8 --> L9 --> L10 --> APP

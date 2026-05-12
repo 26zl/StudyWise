@@ -47,16 +47,10 @@ jobs:
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
-          cache: "pnpm"
 
-      - name: Install safe-chain (pinned release)
+      - name: Install safe-chain (pinned checksum)
         shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors \
-            https://github.com/AikidoSec/safe-chain/releases/download/1.4.7/install-safe-chain.sh \
-            -o /tmp/install-safe-chain.sh
-          sh /tmp/install-safe-chain.sh --ci
+        run: bash scripts/install-safe-chain-ci.sh
 
       - name: Verify safe-chain is installed
         shell: bash
@@ -68,13 +62,13 @@ jobs:
       - name: Build common
         run: pnpm --filter common build
 
-      - name: Install Vercel CLI
-        run: npm install -g vercel@50.37.0
+      - name: Verify Vercel CLI
+        run: pnpm exec vercel --version
 
       - name: Pull Vercel configuration
         # Secret sendes via env i stedet for ${{ ... }} i run: for å unngå
         # shell-interpolation hvis tokenet inneholder metakarakter.
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        run: pnpm exec vercel pull --yes --environment=production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -125,7 +119,7 @@ jobs:
             export "NEXT_PUBLIC_DD_SITE=${DD_SITE}"
           fi
 
-          vercel build --prod --token="$VERCEL_TOKEN"
+          pnpm exec vercel build --prod
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -134,7 +128,7 @@ jobs:
       - name: Deploy frontend to Vercel
         id: deploy
         run: |
-          out="$(vercel deploy --prebuilt --prod --force --token="$VERCEL_TOKEN" 2>&1)"
+          out="$(pnpm exec vercel deploy --prebuilt --prod --force 2>&1)"
           echo "$out"
           url="$(printf '%s\n' "$out" | grep -Eo 'https://[a-zA-Z0-9.-]+\.vercel\.app' | head -n 1)"
           echo "url=$url" >> "$GITHUB_OUTPUT"

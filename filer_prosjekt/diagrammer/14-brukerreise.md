@@ -43,4 +43,4 @@ Brukertesten (se `brukertest-skjema.md`) kartla disse smertepunktene, som er adr
 | Hente Canvas-token | Studenten må navigere i Canvas-innstillinger | Veiledning med skjermbilder per institusjon, lenkesnarvei, validering før lagring |
 | Vente på første sync | Følte seg "henger" | Streaming-progress, "kommer i gang"-empty state, bakgrunns-sync |
 | Forstå KI-svarets kilde | Tvil om svaret kom fra eget pensum | `<svarkilde>`-badge: kursmateriale / canvas / kunnskapsbase / blandet / generell |
-| Slette konto | Bekymring for at data blir liggende | Eksplisitt step-up auth, bekreftelsesmodal, audit-logg, soft-delete + hard-delete-jobber |
+| Slette konto | Bekymring for at data blir liggende | Eksplisitt step-up auth, bekreftelsesmodal, hard delete, tombstone og retry-jobber for eksterne tjenester |

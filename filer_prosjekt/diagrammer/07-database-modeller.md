@@ -1,10 +1,10 @@
 # Database-modeller (MongoDB / Mongoose)
 
-Forenklet ER-diagram over de viktigste collection-ene. `User` er navet, og de fleste andre dokumenter har `userId` som referanse. Soft-delete styres via `DeletedUserTombstone`. Audit-logging og chat-tilbakemelding er separate collections.
+Forenklet ER-diagram over de viktigste collection-ene. `User` er navet, og de fleste andre dokumenter har `userId` som referanse. Ved kontosletting hard-slettes `User` og tilknyttede brukerdata, mens `DeletedUserTombstone` beholder minimal konflikt-/idempotency-state med 90 dagers TTL. Audit-logging og chat-tilbakemelding er separate collections.
 
 ```mermaid
 erDiagram
-    User ||--o| CanvasUser : "1:1 via clerkId"
+    User ||--o| CanvasUser : "1:1 via localUser"
     User ||--o{ CanvasStructure : eier
     User ||--o{ ChatHistory : eier
     User ||--o{ Kunnskapsbase : eier
@@ -20,21 +20,23 @@ erDiagram
     User ||--o{ ArbeidsplanModel : eier
     ChatHistory ||--o{ ChatFeedback : "har"
     ChatHistory ||--o{ SharedChat : "kan deles"
-    User ||--o| DeletedUserTombstone : "soft-delete"
-    AuditLog }o..|| User : "om bruker (pseudonymisert ved sletting)"
-    SystemAnnouncement }o..o{ User : "vist til"
-    ContactMessage }o..o{ User : "valgfri ref"
+    User ||--o| DeletedUserTombstone : "tombstone ved sletting"
+    AuditLog }o..|| User : "actorUserId / targetUserId"
+    SystemAnnouncement }o..|| User : "publishedBy (admin)"
+    ContactMessage }o..|| User : "statusChangedBy (admin)"
 
     User {
         string clerkId PK
         string email
-        string canvasToken_enc "AES-256-GCM"
+        string canvasApiToken "AES-256-GCM"
+        string canvasBaseUrl
         string role "user | admin"
         date createdAt
     }
     CanvasUser {
-        string userRef FK
-        string canvasUserId
+        objectId localUser FK
+        number canvasId
+        string canvasBaseUrl
         string name
     }
     CanvasStructure {
@@ -55,17 +57,34 @@ erDiagram
     }
     ContentEmbedding {
         string userId FK
-        string chunkText
-        string source
+        string text
+        string courseId
+        number fileId
+        number chunkIndex
     }
     DeletedUserTombstone {
+        string originalUserId
         string clerkId
-        string status "pending|done"
+        array oauthAccounts
+        string usernameNormalized
         date deletedAt
     }
     AuditLog {
-        string actorId
+        string actorUserId
+        string targetUserId
         string action
         json metadata
+    }
+    SystemAnnouncement {
+        string singletonKey
+        bool active
+        string severity
+        string publishedBy
+    }
+    ContactMessage {
+        string epost
+        string status
+        string statusChangedBy
+        date createdAt
     }
 ```

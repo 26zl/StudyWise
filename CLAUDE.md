@@ -21,7 +21,9 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 7. **Never disable, skip or comment out failing tests** to make CI pass. Fix the underlying issue. Do not use `it.skip`, `test.skip`, `it.todo`, `xit` or `xdescribe` to silence a real failure. If a test is genuinely obsolete, remove it with a commit message that explains why.
 8. **Never bypass type and runtime validation.** TypeScript runs in strict mode in all packages. Avoid `any`. Do not use `as` casts to launder types past the compiler. Every shared type lives in `common/` as a Zod schema and is exported as both schema (runtime validation) and type (`z.infer<typeof ...>`). External input — HTTP body, Canvas API response, Anthropic response, file uploads — must pass a Zod parse before it is trusted.
 9. **Never bypass git safety.** No `git push --force` to `main`, no `git commit --no-verify`, no `git commit --no-gpg-sign`, no `git rebase -i` on shared branches. The pre-commit hook is currently disabled, but the same checks run in CI on PRs — do not work around them.
-10. **Never run destructive operations** without explicit human confirmation: `pnpm db:reset-encrypted`, dropping a Mongo collection, deleting a Pinecone namespace, `git reset --hard`, `git clean -f`. These are not reversible.
+10. **Never weaken GitHub Actions trust boundaries.** Do not introduce `pull_request_target`. Do not add shared package-manager caches (`actions/cache`, `cache: pnpm`, restore keys, etc.), global `npm install -g`, or `curl | sh` installers to deploy, publish, release or otherwise privileged workflows with secrets or write permissions. `pnpm lint:actions-security` enforces this.
+11. **Never weaken pnpm supply-chain guardrails.** Keep `minimumReleaseAge: 7200` in `pnpm-workspace.yaml` unless a human explicitly approves a security exception. Prefer narrow `minimumReleaseAgeExclude` entries for urgent, reviewed fixes over lowering the global delay.
+12. **Never run destructive operations** without explicit human confirmation: `pnpm db:reset-encrypted`, dropping a Mongo collection, deleting Pinecone records, `git reset --hard`, `git clean -f`. These are not reversible.
 
 ### Required practices — always do these
 
@@ -57,7 +59,7 @@ StudyWise is an AI-powered study assistant for higher education with Canvas LMS 
 
 ## Prerequisites
 
-- **Node.js 24 LTS** (CI, Cloudflare and deploy workflows are aligned on Node 24). `pnpm` is the required package manager — do not use npm/yarn.
+- **Node.js 24 LTS** (CI, Cloudflare and deploy workflows are aligned on Node 24). Use the checked-in `.node-version`/`.nvmrc`, enable Corepack, and use `pnpm` only — do not use npm/yarn.
 - Copy env examples before first run: `cp backend/.env.example backend/.env` and `cp frontend/.env.example frontend/.env`, then fill required values in both.
 
 ## Local Dev URLs

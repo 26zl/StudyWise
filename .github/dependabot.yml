@@ -1,5 +1,7 @@
 # Dependabot-konfigurasjon for StudyWise.
-# GitHub scanner repo-et og åpner PR-er for oppdateringer i npm + GitHub Actions.
+# GitHub scanner repo-et. Security-advisories åpner npm-PR-er umiddelbart,
+# mens ordinære versjonsoppdateringer for npm håndteres av update-dependencies.yml.
+# Dependabot brukes her for GitHub Actions-versjonsoppdateringer.
 #
 # Sikkerhetsfilosofi:
 #   * Security-PR-er åpnes umiddelbart via GitHub Advisory Database.
@@ -13,7 +15,7 @@ version: 2
 updates:
   # npm (pnpm-workspaces)
   # Deaktivert: npm-oppdateringer håndteres av update-dependencies.yml som
-  # kjører `pnpm -r update` + typecheck/lint/build i én samle-PR.
+  # kjører `pnpm update:safe` + typecheck/lint/build i én samle-PR.
   # Dependabot her ville laget redundante PR-er med motstridende lockfile.
   # Security-advisories (npm) fanges fortsatt automatisk av GitHub uavhengig
   # av denne konfigurasjonen.

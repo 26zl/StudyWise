@@ -17,7 +17,8 @@ flowchart TB
         T2["Bypass av vilkår"]
         T3["Polyglot-filer / zip-bombe"]
         T4["XSS i systemmelding"]
-        TM["→ Mongoose + Zod<br/>requireAcceptedTerms<br/>Magic-byte + filtype<br/>React auto-escape"]:::mit
+        T5["Supply-chain tampering"]
+        TM["→ Mongoose + Zod<br/>requireAcceptedTerms<br/>Magic-byte + filtype<br/>React auto-escape<br/>Actions/pnpm guardrails"]:::mit
     end
 
     subgraph R["R — Repudiation<br/>(fornektelse)"]
@@ -32,7 +33,7 @@ flowchart TB
         I2["Token-lekkasje i logg"]
         I3["Cross-user data-lekkasje"]
         I4["Hemmeligheter i git"]
-        IM["→ PII-sanitize regex<br/>Pino strukturert (aldri token)<br/>Pinecone namespace=userId<br/>TruffleHog i CI"]:::mit
+        IM["→ Best-effort PII-maskering<br/>Pino strukturert (aldri token)<br/>Pinecone userId/base-filter<br/>TruffleHog + OSV/SBOM/Trivy"]:::mit
     end
 
     subgraph D["D — Denial of Service<br/>(tjenestenekt)"]
@@ -53,7 +54,7 @@ flowchart TB
 
     classDef threat fill:#fecaca,stroke:#991b1b,color:#1f2937
     classDef mit fill:#bbf7d0,stroke:#166534,color:#1f2937
-    class S1,S2,S3,S4,T1,T2,T3,T4,R1,R2,R3,I1,I2,I3,I4,D1,D2,D3,D4,E1,E2,E3,E4 threat
+    class S1,S2,S3,S4,T1,T2,T3,T4,T5,R1,R2,R3,I1,I2,I3,I4,D1,D2,D3,D4,E1,E2,E3,E4 threat
 ```
 
 ## Tilknyttet dokumentasjon

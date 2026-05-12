@@ -141,7 +141,7 @@ Prosjektet har et flerlagsoppsett for testing og kvalitetssikring som kjøres b�
 
 ### Enhetstester
 
-Over 50 testfiler med 1100+ tester (Vitest) fordelt på `common`, `backend` og `frontend`. Testene dekker skjemavalidering, feilhåndtering, kryptering, datoformatering, i18n, varsler, circuit breakers, SSRF-guards, sanitization og mer.
+Over 50 testfiler med 1190+ tester (Vitest) fordelt på `common`, `backend` og `frontend`. Testene dekker skjemavalidering, feilhåndtering, kryptering, datoformatering, i18n, varsler, circuit breakers, SSRF-guards, sanitization og mer.
 
 ### E2E og funksjonelle tester
 
@@ -158,6 +158,11 @@ Sikkerheten er automatisert i CI-pipelinen:
 - **eslint-plugin-security** (SAST) kjøres via `pnpm lint` i både frontend og backend
 - **OSV-Scanner** skanner `pnpm-lock.yaml` mot OSV-databasen ved hver CI-kjøring
 - **CycloneDX SBOM** genereres og lastes opp som artefakt ved hver build
+- **GitHub Actions guardrail** nekter `pull_request_target` og delte package-manager-cacher i deploy/publish/privilegerte workflows
+- **pnpm minimum release age** krever at nye npm-publiseringer er minst 5 dager gamle før de kan løses inn og håndheves med `pnpm lint:pnpm-security`
+- **Trivy container-scan** skanner Dockerfile og backend-image for HIGH/CRITICAL funn
+- **Vercel CLI** kjøres fra pnpm-locken via `pnpm exec`, ikke global `npm install`
+- **Ukentlig dependency-update** kjører `pnpm update:safe` innenfor semver-rangene og `minimumReleaseAge`, slik at patch/minor-oppdateringer fortsatt tas inn etter release-age-vinduet
 
 ## Deploy
 

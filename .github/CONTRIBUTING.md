@@ -227,7 +227,7 @@ const users = await User.find({ active: true });
 
 **Mobile First:**
 
-```typescript
+```text
 // RIKTIG - Start med mobil, legg til breakpoints
 className="w-full md:w-1/2"
 
@@ -237,7 +237,7 @@ className="w-1/2 max-md:w-full"
 
 **Dark Mode:**
 
-```typescript
+```text
 // RIKTIG - Alltid ha dark: variant
 className="bg-white dark:bg-slate-900 text-black dark:text-white"
 ```
@@ -297,12 +297,7 @@ return sendUnknownError(res, error, { kontekst: "minFunksjon" });
 Bruk felles error-klasser fra `frontend/app/lib/errors.ts`:
 
 ```typescript
-import {
-  KIAuthError,
-  KIRateLimitError,
-  CanvasTokenMissingError,
-  AppError
-} from "../lib/errors";
+import { KIAuthError, KIRateLimitError, CanvasTokenMissingError, AppError } from "../lib/errors";
 
 // Sjekk error type
 if (error instanceof KIRateLimitError) {
@@ -345,6 +340,25 @@ pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
 **Pre-commit-hook:** Repoet har Husky + lint-staged **konfigurert**, men hooken er **midlertidig deaktivert** (se `.husky/pre-commit`). Kjør derfor `pnpm format` manuelt før commit inntil hooken reaktiveres. Sjekker i kommandoen over (`pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build`) håndheves av CI på hver PR.
+
+### GitHub Actions-sikkerhet
+
+- Ikke bruk `pull_request_target`; PR-validering skal bruke ordinær `pull_request`.
+- Ikke legg delte package-manager-cacher (`actions/cache`, `cache: pnpm`,
+  restore keys osv.) i deploy-, publish-, release- eller andre privilegerte
+  workflows med secrets/write-permissions.
+- Ikke installer deploy-verktøy med global `npm install -g` eller `curl | sh`
+  i privilegerte workflows. Bruk lockfile-dekkede eller checksum-verifiserte
+  installasjoner.
+- Kjør `pnpm lint:actions-security` hvis du endrer filer under `.github/workflows/`.
+
+### Avhengighetssikkerhet
+
+Repoet bruker pnpm med `minimumReleaseAge: 7200` i `pnpm-workspace.yaml`.
+Ikke senk eller fjern denne uten eksplisitt sikkerhetsbegrunnelse. Hvis en
+kritisk sikkerhetsoppdatering må inn før 5 dager har gått, dokumenter
+unntaket i PR-en og vurder en snever `minimumReleaseAgeExclude`.
+Kjør `pnpm lint:pnpm-security` hvis du endrer pnpm-konfigurasjonen.
 
 ### Git workflow
 

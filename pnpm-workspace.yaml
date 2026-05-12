@@ -5,6 +5,9 @@ packages:
   - docs
   - tests
 
+# Vent 5 dager før nye npm-publiseringer kan plukkes opp.
+minimumReleaseAge: 7200
+
 onlyBuiltDependencies:
   - "@clerk/shared"
   - "@datadog/native-appsec"

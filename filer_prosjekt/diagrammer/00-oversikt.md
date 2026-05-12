@@ -28,20 +28,20 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 03 | [autentiseringsflyt](03-autentiseringsflyt.md) | Sekvensdiagram: Clerk-innlogging + Cloudflare Turnstile + webhook-håndtering. |
 | 04 | [ki-chat-pipeline](04-ki-chat-pipeline.md) | Sekvensdiagram for AI-svar: Canvas-kontekst + RAG (Pinecone + BM25 + Cohere) + Claude streaming. |
 | 05 | [canvas-integrasjon](05-canvas-integrasjon.md) | Hvordan Canvas LMS-data hentes, caches og indekseres til vektorsøk. |
-| 06 | [kunnskapsbase-rag](06-kunnskapsbase-rag.md) | Hybrid retrieval: vektor + nøkkelord, slått sammen og rerangert. PII-sanitering før Pinecone. |
-| 07 | [database-modeller](07-database-modeller.md) | ER-diagram over Mongoose-modeller, med embedded vs referenced og TTL-indekser. |
+| 06 | [kunnskapsbase-rag](06-kunnskapsbase-rag.md) | Kunnskapsbase-RAG: KBContentChunk + Pinecone, Cohere-rerank og MongoDB keyword/recent fallback med `userId`-filter. |
+| 07 | [database-modeller](07-database-modeller.md) | ER-diagram over Mongoose-modeller, med brukerrelasjoner, hard delete og tombstone med TTL. |
 | 08 | [middleware-stack](08-middleware-stack.md) | Express middleware-rekkefølge: 11 lag fra trust-proxy til feature-router. |
-| 09 | [bruker-sletting](09-bruker-sletting.md) | GDPR-rettigheter: soft-delete + asynkron opprydding via BullMQ-jobber. |
+| 09 | [bruker-sletting](09-bruker-sletting.md) | GDPR-rettigheter: hard delete, tombstone og retry-basert opprydding i Clerk/Pinecone. |
 | 10 | [deployment-arkitektur](10-deployment-arkitektur.md) | Hvor tjenestene kjører i offentlig demo / produksjonslik deploy: Vercel, Heroku, GitHub Pages og Cloudflare som DNS/CDN/WAF/TLS-edge. |
 | 11 | [sikkerhetslag](11-sikkerhetslag.md) | 15 sikkerhetslag — fra HTTPS/HSTS til AES-256-GCM-kryptering og PII-grense. |
 | 12 | [bullmq-koer](12-bullmq-koer.md) | Asynkron jobbkjøring: én unified BullMQ-kø erstatter tre separate. |
 | 13 | [use-case-diagram](13-use-case-diagram.md) | UML-style use case: aktører (student, admin, system, Canvas, Clerk) og 18 use cases. |
 | 14 | [brukerreise](14-brukerreise.md) | Journey-diagram: studentens reise fra registrering til daglig bruk. |
-| 15 | [cicd-pipeline](15-cicd-pipeline.md) | GitHub Actions-pipelinen: CI, sikkerhetsskanning, tester og deploy. |
+| 15 | [cicd-pipeline](15-cicd-pipeline.md) | GitHub Actions-pipelinen: CI, SBOM/Trivy/OSV, funksjonstester og deploy-gates. |
 | 16 | [milepaeler-tidslinje](16-milepaeler-tidslinje.md) | Gantt-diagram over hele bacheloroppgaveløpet 2026, med 5 milepæler. |
 | 17 | [uml-klassediagram](17-uml-klassediagram.md) | UML klassediagram for backend-tjenestene: ansvar, metoder, avhengigheter og designmønstre. |
 | 18 | [wbs-work-breakdown](18-wbs-work-breakdown.md) | Work Breakdown Structure: hierarkisk dekomponering i 6 hovedpakker med eierskapsmatrise. |
-| 19 | [test-strategi](19-test-strategi.md) | Test-pyramide + dekningsmatrise: 1100+ enhetstester, 120 auth-scenarier, Playwright E2E. |
+| 19 | [test-strategi](19-test-strategi.md) | Test-pyramide + dekningsmatrise: 1190+ enhetstester, 120 auth-scenarier og 11 Playwright E2E-spec-filer. |
 | 20 | [stride-trusselmodell](20-stride-trusselmodell.md) | STRIDE-kategorier med konkrete trusler og tiltak (visualisering av compliance/THREAT_MODEL.md). |
 
 ## Tematisk gruppering

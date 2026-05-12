@@ -9,7 +9,7 @@
     "build:docs": "pnpm --filter docs build",
     "build:frontend": "pnpm --filter common build && pnpm --filter frontend build",
     "clean:all": "node scripts/clean.mjs",
-    "clean:install": "node scripts/clean.mjs && pnpm install && pnpm syncpack:list && pnpm build",
+    "clean:install": "node scripts/clean.mjs && pnpm install --frozen-lockfile && pnpm syncpack:list && pnpm build",
     "db:reset-encrypted": "node scripts/reset-encrypted-data.mjs",
     "dev": "concurrently -k \"pnpm dev:backend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:frontend\" \"wait-on http://localhost:4000/health -t 60000 && pnpm dev:docs\"",
     "dev:backend": "pnpm --filter backend dev",
@@ -24,13 +24,16 @@
     "knip": "knip",
     "knip:fix": "knip --fix --allow-remove-files",
     "lint": "pnpm -r lint",
+    "lint:actions-security": "node scripts/lint-github-actions-security.mjs",
     "lint:backend": "pnpm --filter backend lint",
     "lint:frontend": "pnpm --filter frontend lint",
     "lint:md": "remark . --ignore-path .remarkignore --use remark-preset-lint-recommended",
+    "lint:pnpm-security": "node scripts/lint-pnpm-security.mjs",
     "lint:soft-delete": "node scripts/lint-soft-delete.mjs",
     "outdated": "pnpm -r outdated",
     "predev": "pnpm --filter common build",
     "prepare": "husky",
+    "sbom:cyclonedx": "node scripts/generate-cyclonedx-sbom.mjs",
     "start": "pnpm run start:parallel",
     "start:backend": "pnpm --filter backend start",
     "start:frontend": "pnpm --filter frontend start",
@@ -62,15 +65,16 @@
     "typecheck:common": "pnpm --filter common typecheck",
     "typecheck:frontend": "pnpm --filter frontend typecheck",
     "typecheck:tests": "pnpm --filter tests typecheck",
-    "update": "pnpm -r update && pnpm install && pnpm syncpack:fix && pnpm install",
-    "update:backend": "pnpm --filter backend update && pnpm install && pnpm syncpack:fix && pnpm install",
-    "update:common": "pnpm --filter common update && pnpm install && pnpm syncpack:fix && pnpm install",
-    "update:docs": "pnpm --filter docs update && pnpm install && pnpm syncpack:fix && pnpm install",
-    "update:frontend": "pnpm --filter frontend update && pnpm install && pnpm syncpack:fix && pnpm install",
-    "update:tests": "pnpm --filter tests update && pnpm install && pnpm syncpack:fix && pnpm install"
+    "update": "node scripts/update-safe.mjs",
+    "update:backend": "node scripts/update-safe.mjs --filter backend",
+    "update:common": "node scripts/update-safe.mjs --filter common",
+    "update:docs": "node scripts/update-safe.mjs --filter docs",
+    "update:frontend": "node scripts/update-safe.mjs --filter frontend",
+    "update:safe": "node scripts/update-safe.mjs",
+    "update:tests": "node scripts/update-safe.mjs --filter tests"
   },
   "devDependencies": {
-    "@types/node": "^24.12.3",
+    "@types/node": "^24.12.2",
     "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "kill-port": "^2.0.1",
@@ -80,6 +84,7 @@
     "remark-cli": "^12.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
     "syncpack": "^14.3.1",
+    "vercel": "^50.44.0",
     "wait-on": "^9.0.5",
     "wrangler": "^4.90.0"
   },
@@ -98,9 +103,6 @@
       "prettier --write"
     ]
   },
-  "optionalDependencies": {
-    "@rolldown/binding-win32-x64-msvc": "1.0.0-rc.15"
-  },
   "packageManager": "pnpm@10.33.4+sha512.1c67b3b359b2d408119ba1ed289f34b8fc3c6873412bec6fd264fbdc82489e510fcbecb9ce9d22dae7f3b76269d8441046014bdca53b9979cd7a561ad631b800",
   "pnpm": {
     "overrides": {
@@ -117,7 +119,11 @@
       "qs": ">=6.14.2",
       "minimatch": ">=10.2.1",
       "uuid": ">=14.0.0",
-      "postcss": ">=8.5.10"
+      "postcss": ">=8.5.10",
+      "socks@2.8.9": "2.8.8",
+      "tar@<7.5.11": "^7.5.15",
+      "undici@<6.24.0": "^6.25.0",
+      "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.2"
     },
     "onlyBuiltDependencies": [
       "@clerk/shared",

@@ -6,10 +6,10 @@ Viser hvilke testtyper som dekker hvilket abstraksjonsnivå i StudyWise. Test-py
 flowchart TB
     subgraph Pyramide["Test-pyramiden — StudyWise"]
         direction TB
-        E2E["E2E (Playwright)<br/>~30 spec-filer<br/>Chromium i CI<br/>auth + smoke"]:::e2e
+        E2E["E2E (Playwright)<br/>11 spec-filer<br/>Chromium i CI<br/>auth + smoke"]:::e2e
         MATRIX["Auth-scenariomatrise<br/>120 scenarier<br/>signup, OAuth, sletting,<br/>race conditions"]:::matrix
         INT["Integrasjonstester<br/>tsx run.ts<br/>auth, ki, canvas, db"]:::int
-        UNIT["Enhetstester (Vitest)<br/>1100+ tester<br/>common + backend + frontend"]:::unit
+        UNIT["Enhetstester (Vitest)<br/>1190+ tester<br/>common + backend + frontend"]:::unit
         STATIC["Statisk analyse<br/>TypeScript strict<br/>ESLint + ESLint-security<br/>Prettier"]:::static
 
         E2E --> MATRIX
@@ -47,7 +47,7 @@ flowchart TB
 ## Spesifikke testkommandoer
 
 ```bash
-pnpm test:unit              # Alle enhetstester (~1100)
+pnpm test:unit              # Alle enhetstester (~1190)
 pnpm test:auth:matrix       # 120 auth-scenarier
 pnpm test:auth:e2e          # Playwright Chromium
 pnpm test:ki:smoke          # Rask KI-røyktest

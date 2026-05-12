@@ -6,23 +6,33 @@ I TypeScript er "klasser" ofte realisert som moduler med eksporterte funksjoner;
 
 ```mermaid
 classDiagram
+    class KiRoute {
+        +postKiChat(req, res) SSE
+        -resolveKnowledgeBaseContext(userId, message) KBContext
+        -buildSystemPrompt(context) string
+        -saveChatHistory(messages, source) Promise~void~
+    }
+
     class AiClient {
-        +streamChat(messages, opts) Promise~Stream~
+        +chatCompletion(options) Promise~ChatResult~
+        +chatCompletionWithVision(options) Promise~ChatResult~
         +extractAnswerAndSource(raw) AnswerWithSource
-        -callAnthropic(messages) AsyncIterable
-        -fallbackModel(error) Promise~Stream~
+        +enforceSvarKilde(source, ctx) SvarKilde
+        -callAnthropic(options) Promise~SdkResult~
+        -callAnthropicWithVision(options) Promise~SdkResult~
     }
 
     class ContextLoader {
         +loadCanvasContext(userId, courseId, opts) CanvasContext
-        +loadKnowledgeBaseContext(userId, query) KBContext
-        -mergeContext(canvas, kb) CombinedContext
+        +ensureCanvasSync(userId, token, baseUrl) Promise~SyncResult~
+        +resolveTargetAgainstKnownCourses(userId, target) Promise~Target~
+        -byggKontekstFraHybridSearch(userId, query, target) ContextResult
     }
 
     class HybridRetrieval {
-        +retrieve(userId, query, topN) RetrievalResult
-        -vectorSearch(query) VectorHits
-        -bm25Search(query) BM25Hits
+        +hybridSearch(userId, query, opts) HybridSearchResponse
+        -vectorSearch(userId, query) VectorHits
+        -bm25Search(userId, query) BM25Hits
         -rerank(query, candidates) RerankedHits
     }
 
@@ -31,39 +41,46 @@ classDiagram
     }
 
     class PineconeService {
-        +upsert(userId, vectors) Promise~void~
-        +query(userId, vector, topK) Promise~Match[]~
-        +deleteNamespace(userId) Promise~void~
+        +pineconeUpsert(records) Promise~void~
+        +pineconeQuery(text, filter, topK) Promise~Match[]~
+        +pineconeDeleteByFilter(filter) Promise~void~
     }
 
     class Bm25Service {
-        +search(userId, query, opts) Promise~BM25Result[]~
-        +indexChunk(chunk) Promise~void~
+        +bm25Search(userId, query, opts) Promise~BM25SearchResponse~
     }
 
     class EmbeddingService {
-        +embed(text) Promise~Float[]~
-        +embedBatch(texts) Promise~Float[][]~
+        +upsertStoredFileContent(options) Promise~number~
+        +vectorSearch(userId, query, opts) Promise~VectorSearchResult[]~
+        +deleteStoredUserVectors(userId) Promise~void~
     }
 
     class CanvasService {
-        +getKurs(userId) Promise~Kurs[]~
-        +getModuler(userId, kursId) Promise~Modul[]~
-        +syncStruktur(userId, kursId) Promise~void~
-        -fetchWithCache(url, ttl) Promise~Response~
+        +fetchCourses(token) Promise~Kurs[]~
+        +fetchModules(token, kursId) Promise~Modul[]~
+        +fetchFileContent(token, fileId) Promise~Buffer~
+        +warmCanvasCache(token) Promise~void~
+    }
+
+    class CanvasSyncService {
+        +syncCanvasDataForUser(userId) Promise~SyncResult~
+        +triggerInitialSync(userId) void
+        +invalidateUserCanvasCache(userId) Promise~void~
     }
 
     class IndexeringService {
-        +indeksKnowledgeBase(userId, kbId) Promise~void~
-        -extractText(file) Promise~string~
-        -sanitizePII(text) string
-        -chunkText(text) string[]
+        +indexKBContent(options) Promise~number~
+        +searchKBContent(userId, baseId, query, topK) Promise~KBSearchResult[]~
+        +deleteAllKBContentForUser(userId, baseIds) Promise~void~
+        -extractKBQueryTerms(query) string[]
+        -sanitizeKBBodyText(text) string
     }
 
     class KrypteringUtil {
-        +krypter(plaintext, key) Buffer
-        +dekrypter(ciphertext, key) string
-        -deriveKey(rawKey) Buffer
+        +encrypt(plaintext) string
+        +decrypt(ciphertext) string
+        -parseKeyHex(rawKey, label) Buffer
     }
 
     class RequireAuth {
@@ -73,10 +90,10 @@ classDiagram
     }
 
     class KontoSlett {
-        +slett(userId) Promise~void~
-        -markTombstone(clerkId) Promise~void~
-        -enqueueClerkDeletion(userId) Promise~void~
-        -enqueuePineconeCleanup(userId) Promise~void~
+        +deleteAccountData(userId, opts) Promise~AccountDeletionResult~
+        -createTombstone(user) Promise~void~
+        -deleteMongoUserData(userId) Promise~void~
+        -enqueueRetryOnExternalFailure(userId) Promise~void~
     }
 
     class ClerkDeletionQueue {
@@ -89,38 +106,42 @@ classDiagram
         -deleteVectorsForUser(userId) Promise~void~
     }
 
-    AiClient ..> ContextLoader : bruker
-    AiClient ..> CohereRerank : (via HybridRetrieval)
+    KiRoute ..> ContextLoader : Canvas/kursmateriale
+    KiRoute ..> IndexeringService : KB search
+    KiRoute ..> AiClient : Claude streaming
     ContextLoader ..> CanvasService : Canvas-kontekst
-    ContextLoader ..> HybridRetrieval : KB-kontekst
+    ContextLoader ..> HybridRetrieval : Canvas/kursmateriale-kontekst
     HybridRetrieval ..> PineconeService : vektorsøk
     HybridRetrieval ..> Bm25Service : nøkkelordsøk
     HybridRetrieval ..> CohereRerank : reranking
-    IndexeringService ..> EmbeddingService : embeddings
-    IndexeringService ..> PineconeService : upsert
-    CanvasService ..> KrypteringUtil : token-dekryptering
+    IndexeringService ..> PineconeService : KB upsert/query/delete
+    IndexeringService ..> CohereRerank : KB reranking
+    CanvasSyncService ..> CanvasService : Canvas API
+    CanvasSyncService ..> EmbeddingService : Canvas-innhold
     RequireAuth ..> KrypteringUtil : Canvas-token
     KontoSlett ..> ClerkDeletionQueue : enqueue
     KontoSlett ..> PineconeCleanupQueue : enqueue
-    PineconeCleanupQueue ..> PineconeService : namespace-slett
+    PineconeCleanupQueue ..> PineconeService : filter-slett
 ```
 
 ## Klasse-/modulbeskrivelser
 
 | Klasse | Fil | Hovedansvar |
 |--------|-----|-------------|
+| `KiRoute` | `backend/src/rutere/ki/ki.ts` | Orkestrerer chat-requesten: Canvas, KB, prompt, streaming og lagring |
 | `AiClient` | `backend/src/rutere/ki/aiClient.ts` | Kall Claude via Vercel AI SDK, parse `<svarkilde>`-tag |
-| `ContextLoader` | `backend/src/services/context-loader.service.ts` | Sammenstille Canvas + KB-kontekst |
+| `ContextLoader` | `backend/src/services/context-loader.service.ts` | Sammenstille Canvas-/kursmateriale-kontekst |
 | `HybridRetrieval` | `backend/src/services/hybrid-retrieval.service.ts` | Kjøre vektor + BM25 + rerank |
 | `CohereRerank` | `backend/src/services/cohere-rerank.service.ts` | Cohere rerank-v3.5 |
-| `PineconeService` | `backend/src/services/pinecone.service.ts` | Pinecone upsert/query/slett |
-| `Bm25Service` | `backend/src/services/bm25.service.ts` | BM25-søk mot `KBContentChunk` |
-| `EmbeddingService` | `backend/src/services/embedding.service.ts` | Embeddings via Anthropic |
+| `PineconeService` | `backend/src/services/pinecone.service.ts` | Pinecone upsert/query/delete-by-filter med delt namespace og `userId`-metadata |
+| `Bm25Service` | `backend/src/services/bm25.service.ts` | BM25-søk mot Canvas-/kurschunks i `ContentEmbedding` |
+| `EmbeddingService` | `backend/src/services/embedding.service.ts` | Lagrer chunks i MongoDB og bruker Pinecone integrated embedding for vektorsøk |
 | `CanvasService` | `backend/src/rutere/canvas/canvasService.ts` | Canvas REST API + Redis-cache |
-| `IndexeringService` | `backend/src/services/kunnskapsbase-indeksering.service.ts` | Tekstutvinning + chunking + PII-sanitize |
+| `CanvasSyncService` | `backend/src/services/canvas-sync.service.ts` | Synkronisering av Canvas-struktur/innhold og cache-invalidasjon |
+| `IndexeringService` | `backend/src/services/kunnskapsbase-indeksering.service.ts` | KB-indexering, Pinecone-søk, Cohere-rerank og MongoDB-fallback |
 | `KrypteringUtil` | `backend/src/utils/kryptering.ts` | AES-256-GCM kryptering |
 | `RequireAuth` | `backend/src/middleware/auth.ts` | Clerk Bearer-verifisering |
-| `KontoSlett` | `backend/src/rutere/auth/kontoSlett.ts` | Soft-delete + jobb-enqueue |
+| `KontoSlett` | `backend/src/rutere/auth/kontoSlett.ts` | Hard delete + tombstone + retry-enqueue for Clerk/Pinecone |
 | `ClerkDeletionQueue` | `backend/src/queues/clerkDeletion.queue.ts` | BullMQ-prosessor |
 | `PineconeCleanupQueue` | `backend/src/queues/pineconeCleanup.queue.ts` | BullMQ-prosessor |
 

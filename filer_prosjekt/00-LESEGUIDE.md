@@ -10,7 +10,7 @@ I sensordokumentasjonen omtales `studwize.page` som en offentlig demo / produksj
 
 - **Offentlig demo / produksjonslik deploy:** <https://www.studwize.page>
 - **Teknologi:** TypeScript, Next.js 16, Express 5, MongoDB, Redis, Pinecone, Anthropic Claude, Cohere, Clerk
-- **Kodebase:** monorepo (pnpm workspaces) med ca. 50 000 linjer TypeScript
+- **Kodebase:** monorepo (pnpm workspaces) med 130 000+ linjer TypeScript
 - **Drift:** Vercel (frontend) + Heroku (backend) + Cloudflare (DNS/CDN/WAF/SSL/TLS/Worker)
 
 ## Arkitektur på ett minutt

@@ -6,7 +6,9 @@
 # syntax=docker/dockerfile:1
 FROM node:24-alpine AS deps
 
-RUN npm install -g pnpm@10.33.4
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 
 WORKDIR /app
 
@@ -67,7 +69,9 @@ RUN --mount=type=secret,id=CLERK_SECRET_KEY \
 # Backend runtime
 FROM node:24-alpine AS backend
 
-RUN npm install -g pnpm@10.33.4
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 
 WORKDIR /app
 

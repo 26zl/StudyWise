@@ -1,9 +1,3 @@
-/*
-* Dette skriptet sletter alle node_modules mapper og build mapper i prosjektet, samt pnpm-lock.yaml og pnpm store.
-* En del av package skriptet "clean-all" som er ment å brukes
-*/ 
-
-
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -11,6 +5,7 @@ import { execSync } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, "..");
+const removeLockfile = process.argv.includes("--lockfile");
 
 const pathsToClean = [
   "backend/dist",
@@ -30,10 +25,17 @@ const pathsToClean = [
   "node_modules",
   ".pnpm-store",
   ".turbo",
-  "pnpm-lock.yaml",
 ];
 
-console.log("Cleaning all (including node_modules)...");
+if (removeLockfile) {
+  pathsToClean.push("pnpm-lock.yaml");
+}
+
+console.log(
+  removeLockfile
+    ? "Cleaning generated files, node_modules and pnpm-lock.yaml..."
+    : "Cleaning generated files and node_modules (keeping pnpm-lock.yaml)...",
+);
 
 for (const p of pathsToClean) {
   const fullPath = path.join(rootDir, p);

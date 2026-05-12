@@ -6,8 +6,8 @@ Tre logiske job-typer prosesseres av én Worker på én kø (`studywise-jobs`) f
 flowchart LR
     subgraph Producers["Producers"]
         KS["kontoSlett.ts<br/>(bruker-sletting)"]
+        AUTH["middleware/auth.ts<br/>(Clerk cleanup)"]
         WP["webPush.service<br/>(varsler)"]
-        IDX["indeksering.service<br/>(opprydding)"]
     end
 
     subgraph Old["Gamle køer (engangs-migrasjon)"]
@@ -27,14 +27,14 @@ flowchart LR
 
     subgraph External["Eksterne effekter"]
         CLERK["Clerk<br/>users.deleteUser"]
-        PINE["Pinecone<br/>namespace delete"]
+        PINE["Pinecone<br/>delete by metadata filter"]
         PUSH["Web Push<br/>VAPID"]
     end
 
     KS -->|add 'clerk-deletion'| UQ
     KS -->|add 'pinecone-cleanup'| UQ
+    AUTH -->|add 'clerk-deletion'| UQ
     WP -->|add 'web-push'| UQ
-    IDX -->|add 'pinecone-cleanup'| UQ
 
     Q1 -. migrateOldQueues .-> UQ
     Q2 -. migrateOldQueues .-> UQ

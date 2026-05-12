@@ -1,6 +1,6 @@
 # KI-chat-pipeline (sequence)
 
-Hele veien fra brukerens spørsmål til streamet svar med kildebadge. Pipelinen henter Canvas-kontekst og kunnskapsbase-kontekst hvis aktivert, sender til Claude via Vercel AI SDK med prompt-caching, og parser ut `<svarkilde>`-taggen før den lagres og streames til frontend.
+Hele veien fra brukerens spørsmål til streamet svar med kildebadge. Pipelinen henter Canvas-/kursmateriale-kontekst via `context-loader.service`, henter aktiv kunnskapsbase via `searchKBContent` hvis brukeren har valgt en base, sender samlet kontekst til Claude via Vercel AI SDK med prompt-caching, og parser ut `<svarkilde>`-taggen før svaret lagres og streames til frontend.
 
 ```mermaid
 sequenceDiagram
@@ -9,10 +9,12 @@ sequenceDiagram
     participant FE as Frontend
     participant API as POST /api/ki/chat
     participant CTX as context-loader.service
-    participant HR as hybrid-retrieval.service
+    participant HR as hybrid-retrieval.service (Canvas)
+    participant KB as searchKBContent (KB)
     participant CAN as Canvas API
     participant PINE as Pinecone
     participant BM25 as BM25 (Mongo)
+    participant KBDB as KBContentChunk (Mongo)
     participant CO as Cohere rerank
     participant AI as aiClient (Vercel AI SDK)
     participant ANT as Anthropic Claude
@@ -20,11 +22,10 @@ sequenceDiagram
 
     U->>FE: Skriver spørsmål
     FE->>API: SSE-strøm m/ messages, kursId, useKB
-    API->>CTX: loadCanvasContext + loadKnowledgeBaseContext
-    par Canvas
+    par Canvas / kursmateriale
+        API->>CTX: loadCanvasContext(...)
         CTX->>CAN: hent moduler/sider/oppgaver
         CAN-->>CTX: data
-    and Kunnskapsbase
         CTX->>HR: hybridRetrieval(query, userId)
         par Vektor
             HR->>PINE: semantisk søk
@@ -36,8 +37,19 @@ sequenceDiagram
         HR->>CO: rerank(query, kandidater)
         CO-->>HR: top-N
         HR-->>CTX: kontekst-chunks
+        CTX-->>API: Canvas-/kurskontekst
+    and Kunnskapsbase
+        API->>KB: searchKBContent(userId, baseId, query)
+        KB->>PINE: pineconeQuery(userId + kb:baseId)
+        PINE-->>KB: kandidater
+        KB->>KBDB: hent chunk-tekst
+        KB->>CO: rerank(query, kandidater)
+        alt Pinecone tom/utilgjengelig
+            KB->>KBDB: keyword/recent fallback
+        end
+        KB-->>API: <kunnskapsbase>-kontekst
     end
-    CTX-->>API: sammensatt kontekst
+    API->>API: Slå sammen Canvas + KB + chat-historikk
     API->>AI: streamText(messages + system + cache)
     AI->>ANT: Anthropic Messages API (streaming)
     loop Tokens

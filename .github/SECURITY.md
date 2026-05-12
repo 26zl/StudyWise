@@ -87,3 +87,31 @@ For en oversikt over hvordan tjenesten er sikret, se:
 - Brukerrettet: [/sikkerhet](https://www.studwize.page/sikkerhet)
 - Intern risikovurdering: [PIA.md](../compliance/PIA.md)
 - Hva vi gjør ved brudd: [INCIDENT_RESPONSE.md](../compliance/INCIDENT_RESPONSE.md)
+
+## GitHub Actions-sikkerhet
+
+Workflowene skal ikke bruke `pull_request_target`. Validering av pull
+requests skal skje med ordinær `pull_request` og minst mulig tilgang.
+
+Deploy-, publish-, release- og andre privilegerte workflows med secrets eller
+write-permissions skal kjøre rene installasjoner uten delte
+package-manager-cacher (`actions/cache`, `cache: pnpm`, restore keys osv.).
+De skal heller ikke installere verktøy med global `npm install -g` eller
+`curl | sh`.
+Dette håndheves i CI med `pnpm lint:actions-security`.
+
+## Avhengighetssikkerhet
+
+Repoet bruker pnpm og `minimumReleaseAge: 7200` i `pnpm-workspace.yaml`.
+Det betyr at nye npm-publiseringer må være minst 5 dager gamle før pnpm kan
+løse dem inn. Dette reduserer risikoen for at en ny, kompromittert
+pakkeversjon rekker inn i dependency-update eller lokale installs før den er
+oppdaget og fjernet fra registryet. CI håndhever dette med
+`pnpm lint:pnpm-security`.
+
+CI genererer en CycloneDX SBOM fra `package.json` og `pnpm-lock.yaml`, og
+laster den opp som workflow-artefakt. Dockerfile og backend-container-image
+skannes med Trivy for HIGH/CRITICAL funn. `safe-chain` installeres fra en
+versjonspinnet release-binær med SHA-256-verifisering. Vercel CLI kjøres via
+`pnpm exec`, slik at deploy-verktøyet også er dekket av lockfile og pnpm sine
+supply-chain-regler.

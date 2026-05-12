@@ -54,11 +54,12 @@ Frontend kjører på Vercel bak Cloudflare, mens backend kjører på Heroku bak 
 
 ## Kom i gang
 
-**Forutsetninger:** Node.js 24 LTS, og pnpm (`npm install -g pnpm`). CI og deploy er satt opp for Node 24.
+**Forutsetninger:** Node.js 24 LTS og pnpm via Corepack. CI og deploy er satt opp for Node 24, og repoet har både `.node-version` og `.nvmrc` for samme versjon.
 
 ```bash
 git clone https://github.com/26zl/StudyWise.git
 cd StudyWise
+corepack enable
 pnpm install
 
 # Konfigurer miljøvariabler
@@ -101,6 +102,7 @@ pnpm test                 # Integrasjonstester
 pnpm test:auth:e2e        # E2E-tester (Playwright)
 
 # Vedlikehold
+pnpm update               # Sikker dependency-oppdatering innenfor semver + minimumReleaseAge
 pnpm clean:install        # Full reinstall
 pnpm knip                 # Finn ubrukt kode
 pnpm syncpack:list        # Sjekk versjonssynkronisering
@@ -125,6 +127,8 @@ pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
 De samme sjekkene håndheves automatisk i pull requests via GitHub Actions, slik at kvalitetskravet er likt på tvers av utviklingsmiljøer.
+CI håndhever også Actions-sikkerhet med `pnpm lint:actions-security` og pnpm supply-chain-regelen med `pnpm lint:pnpm-security`: repoet skal ikke bruke `pull_request_target`, deploy/publish/privilegerte workflows skal ikke bruke delte package-manager-cacher, global `npm install -g` eller `curl | sh`, og `minimumReleaseAge` skal ikke senkes under 5 dager.
+CI genererer CycloneDX SBOM som artefakt og skanner Dockerfile/backend-image med Trivy. Eksterne `safe-chain`-binærer lastes ned med SHA-256-verifisering før bruk, og Vercel CLI kjøres fra pnpm-locken i stedet for global npm-install.
 
 ## Testing
 
@@ -147,7 +151,8 @@ Se [tests/README.md](./tests/README.md) for detaljer.
 
 ## Avhengigheter
 
-Dependabot kjører ukentlig (mandager 06:00 CET) og åpner grupperte pull requests for npm og GitHub Actions. Security-advisories åpner PR-er umiddelbart. Konfigurasjon ligger i [`.github/dependabot.yml`](./.github/dependabot.yml).
+Dependency-oppdateringer håndteres på to spor: `update-dependencies.yml` kjører ukentlig `pnpm update:safe` innenfor semver-rangene i `package.json` og `minimumReleaseAge`, mens Dependabot åpner ukentlige PR-er for GitHub Actions. Security-advisories åpner PR-er umiddelbart. Konfigurasjon ligger i [`.github/dependabot.yml`](./.github/dependabot.yml).
+pnpm er konfigurert med `minimumReleaseAge: 7200` i `pnpm-workspace.yaml`, slik at nye npm-publiseringer må være minst 5 dager gamle før de kan løses inn. Det blokkerer helt ferske kompromitterte publiseringer, men låser oss ikke til gamle versjoner: ukentlig update-workflow plukker fortsatt opp patch/minor-oppdateringer etter venteperioden.
 
 ## Dokumentasjon og policyer
 

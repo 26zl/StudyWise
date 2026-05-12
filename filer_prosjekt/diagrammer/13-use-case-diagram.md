@@ -9,6 +9,7 @@ flowchart LR
     System((Vedlikeholdsjobb<br/>BullMQ/cron))
     Canvas((Canvas LMS))
     Clerk((Clerk))
+    Pinecone((Pinecone))
 
     subgraph StudyWise["Use cases — StudyWise"]
         UC1["Registrere konto<br/>+ akseptere vilkår"]
@@ -26,8 +27,8 @@ flowchart LR
         UC13["Se audit-logger"]
         UC14["Administrere brukere"]
         UC15["Inspisere BullMQ-køer"]
-        UC16["Synke Canvas-data<br/>(planlagt)"]
-        UC17["Rydde tombstone-rader<br/>(TTL-job)"]
+        UC16["Retry ekstern sletting<br/>(Clerk/Pinecone)"]
+        UC17["Sende web-push<br/>varsler"]
         UC18["Rydde utløpte<br/>delte samtaler"]
     end
 
@@ -54,13 +55,15 @@ flowchart LR
 
     UC2 -. include .-> Canvas
     UC3 -. include .-> Canvas
+    UC16 -. include .-> Clerk
+    UC16 -. include .-> Pinecone
     UC1 -. include .-> Clerk
     UC11 -. include .-> Clerk
 
     classDef actor fill:#fde68a,stroke:#92400e,color:#1f2937
     classDef ext fill:#fecaca,stroke:#991b1b,color:#1f2937
     class Student,Admin,System actor
-    class Canvas,Clerk ext
+    class Canvas,Clerk,Pinecone ext
 ```
 
 ## Aktører
@@ -72,3 +75,4 @@ flowchart LR
 | **Vedlikeholdsjobb** | Automatiske bakgrunnsprosesser (BullMQ-workers, intervall-pollere). Ingen menneskelig aktør. |
 | **Canvas LMS** | Ekstern aktør som leverer kursdata via REST API. |
 | **Clerk** | Ekstern aktør for autentisering, sender også webhooks for bruker-livssyklus. |
+| **Pinecone** | Ekstern vektortjeneste som brukes ved søk og opprydding av brukerdata. |

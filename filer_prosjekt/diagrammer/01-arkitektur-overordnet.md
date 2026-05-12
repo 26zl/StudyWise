@@ -23,7 +23,7 @@ flowchart LR
     subgraph Datalag["Datalag"]
         MONGO[("MongoDB<br/>Mongoose")]
         REDIS[("Redis<br/>cache + BullMQ")]
-        PINE[("Pinecone<br/>vektorindeks")]
+        PINE[("Pinecone<br/>integrated embedding<br/>+ vektorindeks")]
     end
 
     subgraph Eksterne["Eksterne tjenester"]
@@ -46,11 +46,11 @@ flowchart LR
 
     BE --> MONGO
     BE --> REDIS
-    BE --> PINE
+    BE -->|tekst records + metadatafilter| PINE
 
     BE -->|Bearer-token verifisering| CLERK
     BE -->|kursdata| CANVAS
-    BE -->|chat + embeddings| ANTH
+    BE -->|chat + vision| ANTH
     BE -->|rerank| COHERE
     BE -->|kontaktskjema| CFW
 

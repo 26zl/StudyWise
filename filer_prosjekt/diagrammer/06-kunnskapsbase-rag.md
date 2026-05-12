@@ -1,39 +1,40 @@
-# Kunnskapsbase — hybrid RAG
+# Kunnskapsbase — RAG-søk
 
-To parallelle søkeveier (vektor + nøkkelord) mot brukerens private kunnskapsbase, slått sammen og rerangert av Cohere. PII fjernes før innhold sendes til Pinecone — det er den siste grensen før data forlater backend.
+RAG-flyt for brukerens private kunnskapsbase. Skriveveien lagrer chunks i `KBContentChunk` og upsert-er tekstrecords til Pinecone. Leseveien bruker `searchKBContent`: Pinecone semantisk søk med `userId` + `kb:<baseId>`-filter, Cohere-rerank ved treff og MongoDB keyword/recent fallback når Pinecone ikke gir brukbare resultater.
 
 ```mermaid
 flowchart LR
     subgraph Indeksering["Indeksering (skrivevei)"]
         UP["Bruker laster opp<br/>PDF/DOCX/lenke"]
-        PARSE["fileExtractor /<br/>documentParserWorker"]
-        SAN["PII-sanitize<br/>(regex i indeksering.service)"]
+        PARSE["extractTextFromFile / crawler<br/>documentParserWorker ved filer"]
+        SAN["PII-maskering for filtekst<br/>prompt-tag sanitize ved kontekst"]
         CHUNK["chunk.service<br/>tekst-chunks"]
-        EMB["embedding.service<br/>Anthropic embeddings"]
+        IDX["kunnskapsbase-indeksering.service<br/>indexKBContent"]
         KB[("Kunnskapsbase + KBContentChunk<br/>(MongoDB)")]
-        PINE_W[("Pinecone<br/>vektorer m/ namespace=userId")]
+        PINE_W[("Pinecone<br/>delt namespace<br/>metadata: userId/base")]
     end
 
-    UP --> PARSE --> SAN --> CHUNK --> EMB
-    CHUNK -.lagrer chunk-tekst.-> KB
-    EMB -->|upsert| PINE_W
+    UP --> PARSE --> SAN --> IDX
+    IDX --> CHUNK
+    CHUNK -->|chunks| IDX
+    IDX -->|lagrer chunk-tekst| KB
+    IDX -->|upsert tekst records| PINE_W
 
     subgraph Lesing["Lesing (søk)"]
         Q["Bruker stiller spørsmål"]
-        HR["hybrid-retrieval.service"]
-        VEC["semantic-search.service<br/>(Pinecone)"]
-        BM["bm25.service<br/>(KBContentChunk)"]
+        SEARCH["searchKBContent<br/>(kunnskapsbase-indeksering.service)"]
+        VEC["pineconeQuery<br/>userId + kb:baseId-filter"]
         RR["cohere-rerank.service"]
+        FB["MongoDB keyword/recent fallback<br/>(KBContentChunk)"]
         OUT["Topp-N kontekst-chunks<br/>til chat-pipeline"]
     end
 
-    Q --> HR
-    HR --> VEC
-    HR --> BM
+    Q --> SEARCH
+    SEARCH --> VEC
     VEC --> RR
-    BM --> RR
     RR --> OUT
+    SEARCH --> FB --> OUT
 
     PINE_W -. brukes av .-> VEC
-    KB -. brukes av .-> BM
+    KB -. hydrering/fallback .-> SEARCH
 ```

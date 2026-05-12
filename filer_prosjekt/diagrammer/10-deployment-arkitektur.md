@@ -17,7 +17,7 @@ flowchart LR
     end
 
     subgraph Vercel["Vercel"]
-        FE["frontend (Next.js 16)<br/>edge cache + ISR"]
+        FE["frontend (Next.js 16)<br/>SSR + statiske routes/assets"]
     end
 
     subgraph Heroku["Heroku"]
@@ -26,7 +26,9 @@ flowchart LR
 
     subgraph GH["GitHub"]
         REPO["studywise repo"]
-        ACT["GitHub Actions<br/>CI: typecheck, test, lint, TruffleHog"]
+        ACT["GitHub Actions<br/>CI, SBOM, Trivy,<br/>E2E, frontend/docs deploy"]
+        HEROKU_AUTO["Heroku Automatic Deploys<br/>fra main"]
+        CF_BUILD["Cloudflare Workers Builds<br/>wrangler.toml"]
         PAGES["GitHub Pages<br/>VitePress docs"]
     end
 
@@ -70,9 +72,9 @@ flowchart LR
     BE -.-> LS
     BE -.-> GR
 
-    REPO -->|push| ACT
-    ACT -->|deploy| FE
-    ACT -->|deploy| BE
-    ACT -->|deploy| PAGES
-    ACT -->|deploy| WK
+    REPO -->|push / PR| ACT
+    ACT -->|deploy.yml etter grønn E2E| FE
+    ACT -->|deploy.docs.yml| PAGES
+    REPO -->|main| HEROKU_AUTO --> BE
+    REPO -->|main| CF_BUILD --> WK
 ```
