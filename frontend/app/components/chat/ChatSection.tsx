@@ -1408,16 +1408,21 @@ export function ChatSection() {
         const abortController = new AbortController();
         chatAbortRef.current = abortController;
 
-        void streamKIChat(apiMeldinger, {
-            explanationLevel,
-            model: selectedChatModel,
-            signal: abortController.signal,
-            // Send chat-ID slik at backend kan skope session-state (courseHint-lås,
-            // aktiv kunnskapsbase, kontekst-cache) per chat i stedet for per bruker.
-            // Uten dette kan to chatter som åpnet med samme spørsmål ("Hvilke emner
-            // er jeg registrert på?") dele lås og krysskontaminere hverandre.
-            ...(aktivChatIdRef.current && { chatId: aktivChatIdRef.current }),
-        })
+        const streamChat = async () => {
+            const resolvedChatId = aktivChatIdRef.current ?? await chatIdPromise;
+            return streamKIChat(apiMeldinger, {
+                explanationLevel,
+                model: selectedChatModel,
+                signal: abortController.signal,
+                // Send chat-ID slik at backend kan skope session-state (courseHint-lås,
+                // aktiv kunnskapsbase, kontekst-cache) per chat i stedet for per bruker.
+                // Uten dette kan to chatter som åpnet med samme spørsmål ("Hvilke emner
+                // er jeg registrert på?") dele lås og krysskontaminere hverandre.
+                ...(resolvedChatId && { chatId: resolvedChatId }),
+            });
+        };
+
+        void streamChat()
             .then((data) => {
                 chatAbortRef.current = null;
                 const responseText = data.response.trim();
@@ -1551,7 +1556,13 @@ export function ChatSection() {
                         return;
                     }
                     if (valgt?.type === "base") {
-                        aktiverKunnskapsbase(valgt.base.navn);
+                        const raw = tekstInput.trimStart();
+                        const base = valgt.base.navn.trim();
+                        if (raw.toLowerCase() === `/${base.toLowerCase()}`) {
+                            void sendMeldingRef.current({ forcedText: `/${base}` });
+                        } else {
+                            aktiverKunnskapsbase(valgt.base.navn);
+                        }
                         return;
                     }
                 }
