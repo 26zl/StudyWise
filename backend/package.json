@@ -34,7 +34,7 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.10.1",
     "js-tiktoken": "^1.0.21",
-    "langsmith": "^0.5.26",
+    "langsmith": "^0.6.0",
     "linkedom": "^0.18.12",
     "mammoth": "^1.12.0",
     "mongoose": "^9.6.1",
