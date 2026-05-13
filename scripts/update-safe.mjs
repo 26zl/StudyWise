@@ -52,10 +52,15 @@ function run(command, commandArgs) {
     env: process.env,
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,
+    shell: true,
   });
 
   if (result.stdout) process.stdout.write(result.stdout);
   if (result.stderr) process.stderr.write(result.stderr);
+
+  if (result.error) {
+    process.stderr.write(`${result.error.message}\n`);
+  }
 
   return {
     status: result.status ?? 1,
@@ -68,6 +73,7 @@ function runChecked(command, commandArgs) {
     cwd: rootDir,
     env: process.env,
     stdio: "inherit",
+    shell: true,
   });
   return result.status ?? 1;
 }
