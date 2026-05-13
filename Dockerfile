@@ -87,6 +87,17 @@ COPY --from=backend-build /app/common/dist common/dist
 COPY --from=backend-build /app/common/package.json common/
 COPY --from=backend-build /app/backend/dist backend/dist
 
+# Runtime trenger bare Node.js og bygde artefakter, ikke npm/pnpm/corepack.
+RUN rm -rf \
+    /root/.cache/node/corepack \
+    /usr/local/bin/corepack \
+    /usr/local/bin/npm \
+    /usr/local/bin/npx \
+    /usr/local/bin/pnpm \
+    /usr/local/bin/pnpx \
+    /usr/local/lib/node_modules/corepack \
+    /usr/local/lib/node_modules/npm
+
 RUN chown -R node:node /app
 USER node
 
