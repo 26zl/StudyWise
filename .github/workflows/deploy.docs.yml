@@ -54,7 +54,7 @@ jobs:
         run: safe-chain -v
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
+        run: pnpm install --frozen-lockfile
 
       - name: Build docs
         run: pnpm --filter docs build

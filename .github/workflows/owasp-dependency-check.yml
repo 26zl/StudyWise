@@ -48,7 +48,7 @@ jobs:
         run: safe-chain -v
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
+        run: pnpm install --frozen-lockfile
 
       # dependency-check/Dependency-Check_Action: bruk @1.1.0 (v5 finnes ikke); input heter 'others' ikke 'args'
       # Workspace-package.json ekskluderes fra Node Package Analyzer fordi pnpm har kun én

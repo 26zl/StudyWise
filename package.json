@@ -32,7 +32,7 @@
     "lint:soft-delete": "node scripts/lint-soft-delete.mjs",
     "outdated": "pnpm -r outdated",
     "predev": "pnpm --filter common build",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare-husky.mjs",
     "sbom:cyclonedx": "node scripts/generate-cyclonedx-sbom.mjs",
     "start": "pnpm run start:parallel",
     "start:backend": "pnpm --filter backend start",
@@ -84,7 +84,7 @@
     "remark-cli": "^12.0.1",
     "remark-preset-lint-recommended": "^7.0.1",
     "syncpack": "^14.3.1",
-    "vercel": "^50.44.0",
+    "vercel": "^53.2.0",
     "wait-on": "^9.0.5",
     "wrangler": "^4.90.0"
   },
@@ -123,6 +123,11 @@
       "socks@2.8.9": "2.8.8",
       "tar@<7.5.11": "^7.5.15",
       "undici@<6.24.0": "^6.25.0",
+      "@tootallnate/once@<3.0.1": "^3.0.1",
+      "ajv@>=7.0.0-alpha.0 <8.18.0": "^8.18.0",
+      "path-to-regexp@>=6.0.0 <6.3.0": "^6.3.0",
+      "smol-toml@<1.6.1": "^1.6.1",
+      "srvx@<0.11.13": "^0.11.13",
       "path-to-regexp@>=8.0.0 <8.4.0": "^8.4.2"
     },
     "onlyBuiltDependencies": [

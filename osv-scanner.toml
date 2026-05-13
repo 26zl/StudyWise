@@ -1,0 +1,12 @@
+# OSV Scanner ignore configuration.
+# Keep exceptions narrow, documented, and time-boxed.
+
+[[IgnoredVulns]]
+id = "GHSA-fm4j-4xhm-xpwx"
+reason = "Transitive dependency of Vercel CLI (dev/CI deploy tooling only). OSV has no fixed sandbox version, and this package is not shipped in frontend/backend runtime images. Revisit when Vercel removes sandbox or OSV publishes a patched version."
+ignoreUntil = 2026-08-13
+
+[[IgnoredVulns]]
+id = "GHSA-gc25-3vc5-2jf9"
+reason = "Transitive dependency of Vercel CLI (dev/CI deploy tooling only). OSV has no fixed sandbox version, and this package is not shipped in frontend/backend runtime images. Revisit when Vercel removes sandbox or OSV publishes a patched version."
+ignoreUntil = 2026-08-13

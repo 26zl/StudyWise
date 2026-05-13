@@ -14,6 +14,7 @@ WORKDIR /app
 
 # Kopier package-filer for caching
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY scripts/prepare-husky.mjs scripts/
 COPY common/package.json common/
 COPY backend/package.json backend/
 COPY frontend/package.json frontend/
@@ -76,6 +77,7 @@ RUN corepack enable && corepack prepare pnpm@10.33.4 --activate
 WORKDIR /app
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY scripts/prepare-husky.mjs scripts/
 COPY common/package.json common/
 COPY backend/package.json backend/
 

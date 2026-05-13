@@ -105,7 +105,7 @@ jobs:
           exit 1
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --safe-chain-skip-minimum-package-age
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright browsers
         run: pnpm --filter tests exec playwright install --with-deps chromium
