@@ -139,8 +139,8 @@ importers:
         specifier: ^1.0.21
         version: 1.0.21
       langsmith:
-        specifier: ^0.6.0
-        version: 0.6.0(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.1))(ws@8.18.0)
+        specifier: ^0.6.3
+        version: 0.6.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.1))(ws@8.18.0)
       linkedom:
         specifier: ^0.18.12
         version: 0.18.12
@@ -148,8 +148,8 @@ importers:
         specifier: ^1.12.0
         version: 1.12.0
       mongoose:
-        specifier: ^9.6.1
-        version: 9.6.1(socks@2.8.8)
+        specifier: ^9.6.2
+        version: 9.6.2(socks@2.8.8)
       multer:
         specifier: ^2.1.1
         version: 2.1.1
@@ -467,8 +467,8 @@ importers:
         specifier: ^17.4.2
         version: 17.4.2
       mongoose:
-        specifier: ^9.6.1
-        version: 9.6.1(socks@2.8.8)
+        specifier: ^9.6.2
+        version: 9.6.2(socks@2.8.8)
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
@@ -3244,8 +3244,8 @@ packages:
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
-  baseline-browser-mapping@2.10.27:
-    resolution: {integrity: sha512-zEs/ufmZoUd7WftKpKyXaT6RFxpQ5Qm9xytKRHvJfxFV9DFJkZph9RvJ1LcOUi0Z1ZVijMte65JbILeV+8QQEA==}
+  baseline-browser-mapping@2.10.28:
+    resolution: {integrity: sha512-Ic44hnOtFIgravCunj1ifSoQPSUrkNiJuH9Mf6jr2jjoA74icqV8wU0KuadXeOR8zuIJMOoTv0GuQjZ9ZYNMeA==}
     engines: {node: '>=6.0.0'}
     hasBin: true
 
@@ -4630,8 +4630,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  langsmith@0.6.0:
-    resolution: {integrity: sha512-GGaj5IMRfLv2HXXFzGk9diISMYLTpSTh6fzCZGKxWYW/NqEztIFtnXLq6G/RVhzFRmCykLap1fuC67LVKoQLcg==}
+  langsmith@0.6.3:
+    resolution: {integrity: sha512-pXrQ4/4myQvjFFOAUmt5pWRrLEZR20gzIJD7MNdUH+5/S5nLI4ZRBo/SYKC6coaYj9pYTfQdBIzcs+3kfJ5uDA==}
     peerDependencies:
       '@opentelemetry/api': '*'
       '@opentelemetry/exporter-trace-otlp-proto': '*'
@@ -5151,8 +5151,8 @@ packages:
       socks:
         optional: true
 
-  mongoose@9.6.1:
-    resolution: {integrity: sha512-3T8/b0plM3ZJPW3WjlzVMIGJEYYTjgDPQ05Qzru3xu3/wOPSFKWYxdwUF2dl8h3NG5dVkzIuOkZdLacnlLf/sA==}
+  mongoose@9.6.2:
+    resolution: {integrity: sha512-7m8HntjkoRnwEmuPC0kdlwcZXJOQf4twumFj+PNzg/anqqZE2Er7hQslqyzy07mP3JcFjoTSgH5765PyqOXsxw==}
     engines: {node: '>=20.19.0'}
 
   motion-dom@12.38.0:
@@ -9588,7 +9588,7 @@ snapshots:
 
   base64-js@1.5.1: {}
 
-  baseline-browser-mapping@2.10.27: {}
+  baseline-browser-mapping@2.10.28: {}
 
   basic-ftp@5.3.1: {}
 
@@ -9659,7 +9659,7 @@ snapshots:
 
   browserslist@4.28.2:
     dependencies:
-      baseline-browser-mapping: 2.10.27
+      baseline-browser-mapping: 2.10.28
       caniuse-lite: 1.0.30001792
       electron-to-chromium: 1.5.352
       node-releases: 2.0.38
@@ -11112,7 +11112,7 @@ snapshots:
       - '@emnapi/core'
       - '@emnapi/runtime'
 
-  langsmith@0.6.0(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.1))(ws@8.18.0):
+  langsmith@0.6.3(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.1))(ws@8.18.0):
     dependencies:
       p-queue: 6.6.2
     optionalDependencies:
@@ -11802,7 +11802,7 @@ snapshots:
     optionalDependencies:
       socks: 2.8.8
 
-  mongoose@9.6.1(socks@2.8.8):
+  mongoose@9.6.2(socks@2.8.8):
     dependencies:
       kareem: 3.3.0
       mongodb: 7.2.0(socks@2.8.8)
@@ -11883,7 +11883,7 @@ snapshots:
     dependencies:
       '@next/env': 16.2.6
       '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.27
+      baseline-browser-mapping: 2.10.28
       caniuse-lite: 1.0.30001792
       postcss: 8.5.14
       react: 19.2.6
