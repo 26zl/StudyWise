@@ -67,6 +67,10 @@ Vi har estimert ca. 30 minutter for en grundig orientering før selve hovedrappo
 | Kvalitet og prosjekt | 15, 16, 18, 19 |
 | UML | 03, 04, 13, 17 |
 
+### `rapport-figurer/`
+
+Rapport-klare kopier og navnemapping for figurene i bachelorrapporten. Start med [`rapport-figurer/00-INNSETTINGSGUIDE.md`](rapport-figurer/00-INNSETTINGSGUIDE.md), som viser nøyaktig hvilken PNG eller Mermaid-kilde som hører til hver `Figur X` i rapportteksten.
+
 ### Prosjektledelse og metode
 
 - [`Prosjektbeskrivelse_gruppe3.pdf`](Prosjektbeskrivelse_gruppe3.pdf) — formell prosjektbeskrivelse innlevert ved oppstart.
