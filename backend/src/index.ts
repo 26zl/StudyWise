@@ -1,6 +1,6 @@
 /*
  * Backend entry point – Express-server.
- * Setter opp middleware, ruter og starter serveren.
+ * Setter opp middleware, ruter, og starter serveren.
  *
  * NB! Serveren kobler til MongoDB ved oppstart (se nederst i filen).
  * Mongoose holder tilkoblingen åpen globalt; importer modellene og bruk dem direkte i ruter.

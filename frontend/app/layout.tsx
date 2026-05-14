@@ -1,6 +1,6 @@
 /*
  * Root layout – én felles shell for hele appen (Next.js standard oppsett).
- * Clerk, tema, Providers, Header, Toaster osv. omslutter alle ruter.
+ * Clerk, tema, Providers, Header, Toaster, osv. omslutter alle ruter.
  */
 import type { Metadata, Viewport } from "next";
 import { cookies, headers } from "next/headers";
