@@ -26,7 +26,7 @@ Sett inn disse PNG-filene der rapportteksten har tilsvarende `[FIGUR ...]`-plass
 | Figur 12 | `hovedrapport/figur-12-dataflyt-kryptering-og-pii-sanitering.png` | Figur 12: Dataflyt med kryptering og PII-sanitering. |
 | Figur 13 | `hovedrapport/figur-13-sus-resultater-per-pastand.png` | Figur 13: SUS-resultater per påstand. |
 
-Figur 7 må fortsatt lages manuelt fra Figma-wireframe og produksjonsskjermbilde. Notatet ligger i `kilder/MANGLER-figur-07-wireframe-vs-endelig-implementasjon.md`.
+Figur 7 må fortsatt lages manuelt fra Figma-wireframe og produksjonsskjermbilde. Notatet ligger i `kilder/MANGLER-figur-07-wireframe-vs-endelig-implementasjon.md`. Konkret framgangsmåte eller alternativ med å fjerne figuren ligger i `kilder/figur-07-anbefaling.md`.
 
 ## Vedlegg
 
@@ -88,3 +88,7 @@ Disse er egne rapportfigurer uten direkte original i 20-diagrammappen: Figur 1, 
 - Ferdig tekst for SUS/NPS-TODO-ene ligger i `kilder/rapporttekst-brukertest-todo-erstatninger.md`.
 - Figur 5 bruker faktiske modellnavn fra kodebasen. Hvis rapportteksten nevner `KnowledgeBaseEntry`, `Notification`, `Bookmark`, `ChatShare` eller `BullMqJob` som egne Mongoose-modeller, bør den teksten justeres.
 - Figur 3 er nå byttet til originaldiagrammet for monorepo-struktur. Det matcher `package.json` bedre: rot-scriptet `pnpm build` kjører `common`, `backend`, `frontend` og `docs` sekvensielt. Tester kjøres som egne testkommandoer, ikke som del av rotens `build`-script.
+
+## Fullstendig fix-liste for selve Word-rapporten
+
+Alle endringer som må gjøres i selve bachelor-rapporten (TODO-er, Node-versjon, figur-tekster, vedleggsreferanser osv.) er samlet i [`kilder/rapport-fix-list.md`](kilder/rapport-fix-list.md). Bruk den som sjekkliste når du går gjennom Word-dokumentet før innlevering.

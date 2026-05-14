@@ -9,7 +9,7 @@ flowchart TB
         E2E["E2E (Playwright)<br/>11 spec-filer<br/>Chromium i CI<br/>auth + smoke"]:::e2e
         MATRIX["Auth-scenariomatrise<br/>120 scenarier<br/>signup, OAuth, sletting,<br/>race conditions"]:::matrix
         INT["Integrasjonstester<br/>tsx run.ts<br/>auth, ki, canvas, db"]:::int
-        UNIT["Enhetstester (Vitest)<br/>1190+ tester<br/>common + backend + frontend"]:::unit
+        UNIT["Enhetstester (Vitest)<br/>1192 tester / 60 filer<br/>common 438 + backend 441 + frontend 313"]:::unit
         STATIC["Statisk analyse<br/>TypeScript strict<br/>ESLint + ESLint-security<br/>Prettier"]:::static
 
         E2E --> MATRIX
@@ -47,7 +47,7 @@ flowchart TB
 ## Spesifikke testkommandoer
 
 ```bash
-pnpm test:unit              # Alle enhetstester (~1190)
+pnpm test:unit              # Alle enhetstester (~1192 totalt)
 pnpm test:auth:matrix       # 120 auth-scenarier
 pnpm test:auth:e2e          # Playwright Chromium
 pnpm test:ki:smoke          # Rask KI-røyktest

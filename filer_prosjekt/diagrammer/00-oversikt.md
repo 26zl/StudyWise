@@ -41,7 +41,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 16 | [milepaeler-tidslinje](16-milepaeler-tidslinje.md) | Gantt-diagram over hele bacheloroppgaveløpet 2026, med 5 milepæler. |
 | 17 | [uml-klassediagram](17-uml-klassediagram.md) | UML klassediagram for backend-tjenestene: ansvar, metoder, avhengigheter og designmønstre. |
 | 18 | [wbs-work-breakdown](18-wbs-work-breakdown.md) | Work Breakdown Structure: hierarkisk dekomponering i 6 hovedpakker med eierskapsmatrise. |
-| 19 | [test-strategi](19-test-strategi.md) | Test-pyramide + dekningsmatrise: 1190+ enhetstester, 120 auth-scenarier og 11 Playwright E2E-spec-filer. |
+| 19 | [test-strategi](19-test-strategi.md) | Test-pyramide + dekningsmatrise: 1192 enhetstester (60 filer), 120 auth-scenarier og 11 Playwright E2E-spec-filer. |
 | 20 | [stride-trusselmodell](20-stride-trusselmodell.md) | STRIDE-kategorier med konkrete trusler og tiltak (visualisering av compliance/THREAT_MODEL.md). |
 
 ## Tematisk gruppering

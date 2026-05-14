@@ -14,7 +14,7 @@ flowchart TB
         PNPM_SEC["pnpm guardrail<br/>minimumReleaseAge >= 5 dager"]
         SETUP["Setup: Node 24 + pnpm install<br/>safe-chain checksum"]
         COMMON["pnpm --filter common build"]
-        UNIT["pnpm test:unit<br/>(1190+ Vitest-tester)"]
+        UNIT["pnpm test:unit<br/>(1192 Vitest-tester / 60 filer)"]
         TYPE["pnpm typecheck"]
         LINT["pnpm lint + lint:md"]
         SYNCPACK["pnpm syncpack:list<br/>dependency sync"]

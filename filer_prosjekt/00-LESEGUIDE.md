@@ -84,6 +84,22 @@ Rapport-klare kopier og navnemapping for figurene i bachelorrapporten. Start med
 - [`brukertest-skjema.md`](brukertest-skjema.md) — selve brukertest-skjemaet i markdown. 53 spørsmål fordelt på 5 seksjoner: bakgrunn, oppgavebasert vurdering, System Usability Scale (SUS), holdninger/læring, og åpne tilbakemeldinger.
 - [`brukertest-skjema-bygg.gs`](brukertest-skjema-bygg.gs) — Google Apps Script som bygger skjemaet programmatisk i Google Forms (reproduserbarhet).
 - [`StudyWise – Brukertest - Google Skjemaer.pdf`](StudyWise%20%E2%80%93%20Brukertest%20-%20Google%20Skjemaer.pdf) — eksportert versjon av selve Google-skjemaet, slik det ble vist for testdeltakerne.
+- [`rapport-figurer/kilder/brukertest-resultater-fra-pdf.md`](rapport-figurer/kilder/brukertest-resultater-fra-pdf.md) — rådata per respondent fra PDF-eksporten (10 respondenter, SUS-skår 47,5–97,5, gjennomsnitt 80,5, SD 13,4, NPS=10).
+- [`rapport-figurer/kilder/rapporttekst-brukertest-todo-erstatninger.md`](rapport-figurer/kilder/rapporttekst-brukertest-todo-erstatninger.md) — ferdige tekstblokker for å fylle inn SUS/NPS i sammendraget, 4.6.1, 5.1.4 og Vedlegg E.
+
+### Personvern, sikkerhet og compliance
+
+Compliance-mappen i rotkatalogen (`compliance/`) inneholder alle styrende dokumenter for personvern og sikkerhetsstyring i prosjektet. Disse ligger ikke i `filer_prosjekt/` for å unngå duplikering, men er en sentral del av leveransen:
+
+| Dokument | Hva det dekker |
+|----------|----------------|
+| [`compliance/PIA.md`](../compliance/PIA.md) | Privacy Impact Assessment (GDPR Art. 35 / ISO 27701). Versjon 1.1, sist oppdatert 2026-05-08. |
+| [`compliance/THREAT_MODEL.md`](../compliance/THREAT_MODEL.md) | STRIDE-trusselmodell. Visualiseres i diagram 20. |
+| [`compliance/DATA_RETENTION.md`](../compliance/DATA_RETENTION.md) | Lagringstider per datakategori og slettepolicy. |
+| [`compliance/ACCESS_CONTROL.md`](../compliance/ACCESS_CONTROL.md) | Roller, tilganger og minimumsrettigheter. |
+| [`compliance/INCIDENT_RESPONSE.md`](../compliance/INCIDENT_RESPONSE.md) | Hendelseshåndtering: deteksjon, eskalering, varsling. |
+| [`compliance/SUBPROCESSORS.md`](../compliance/SUBPROCESSORS.md) | Liste over underleverandører med formål og jurisdiksjon. |
+| [`compliance/PROTOTYPE_SCOPE.md`](../compliance/PROTOTYPE_SCOPE.md) | Avgrensning av prototyp-omfanget før eventuell institusjonsutrulling. |
 
 ## Hvor du finner dokumentasjon for hovedtemaene i oppgaven
 

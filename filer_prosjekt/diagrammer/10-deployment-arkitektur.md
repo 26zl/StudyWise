@@ -1,6 +1,6 @@
 # Deployment-arkitektur
 
-Hvilke deler kjøres hvor i offentlig demo / produksjonslik deploy. Frontend ligger på Vercel, backend på Heroku, dokumentasjon på GitHub Pages, og Resend-relayet er en Cloudflare Worker. Cloudflare er autoritativ DNS, CDN/WAF og TLS-edge for domenet; Name.com er kun registrar.
+Hvilke deler kjøres hvor i offentlig demo / produksjonslik deploy. Frontend ligger på Vercel, backend på Heroku, dokumentasjon på GitHub Pages (publisert som `26zl.github.io/StudyWise/`), og Resend-relayet er en Cloudflare Worker. Cloudflare er autoritativ DNS, CDN/WAF og TLS-edge for domenet `studwize.page`; Name.com er kun registrar.
 
 `www.studwize.page` proxies via Cloudflare til Vercel. `api.studwize.page` er en Cloudflare-proxied CNAME til Heroku DNS-target (`corrugated-wave-vyjr94evcbe31gfvdi5vvqw3.herokudns.com`). Heroku-targetet er origin-adresse, ikke en offentlig API-base URL.
 
@@ -13,7 +13,7 @@ flowchart LR
     subgraph DNS["DNS (Cloudflare autoritativ for studwize.page)"]
         WWW["www.studwize.page<br/>(Cloudflare proxied)"]
         API["api.studwize.page<br/>(Cloudflare proxied CNAME<br/>→ *.herokudns.com)"]
-        DOCS_DNS["docs.studwize.page"]
+        DOCS_DNS["26zl.github.io/StudyWise/<br/>(GitHub Pages)"]
     end
 
     subgraph Vercel["Vercel"]
