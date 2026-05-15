@@ -19,7 +19,7 @@ Dette vedlegget er laget for å gi sensor og videre utviklere full oversikt over
 | 04 | [KI-chat-pipeline](../../diagrammer/png/04-ki-chat-pipeline.png) | Hovedrapport figur 8 / Vedlegg M | Dokumenterer RAG-flyten, reranking og streaming mot klient. |
 | 05 | [Canvas-integrasjon](../../diagrammer/png/05-canvas-integrasjon.png) | Vedlegg M | Viser hvordan Canvas-data hentes, caches og brukes videre. |
 | 06 | [Kunnskapsbase-RAG](../../diagrammer/png/06-kunnskapsbase-rag.png) | Vedlegg M | Utdyper forskjellen mellom Canvas-kontekst og personlig kunnskapsbase. |
-| 07 | [Database-modeller](../../diagrammer/png/07-database-modeller.png) | Hovedrapport figur 5 | Viser faktiske Mongoose-modeller og relasjoner. |
+| 07 | [Database-modeller (full)](../../diagrammer/png/07-database-modeller.png) | Kildemateriale i repo | Full ER-modell med alle felt og typer. Brukes ikke i selve bacheloroppgaven. Hovedrapport figur 5 viser den forenklede versjonen. |
 | 08 | [Middleware-stack](../../diagrammer/png/08-middleware-stack.png) | Hovedrapport figur 10 | Underbygger forklaringen av Express-rekkefølge og sikkerhetsgrenser. |
 | 09 | [Bruker-sletting](../../diagrammer/png/09-bruker-sletting.png) | Vedlegg M | Støtter GDPR-drøftingen om sletting, tombstone og eksterne oppryddingsjobber. |
 | 10 | [Deployment-arkitektur](../../diagrammer/png/10-deployment-arkitektur.png) | Vedlegg J / Vedlegg M | Viser hva som kjører på Vercel, Heroku, GitHub Pages og Cloudflare. |

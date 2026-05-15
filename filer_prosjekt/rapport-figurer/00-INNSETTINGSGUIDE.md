@@ -16,7 +16,7 @@ Sett inn disse PNG-filene der rapportteksten har tilsvarende `[FIGUR ...]`-plass
 | Figur 2 | `hovedrapport/figur-02-use-case-diagram.png` | Figur 2: Use case-diagram for StudyWise. |
 | Figur 3 | `hovedrapport/figur-03-monorepo-med-fem-pakker.png` | Figur 3: Monorepoet med fem pakker og build-rekkefølge. |
 | Figur 4 | `hovedrapport/figur-04-overordnet-systemarkitektur.png` | Figur 4: Overordnet systemarkitektur. |
-| Figur 5 | `hovedrapport/figur-05-er-diagram-mongoose-modeller.png` | Figur 5: ER-diagram for Mongoose-modellene. |
+| Figur 5 | `hovedrapport/figur-05-er-diagram-mongoose-modeller.png` | Figur 5: Forenklet ER-diagram for de viktigste Mongoose-modellene. |
 | Figur 6 | `hovedrapport/figur-06-cloudflare-i-tre-roller.png` | Figur 6: Cloudflare i tre roller - DNS+WAF, Turnstile, Worker. |
 | Figur 7 | Mangler bilde | Figur 7: Wireframe vs. endelig implementasjon. |
 | Figur 8 | `hovedrapport/figur-08-ki-chat-med-hybrid-retrieval.png` | Figur 8: Sekvensdiagram for KI-chat med hybrid retrieval. |
@@ -66,7 +66,7 @@ Disse rapportfilene er direkte kopier av originaldiagrammer fra `../diagrammer/p
 |---|---|
 | `hovedrapport/figur-03-monorepo-med-fem-pakker.png` | `../diagrammer/png/02-monorepo-struktur.png` |
 | `hovedrapport/figur-04-overordnet-systemarkitektur.png` | `../diagrammer/png/01-arkitektur-overordnet.png` |
-| `hovedrapport/figur-05-er-diagram-mongoose-modeller.png` | `../diagrammer/png/07-database-modeller.png` |
+| `hovedrapport/figur-05-er-diagram-mongoose-modeller.png` | Forenklet versjon laget for hovedrapporten (kilde: `../diagrammer/07-database-modeller-forenklet.md`). |
 | `hovedrapport/figur-10-middleware-rekkefolge-backend.png` | `../diagrammer/png/08-middleware-stack.png` |
 | `hovedrapport/figur-11-ci-cd-pipeline-github-actions.png` | `../diagrammer/png/15-cicd-pipeline.png` |
 | `vedlegg/vedlegg-i-gantt-skjema.png` | `../diagrammer/png/16-milepaeler-tidslinje.png` |
