@@ -3454,6 +3454,8 @@ chapters/topics in this course material.
     let liveUrlKontekst = "";
     let kbFullDocumentMode = false;
     let kbFullDocTriggerWord: string | null = null;
+    let activeKbNameForLock: string | null = null;
+    let activeKbIdForLock: string | null = null;
     const lastUserMessageForKB = trimmedMessages.filter((m) => m.role === "user").at(-1)?.content ?? "";
 
     // /av og /deaktiver deaktiverer aktiv KB for gjeldende chat.
@@ -3551,6 +3553,8 @@ chapters/topics in this course material.
       try {
         const parsed = JSON.parse(activeKbRaw) as { id?: string; navn?: string };
         if (parsed.id && parsed.navn) {
+          activeKbNameForLock = parsed.navn;
+          activeKbIdForLock = parsed.id;
           // Full-dokument-modus når brukeren ber om oppsummering/fordypning —
           // speiler Canvas-flytens fullDocumentMode slik at KB-oppsummeringer
           // dekker HELE basen i dokumentrekkefølge i stedet for kun top-K.
@@ -3944,9 +3948,54 @@ Referer til kildenavnet (fil/lenke) når du siterer konkrete poeng.
 `;
     }
 
+    if (kbLockActive && !kbKontekst && activeKbIdForLock && activeKbNameForLock) {
+      const fullDoc = await loadFullKBContext(req.user!.id, activeKbIdForLock, activeKbNameForLock);
+      if (fullDoc.hasContent) {
+        kbKontekst = fullDoc.context;
+        kbKilder = mapKBResultsToChatSources(fullDoc.sources, activeKbNameForLock, activeKbIdForLock);
+        kbFullDocumentMode = true;
+        kbFullDocTriggerWord = "låst";
+        logger.info(
+          {
+            userId: req.user!.id,
+            baseId: activeKbIdForLock,
+            baseName: activeKbNameForLock,
+            activation: "session",
+            mode: "full_document_lock_fallback",
+            sourceCount: fullDoc.sources.length,
+            truncated: fullDoc.truncated,
+            kbContextLength: kbKontekst.length,
+          },
+          "KB-lås aktiv — fallback til full-dokument-kontekst",
+        );
+      }
+    }
+
+    if (kbLockActive && !kbKontekst) {
+      const responseText = activeKbNameForLock
+        ? `Kunnskapsbasen "${activeKbNameForLock}" er aktiv, men jeg finner ikke relevant innhold i basen for denne meldingen. Still spørsmålet på en annen måte, eller skriv /av for å deaktivere.`
+        : "En kunnskapsbase er aktiv, men jeg finner ikke relevant innhold i basen for denne meldingen. Still spørsmålet på en annen måte, eller skriv /av for å deaktivere.";
+      logger.info(
+        {
+          userId: req.user!.id,
+          baseName: activeKbNameForLock,
+          activation: "session",
+          reason: "kb_lock_no_context",
+        },
+        "KB-lås aktiv, men ingen KB-kontekst funnet",
+      );
+      const payload = KIChatResponseSchema.parse({
+        suksess: true,
+        response: responseText,
+        model: resolvedRequestedModel,
+      });
+      if (writeSSE(res, payload)) res.end();
+      return;
+    }
+
     // Direkte URL i melding (pdf/nettside) prioriteres alltid når bruker faktisk sendte URL.
     // Hvis ingen URL i meldingen, bruker vi eksisterende fallback: kun når KB ikke ga kontekst.
-    const shouldFetchLiveUrlContext = hasDirectUrlInLastMessage || !kbKontekst;
+    const shouldFetchLiveUrlContext = hasDirectUrlInLastMessage || (!kbKontekst && !kbLockActive);
     if (shouldFetchLiveUrlContext) {
       liveUrlKontekst = await buildLiveUrlContextFromMessage(lastUserMessageForKB) ?? "";
       if (liveUrlKontekst) {
