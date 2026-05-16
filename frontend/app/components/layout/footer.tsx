@@ -1,6 +1,7 @@
 /*
-* Footer-komponent
-*/
+ * Footer-komponent — viser navigasjonslenker til offentlige info-sider
+ * (om oss, personvern, sikkerhet, vilkår, FAQ, kontakt, status) samt copyright.
+ */
 "use client";
 
 import Link from "next/link";
