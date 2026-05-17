@@ -19,7 +19,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 4 | [04 – KI-chat-pipeline](04-ki-chat-pipeline.md) | Hovedfunksjonen: RAG-arkitektur og kildekontroll via `<svarkilde>`-tag. |
 | 5 | [11 – Sikkerhetslag](11-sikkerhetslag.md) | Defense-in-depth: 15 lag som beskytter løsningen. |
 
-## Full diagramoversikt (20 diagrammer)
+## Full diagramoversikt (21 diagrammer)
 
 | # | Diagram | Hva diagrammet viser |
 |---|---------|----------------------|
@@ -43,6 +43,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 18 | [wbs-work-breakdown](18-wbs-work-breakdown.md) | Work Breakdown Structure: hierarkisk dekomponering i 6 hovedpakker med eierskapsmatrise. |
 | 19 | [test-strategi](19-test-strategi.md) | Test-pyramide + dekningsmatrise: 1192 enhetstester (60 filer), 120 auth-scenarier og 11 Playwright E2E-spec-filer. |
 | 20 | [stride-trusselmodell](20-stride-trusselmodell.md) | STRIDE-kategorier med konkrete trusler og tiltak (visualisering av compliance/THREAT_MODEL.md). |
+| 21 | [observability-stack](21-observability-stack.md) | Datadog (RUM, APM, infra, logs) og Grafana-dashboardet som leser fra Datadogs API — med tag-distribusjon og parallelle løp (LangSmith, PostHog). |
 
 ## Tematisk gruppering
 
@@ -54,6 +55,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | **Sikkerhet og personvern** | 08, 09, 11, 20 — middleware, GDPR-sletting, defense-in-depth, STRIDE. |
 | **Brukersentrert design** | 13, 14 — use cases og brukerreise. |
 | **Kvalitet og leveranse** | 15, 19 — CI/CD og test-pyramide. |
+| **Observabilitet og drift** | 21 — Datadog/Grafana-stack. |
 | **Prosjektmetodikk** | 16, 18 — Gantt-tidslinje og WBS. |
 | **UML-modeller** | 03, 04, 13, 17 — sekvens, use case, klasse. |
 

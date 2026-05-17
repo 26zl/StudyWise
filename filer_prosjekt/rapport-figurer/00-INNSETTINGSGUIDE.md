@@ -35,28 +35,15 @@ Figur 7 må fortsatt lages manuelt fra Figma-wireframe og produksjonsskjermbilde
 | Vedlegg I - Gantt-skjema | `vedlegg/vedlegg-i-gantt-skjema.png` |
 | Vedlegg J - Arkitekturdiagram | `vedlegg/vedlegg-j-arkitekturdiagram.png` |
 | Vedlegg K - Use case-diagram | `vedlegg/vedlegg-k-use-case-diagram.png` |
-| Vedlegg M - Teknisk diagramkatalog | `vedlegg/vedlegg-m-teknisk-diagramkatalog.md` |
+| Vedlegg M - Teknisk diagramkatalog (alle 21 diagrammer) | `vedlegg/vedlegg-m-teknisk-diagramkatalog.md` |
 
-## Skal alle 20 diagrammene brukes?
+## Skal alle 21 diagrammene brukes?
 
-Nei, ikke i hovedrapporten. De 20 diagrammene i `../diagrammer/` er full teknisk dokumentasjon. Hovedrapporten bør bare bruke figurene teksten faktisk forklarer og refererer til.
+Ja — vi har valgt å samle alle 21 diagrammene som full katalog i Vedlegg M (`vedlegg/vedlegg-m-teknisk-diagramkatalog.md`). Hovedrapporten bruker fortsatt bare Figur 1-13 slik teksten direkte refererer til dem, slik at hovedteksten ikke blir tung. Resten av diagrammene fungerer som sporbar teknisk referanse i vedlegget.
 
-Resten kan brukes i vedlegg eller som støttemateriale ved behov:
+Vedlegg M er strukturert som Figur M.1 til M.21 med PNG-referanse, kort beskrivelse og ferdig bildetekst for hver oppføring. Det er klart til innsetting i Word-vedlegget med ett bilde per oppføring.
 
-| Diagram | Passer best i |
-|---|---|
-| `../diagrammer/png/03-autentiseringsflyt.png` | Auth / sikkerhet |
-| `../diagrammer/png/05-canvas-integrasjon.png` | Canvas-integrasjon |
-| `../diagrammer/png/06-kunnskapsbase-rag.png` | Hybrid retrieval / kunnskapsbase |
-| `../diagrammer/png/09-bruker-sletting.png` | GDPR / kontosletting |
-| `../diagrammer/png/10-deployment-arkitektur.png` | Drift / deployment |
-| `../diagrammer/png/11-sikkerhetslag.png` | Sikkerhetsoversikt |
-| `../diagrammer/png/12-bullmq-koer.png` | Bakgrunnsjobber / web-push |
-| `../diagrammer/png/14-brukerreise.png` | Brukerreise / UX |
-| `../diagrammer/png/17-uml-klassediagram.png` | Teknisk appendix |
-| `../diagrammer/png/18-wbs-work-breakdown.png` | Prosjektmetodikk |
-| `../diagrammer/png/19-test-strategi.png` | Testing |
-| `../diagrammer/png/20-stride-trusselmodell.png` | Trusselmodellering |
+Diagram 21 (Observability-stack med Datadog/Grafana) er nytt — Mermaid-kilden ligger i `../diagrammer/21-observability-stack.md`, men PNG-en må genereres separat. Se note nederst i Vedlegg M for tre måter å gjøre det på.
 
 ## Samsvar med originaldiagrammene
 
