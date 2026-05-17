@@ -6,11 +6,12 @@ Prioritert rekkefølge før innlevering:
 
 1. Supply chain-angrep — teori i 2.5.2 + praksis i 3.5.6/3.6
 2. Dependabot og automatisert avhengighetsoppdatering — tillegg i 3.5.6
-3. Docker — én linje i 3.4.1
-4. GitHub Copilot eksplisitt nevnt — liten edit i 4.8.2
-5. Prosjektskisse, prosjektbeskrivelse og Google Forms-PDF som vedlegg
-6. GitHub Education — kort merknad i 3.1.4
-7. Rapportstruktur knyttet til Johannessen — én setning i 1.5 eller 3.5.7
+3. Snyk og DeepScan som utviklingsnære skann — tillegg i 3.5.6
+4. Docker — én linje i 3.4.1
+5. GitHub Copilot eksplisitt nevnt — liten edit i 4.8.2
+6. Prosjektskisse, prosjektbeskrivelse og Google Forms-PDF som vedlegg
+7. GitHub Education — kort merknad i 3.1.4
+8. Rapportstruktur knyttet til Johannessen — én setning i 1.5 eller 3.5.7
 
 ---
 
