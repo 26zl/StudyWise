@@ -260,21 +260,9 @@ STRIDE-kategorier (Spoofing, Tampering, Repudiation, Information disclosure, Den
 
 ## Figur M.21 - Observability-stack (Datadog/Grafana)
 
-**PNG:** *Mangler — må genereres fra Mermaid-kilden, se note nederst*
+**PNG:** `../../diagrammer/png/21-observability-stack.png`
 **Mermaid-kilde:** `../../diagrammer/21-observability-stack.md`
 
 Hvordan signaler fra frontend (`@datadog/browser-rum` v6.33.0, `studywise-frontend`) og backend (`dd-trace` v5.102.0, `studywise-backend` inkl. BullMQ-worker i samme prosess) flyter til Datadog (APM, RUM, Infrastructure, Logs, Profiling), og hvordan Grafana-dashboardet `/d/fbrdskw/studywize-observability` henter data via Datadog-plugin. Inkluderer Heroku log drain og dyno-integrasjon som eksternt oppsett, og parallelle observabilitetsløp (LangSmith for LLM-tracing, PostHog for produktanalyse) som ikke går via Datadog.
 
 **Bildetekst:** *Figur M.21: Observability-stack med Datadog som sentral signal-mottaker og Grafana som dashboard-front.*
-
----
-
-## Note om PNG for Figur M.21
-
-Mermaid-kilden ligger i `../../diagrammer/21-observability-stack.md`, men PNG-en er ikke generert ennå fordi det ikke finnes et render-skript i repoet. Tre måter å lage PNG-en på:
-
-1. **Lokalt med mermaid-cli:** `npx -p @mermaid-js/mermaid-cli mmdc -i ../../diagrammer/21-observability-stack.md -o ../../diagrammer/png/21-observability-stack.png -w 2400 -s 3 -b transparent`
-2. **Via mermaid.live:** Åpne <https://mermaid.live>, lim inn Mermaid-blokken fra `21-observability-stack.md`, eksporter som PNG.
-3. **VS Code Markdown Preview:** Åpne `.md`-filen med "Markdown Preview Mermaid Support"-utvidelsen og skjermbilde-eksporter.
-
-Når PNG-en er lagret som `filer_prosjekt/diagrammer/png/21-observability-stack.png`, oppdater referansen over fra "Mangler" til den faktiske stien.

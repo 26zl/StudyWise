@@ -13,14 +13,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.76",
+    "@ai-sdk/anthropic": "^3.0.77",
     "@anthropic-ai/sdk": "^0.91.1",
     "@clerk/backend": "^3.4.7",
     "@mozilla/readability": "^0.6.0",
     "@napi-rs/canvas": "^0.1.100",
     "@pinecone-database/pinecone": "^7.2.0",
     "adm-zip": "^0.5.17",
-    "ai": "^6.0.177",
+    "ai": "^6.0.180",
     "bullmq": "^5.76.8",
     "cheerio": "^1.2.0",
     "common": "workspace:*",
