@@ -35,7 +35,7 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 10 | [deployment-arkitektur](10-deployment-arkitektur.md) | Hvor tjenestene kjører i offentlig demo / produksjonslik deploy: Vercel, Heroku, GitHub Pages og Cloudflare som DNS/CDN/WAF/TLS-edge. |
 | 11 | [sikkerhetslag](11-sikkerhetslag.md) | 15 sikkerhetslag — fra HTTPS/HSTS til AES-256-GCM-kryptering og PII-grense. |
 | 12 | [bullmq-koer](12-bullmq-koer.md) | Asynkron jobbkjøring: én unified BullMQ-kø erstatter tre separate. |
-| 13 | [use-case-diagram](13-use-case-diagram.md) | UML-style use case: aktører (student, admin, system, Canvas, Clerk) og 18 use cases. |
+| 13 | [use-case-diagram](13-use-case-diagram.md) | UML-style use case: aktører (student, admin, system, Canvas, Clerk, Pinecone) og 17 use cases. |
 | 14 | [brukerreise](14-brukerreise.md) | Journey-diagram: studentens reise fra registrering til daglig bruk. |
 | 15 | [cicd-pipeline](15-cicd-pipeline.md) | GitHub Actions-pipelinen: CI, SBOM/Trivy/OSV, funksjonstester og deploy-gates. |
 | 16 | [milepaeler-tidslinje](16-milepaeler-tidslinje.md) | Gantt-diagram over hele bacheloroppgaveløpet 2026, med 5 milepæler. |

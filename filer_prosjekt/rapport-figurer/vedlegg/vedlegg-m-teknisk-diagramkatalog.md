@@ -175,7 +175,7 @@ Asynkron jobbkjøring: én unified BullMQ-kø (`studywise-jobs`) håndterer alle
 **PNG:** `../../diagrammer/png/13-use-case-diagram.png`
 **Mermaid-kilde:** `../../diagrammer/13-use-case-diagram.md`
 
-UML-style use case-diagram med fem aktører (student, admin, system, Canvas, Clerk) og 18 use cases gruppert etter funksjonsområde. Hovedrapportens figur 2 / vedlegg K viser samme diagram.
+UML-style use case-diagram med seks aktører (student, admin, system, Canvas, Clerk, Pinecone) og 17 use cases gruppert etter funksjonsområde. Vedlegg K viser samme fullstendige diagram, mens hovedrapportens Figur 2 er en forenklet variant.
 
 **Bildetekst:** *Figur M.13: Use case-diagram med aktører og hovedfunksjoner.*
 

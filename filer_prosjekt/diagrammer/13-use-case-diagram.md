@@ -23,13 +23,12 @@ flowchart LR
         UC9["Dele samtale<br/>via lenke (TTL)"]
         UC10["Gi tilbakemelding<br/>(tommel opp/ned)"]
         UC11["Slette egen konto<br/>(GDPR Art. 17)"]
-        UC12["Publisere systemmelding"]
-        UC13["Se audit-logger"]
-        UC14["Administrere brukere"]
-        UC15["Inspisere BullMQ-køer"]
-        UC16["Retry ekstern sletting<br/>(Clerk/Pinecone)"]
-        UC17["Sende web-push<br/>varsler"]
-        UC18["Rydde utløpte<br/>delte samtaler"]
+        UC12["Se audit-logger"]
+        UC13["Administrere brukere"]
+        UC14["Inspisere BullMQ-køer"]
+        UC15["Retry ekstern sletting<br/>(Clerk/Pinecone)"]
+        UC16["Sende web-push<br/>varsler"]
+        UC17["Rydde utløpte<br/>delte samtaler"]
     end
 
     Student --> UC1
@@ -47,16 +46,15 @@ flowchart LR
     Admin --> UC12
     Admin --> UC13
     Admin --> UC14
-    Admin --> UC15
 
+    System --> UC15
     System --> UC16
     System --> UC17
-    System --> UC18
 
     UC2 -. include .-> Canvas
     UC3 -. include .-> Canvas
-    UC16 -. include .-> Clerk
-    UC16 -. include .-> Pinecone
+    UC15 -. include .-> Clerk
+    UC15 -. include .-> Pinecone
     UC1 -. include .-> Clerk
     UC11 -. include .-> Clerk
 
