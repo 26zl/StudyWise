@@ -38,7 +38,7 @@ Prosjektet er en bachelorprototype, ikke en offisiell tjeneste fra USN, Canvas/I
 
 - [`brukertest-skjema.md`](brukertest-skjema.md) - strukturert brukertestskjema.
 - [`brukertest-skjema-bygg.gs`](brukertest-skjema-bygg.gs) - Google Apps Script som kan bygge skjemaet.
-- [`StudyWise - Brukertest - Google Skjemaer.pdf`](StudyWise%20%E2%80%93%20Brukertest%20-%20Google%20Skjemaer.pdf) - eksport fra Google Forms.
+- [`StudyWise - Brukertest - Google Skjemaer.pdf`](<StudyWise – Brukertest - Google Skjemaer.pdf>) - eksport fra Google Forms.
 - [`rapport-figurer/kilder/brukertest-resultater-fra-pdf.md`](rapport-figurer/kilder/brukertest-resultater-fra-pdf.md) - SUS/NPS-tall og kvalitative hovedfunn fra brukertesten.
 
 ### Teknisk dokumentasjon og diagrammer
