@@ -12,7 +12,7 @@ Dette er den korte praktiske rekkefølgen. Alt dere trenger ligger i denne filen
 
 1. **Behold vedleggsstrukturen slik den faktisk er nå (A-H), men oppdater TOC og henvisninger.** PDF-en har fortsatt gamle TOC-linjer og `Feil! Bokmerke er ikke definert.` for vedlegg som ikke lenger finnes slik.
 2. Erstatt placeholderen `Tekst her forklare hva vi bruker av vedlegg og hvorfor` i vedleggsinnledningen.
-3. Fjern de to synlige review-markørene i § 3.3.3 og § 4.5.2. Søk etter de eksakte tekstene `………………………………….Review…………………………………..` og `-----------------------REVIEW`, ikke bare ordet `review`, fordi `review` også finnes legitimt i litteratur og metodebeskrivelser.
+3. Fjern de to synlige review-markørene i § 3.3.3 og § 4.5.2. I § 4.5.2 skal også avsnittet etter `-----------------------REVIEW` fjernes hvis dere ikke skal ha Canvas-kontekst/`Vedlegg L` med. Søk etter de eksakte tekstene `………………………………….Review…………………………………..` og `-----------------------REVIEW`, ikke bare ordet `review`, fordi `review` også finnes legitimt i litteratur og metodebeskrivelser.
 4. Rett hovedteksten: `Vedlegg I` skal bli `Vedlegg G`, `Vedlegg J` skal bli `Vedlegg H`, og `Vedlegg K/L` skal ikke brukes hvis de ikke finnes som vedlegg.
 5. Link til full pentestrapport i GitHub-repoet i stedet for å vise til `Vedlegg K`.
 6. Søk etter `ligger her` og erstatt med konkrete GitHub-lenker eller `gjengitt nedenfor`.
@@ -21,101 +21,9 @@ Dette er den korte praktiske rekkefølgen. Alt dere trenger ligger i denne filen
 9. Fjern restemarkøren `Passe på alfabetisk rekkefølge` over litteraturlisten.
 10. Oppdater innholdsfortegnelsen, eksporter ny PDF og søk i PDF-teksten etter restemarkørene igjen.
 
-## Hovedregel for rapport, vedlegg og repo
-
-> **Hovedteksten skal forklare og drøfte. Vedleggene skal dokumentere. Repoet skal inneholde fullstendige artefakter.**
-
-Praktisk regel:
-
-```text
-Kapitteltekst = kort oppsummering + henvisning
-Vedlegg = skjermbilder, tabeller, korte utdrag og kataloger
-GitHub-repo = fullstendige dokumenter/filer
-```
-
-Ikke ha samme lange innhold fullt ut både i kapitteltekst og vedlegg. Hovedteksten skal forklare hva som ble gjort og hvorfor det betyr noe. Vedleggene skal vise dokumentasjonen som støtter dette. Repoet kan inneholde fullversjoner av diagrammer, pentestrapport, compliance-filer og tekniske artefakter.
-
-Copy-paste-setning som kan legges i vedleggsinnledningen:
+## Vedleggsinnledning
 
 > Vedleggene inneholder utvalgte dokumentasjonsutdrag, skjermbilder og oversikter som støtter hovedteksten. Fullstendige tekniske artefakter, diagramfiler og rapporter ligger i prosjektets GitHub-repository. Hovedteksten oppsummerer og drøfter funnene, mens vedleggene dokumenterer grunnlaget.
-
-### Hvordan bruke vedlegg riktig i teksten
-
-Dere skal bruke vedlegg aktivt i hovedteksten, men dere skal ikke lime inn samme dokumentasjon fullt ut både i hovedtekst og vedlegg.
-
-Kort fasit:
-
-```text
-Ja, bruk vedlegg i teksten.
-Nei, ikke lim inn alt både i hovedtekst og vedlegg.
-Ja, ha noen viktige figurer i hovedteksten.
-Ja, legg bevis, skjermbilder og store artefakter i vedlegg.
-Ja, fullversjoner kan ligge i GitHub-repoet.
-```
-
-Riktig fordeling:
-
-```text
-Hovedtekst: Vi gjorde X, dette betyr Y, se Vedlegg G/H eller GitHub-repoet.
-Vedlegg: Her er skjermbildet, utdraget eller katalogen.
-Repo: Her ligger full dokumentasjon og store filer.
-```
-
-Eksempel for pentest:
-
-```text
-Vi gjennomførte en manuell penetrasjonstest med 35 nummererte funn. De viktigste funnene var F-14 og F-29, som drøftes i kapittel 4.5.6. Full pentestrapport ligger i prosjektets GitHub-repository.
-```
-
-Ikke lim inn hele pentestrapporten i kapittel 4. Kapittel 4 skal drøfte hovedfunnene. Når dere beholder dagens vedlegg A-H, bør pentestrapporten lenkes direkte i hovedtekst/vedleggsinnledning som full artefakt i `filer_prosjekt/pentest-studwize.md`.
-
-Eksempel for sikkerhet og observability:
-
-```text
-Utvalgte resultater fra sikkerhets- og observability-verktøy er dokumentert i Vedlegg H, blant annet Security Headers, DeepScan, GitHub Actions, Datadog, PostHog og Cloudflare.
-```
-
-Eksempel for diagrammer:
-
-```text
-Detaljerte tekniske diagrammer er samlet i Vedlegg G som diagramkatalog, med lenker til høyoppløselige PNG-versjoner i GitHub-repositoriet.
-```
-
-Eksempel for pentestrapport:
-
-```text
-Full pentestrapport ligger i prosjektets GitHub-repository.
-```
-
-### Bilder i hovedtekst eller vedlegg
-
-Bruk denne regelen:
-
-```text
-Hvis bildet er nødvendig for å forstå avsnittet, ha det i hovedteksten.
-Hvis bildet bare dokumenterer eller beviser noe, legg det i vedlegg.
-```
-
-Bilder som kan være i hovedteksten:
-
-- Overordnet arkitekturdiagram.
-- Use case-diagram.
-- Middleware-diagram.
-- CI/CD-diagram hvis flyten drøftes i teksten.
-- SUS-figur hvis brukertesten drøftes i teksten.
-
-Bilder som bør ligge i vedlegg:
-
-- Security Headers A+.
-- DeepScan-resultat.
-- GitHub Actions-skjermbilde.
-- Datadog-skjermbilde.
-- PostHog-skjermbilde.
-- Cloudflare-skjermbilde.
-- Mange produksjonsskjermbilder.
-- Teknisk diagramkatalog.
-- Pentestrapport, hvis den er kort; ellers repo-lenke.
-- Canvas-kontekst, hvis den skal dokumenteres som eget vedlegg; ellers forklar i hovedtekst.
 
 Merk for dagens struktur: Pentestrapport og Canvas-kontekst ligger ikke som faktisk vedleggsinnhold i PDF-en nå. `Vedlegg K` vises bare som en gammel/ødelagt TOC-linje, og `Vedlegg L` finnes bare som en feil henvisning i hovedteksten. Hvis dere ikke legger dem til, må hovedteksten omtale dem som repo-artefakt/avsnitt, ikke som Vedlegg K/L.
 
@@ -128,13 +36,13 @@ Disse punktene er verifisert i PDF-en fra 18.05.2026 kl. 21:11 og bør fikses f�
 - [ ] **Vedleggsbokstaver:** Behold dagens faktiske vedleggsbokstaver, men pass på at TOC og hovedtekst bruker samme bokstaver.
 - [ ] **Vedleggsinnledning:** Erstatt teksten `Tekst her forklare hva vi bruker av vedlegg og hvorfor` på side 128 med ferdig vedleggsintroduksjon.
 - [ ] **§ 3.3.3:** Fjern `………………………………….Review…………………………………..` på side 51.
-- [ ] **§ 4.5.2:** Fjern `-----------------------REVIEW` på side 97. Behold gjerne teksten om brukerstyrt Canvas-kontekst etter markøren.
+- [ ] **§ 4.5.2:** Fjern `-----------------------REVIEW` på side 97. Hvis Canvas-kontekst/`Vedlegg L` ikke skal være med, fjern hele avsnittet fra `For at KI-assistenten...` til og med `...for et gitt formål.`
 - [ ] **Hovedtekst s. 49:** Endre `Flere detaljerte tekniske diagrammer er samlet i Vedlegg I` til `Vedlegg G`.
 - [ ] **Hovedtekst s. 73:** Endre pentesthenvisningen fra `ligger i Vedlegg K` til konkret repo-lenke til `filer_prosjekt/pentest-studwize.md`.
 - [ ] **Hovedtekst s. 73:** Endre `Vedlegg J, figur J1` til `Vedlegg H, figur H1` hvis sikkerhetsunderpunktene endres til H1-H7.
 - [ ] **Hovedtekst s. 74:** Endre `Observability-oppsettet er dokumentert som teknisk diagram i Vedlegg I` til `Vedlegg G`.
 - [ ] **Hovedtekst s. 74:** Endre `skjermbilder ... lagt ved i Vedlegg J` til `Vedlegg H`.
-- [ ] **Hovedtekst s. 97:** Fjern `figur (vedlegg L)` eller bytt til en formulering uten vedlegg, for eksempel `som beskrevet i teksten`.
+- [ ] **Hovedtekst s. 97:** Fjern hele `figur (vedlegg L)`-avsnittet hvis Canvas-kontekst ikke skal være med.
 - [ ] **Hovedtekst s. 107:** Endre `Detaljer ligger i Vedlegg K` til at detaljene ligger i full pentestrapport i GitHub-repositoriet.
 - [ ] **`ligger her`:** Søk etter alle tre forekomster på side 132-134 og erstatt med konkret GitHub-lenke eller `gjengitt nedenfor`.
 - [ ] **Litteraturliste s. 119:** Fjern restemarkøren `Passe på alfabetisk rekkefølge` og kontroller at kildene er sortert alfabetisk.
@@ -199,13 +107,10 @@ Detaljerte tekniske diagrammer er samlet i Vedlegg G som diagramkatalog, med len
 - [ ] Søk etter alle forekomster av `ligger her`.
 - [ ] Hvis full artefakt finnes i repoet, erstatt teksten med en konkret GitHub-lenke.
 - [ ] Hvis full artefakt allerede er gjengitt i vedlegget, skriv `gjengitt nedenfor` i stedet for `ligger her`.
-- [ ] I ny PDF finnes `ligger her` i Gantt-, arkitektur- og use case-vedleggene. Bruk disse lenkene eller skriv at figuren er gjengitt nedenfor:
-  - Gantt/tidslinje: `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/16-milepaeler-tidslinje.png`
-  - Arkitektur: `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/01-arkitektur-overordnet.png`
-  - Use case: `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/13-use-case-diagram.png`
-- [ ] For arkitektur- og use case-avsnitt kan teksten peke til Vedlegg G og konkrete PNG-diagrammer:
-  - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/01-arkitektur-overordnet.png`
-  - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/13-use-case-diagram.png`
+- [ ] I ny PDF finnes `ligger her` i Gantt-, arkitektur- og use case-vedleggene. Siden figurene allerede står i Vedlegg D, E og F, erstatt `ligger her` med `gjengitt nedenfor`. GitHub-lenkene bør ligge i Vedlegg G, ikke gjentas her.
+  - Vedlegg D: skriv at Gantt-figuren er `gjengitt nedenfor`.
+  - Vedlegg E: skriv at arkitekturfiguren er `gjengitt nedenfor`.
+  - Vedlegg F: skriv at use case-figuren er `gjengitt nedenfor`.
 - [ ] For pentestrapport kan teksten peke direkte til:
   - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/pentest-studwize.md`
 - [ ] Ikke bruk usikre lenker til filer som kanskje ikke finnes, som `moscow.md`, uten å kontrollere faktisk filsti først. **Verifisert 18.05.2026:** `moscow.md` finnes ikke i repoet. Hvis MoSCoW/risikoanalyse ikke er egne vedlegg, skal de heller ikke stå som Vedlegg B/C i TOC.
@@ -243,10 +148,6 @@ Bruk denne hvis dere beholder dagens vedleggsstruktur A-H og ikke skal ha eget V
 Kort setning til hovedtekst hvis den trengs:
 
 > Full pentestrapport er ikke gjengitt i sin helhet i rapporten, men ligger som artefakt i prosjektets GitHub-repository.
-
-### Til § 4.5.2 - Canvas-kontekst uten Vedlegg L
-
-> StudyWise bruker Canvas-data som kontekst i KI-funksjoner når brukeren har koblet til Canvas og aktivert relevante datakilder. Canvas-kontekst kan omfatte emner, oppgaver, kalenderhendelser, kunngjøringer og moduler. Dataene hentes via brukerens personlige Canvas-token, caches der det er forsvarlig, og brukes som del av promptgrunnlaget når brukeren stiller spørsmål eller genererer studierelatert innhold. Dette er avgrenset gjennom brukerinnstillinger, caching og dataminimering, slik at ikke alle Canvas-data automatisk sendes til modellen.
 
 ## Siste Word-sjekk
 
