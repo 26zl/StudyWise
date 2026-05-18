@@ -17,7 +17,7 @@ jobs:
   owasp-dependency-check:
     name: OWASP Dependency-Check
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
 
     steps:
       - name: Harden Runner
@@ -50,25 +50,45 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # dependency-check/Dependency-Check_Action: bruk @1.1.0 (v5 finnes ikke); input heter 'others' ikke 'args'
+      - name: Restore Dependency-Check data cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.dependency-check
+          key: dependency-check-data-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            dependency-check-data-${{ runner.os }}-
+
+      # Vi kjører OWASP-containeren direkte i stedet for dependency-check/Dependency-Check_Action.
+      # Den gamle actionen sender ekstra argumenter som én samlet streng og legger alltid på --noupdate,
+      # noe som gjør ferske GitHub-runnere sårbare for argumentfeil eller manglende NVD-database.
       # Workspace-package.json ekskluderes fra Node Package Analyzer fordi pnpm har kun én
       # root-lockfile (pnpm-lock.yaml) som Pnpm Audit Analyzer scanner — dekker alle workspace-deps.
       # Uten exclude får vi "[WARN] No lock file exists" per workspace og false negatives.
       - name: OWASP Dependency-Check
-        uses: dependency-check/Dependency-Check_Action@75ba02d6183445fe0761d26e836bde58b1560600 # 1.1.0
-        with:
-          project: "StudyWise"
-          path: "."
-          format: "HTML"
-          others: |
-            --enableRetired
-            --exclude "**/node_modules/**"
-            --exclude "**/.next/**"
-            --exclude "backend/package.json"
-            --exclude "frontend/package.json"
-            --exclude "common/package.json"
-            --exclude "docs/package.json"
-            --exclude "tests/package.json"
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p reports "$HOME/.dependency-check"
+
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -v "$HOME/.dependency-check:/usr/share/dependency-check/data" \
+            owasp/dependency-check@sha256:84cd5c929a59566f24ab22055a6c0891e39f68d416f3ca370d66edc254f496b8 \
+            --data /usr/share/dependency-check/data \
+            --project "StudyWise" \
+            --scan /src \
+            --format HTML \
+            --out /src/reports \
+            --enableRetired \
+            --exclude "/src/**/node_modules/**" \
+            --exclude "/src/**/.next/**" \
+            --exclude "/src/backend/package.json" \
+            --exclude "/src/frontend/package.json" \
+            --exclude "/src/common/package.json" \
+            --exclude "/src/docs/package.json" \
+            --exclude "/src/tests/package.json"
 
       - name: Upload OWASP Dependency-Check report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
