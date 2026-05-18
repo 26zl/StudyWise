@@ -1,6 +1,6 @@
 # Database-modeller — forenklet (for hovedrapport, Figur 5)
 
-Forenklet versjon av ER-diagrammet i `07-database-modeller.md`. Brukes som Figur 5 i hovedrapporten (kap. 3.3.3). Den fullstendige modellen med alle felt og typer ligger i Vedlegg M.
+Forenklet versjon av ER-diagrammet i `07-database-modeller.md`. Brukes som Figur 5 i hovedrapporten (kap. 3.3.3). Den fullstendige modellen med alle felt og typer ligger i Vedlegg G.
 
 `User` er navet. Tilknyttede collections er gruppert etter domene for å gjøre figuren lesbar på portrait A4. Pilene angir relasjonens kardinalitet fra `User`.
 
@@ -81,4 +81,4 @@ flowchart TB
 
 ## Hvor er den fullstendige versjonen?
 
-Denne forenklede varianten er eksportert som `png/07-database-modeller-forenklet.png`. Det detaljerte ER-diagrammet med alle felt og typer ligger i `07-database-modeller.md` og som PNG i `png/07-database-modeller.png`. Det henvises til derfra i Vedlegg M (teknisk diagramkatalog).
+Denne forenklede varianten er eksportert som `png/07-database-modeller-forenklet.png`. Det detaljerte ER-diagrammet med alle felt og typer ligger i `07-database-modeller.md` og som PNG i `png/07-database-modeller.png`. Det henvises til derfra i Vedlegg G (teknisk diagramkatalog).

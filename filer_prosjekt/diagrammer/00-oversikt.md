@@ -1,22 +1,24 @@
-# Diagrammer - oversikt
+# Diagrammer - samlet oversikt
 
-Denne mappen inneholder tekniske diagrammer for StudyWise. Diagrammene viser arkitektur, sentrale flyter, sikkerhet, testing og prosjektmetodikk.
+Denne mappen inneholder de tekniske diagrammene for StudyWise. Mermaid-filene (`.md`) er kildene, mens filene i [`png/`](png/) er ferdig rendret og enklest å lese i GitHub eller i rapportvedlegg.
 
-For sensor er **PNG-lenkene** mest relevante, fordi de viser ferdig rendret diagram. Mermaid-kildene (`.md`) ligger i samme mappe for sporbarhet og videre redigering.
+For sensor er PNG-filene mest relevante. Mermaid-kildene ligger med for sporbarhet, slik at det er mulig å se og videreutvikle diagramnotasjonen.
 
-## Anbefalt leserekkefølge
+## Rask leserute
 
-Hvis du bare vil få en rask teknisk oversikt, les disse først:
+Hvis du bare vil få teknisk oversikt uten å lese alle diagrammene, start her:
 
 | Steg | Diagram | Hvorfor lese det |
 |---|---|---|
-| 1 | [01 - Overordnet arkitektur](png/01-arkitektur-overordnet.png) | Viser hovedkomponentene i StudyWise. |
+| 1 | [01 - Overordnet arkitektur](png/01-arkitektur-overordnet.png) | Viser hovedkomponentene og eksterne tjenester. |
 | 2 | [02 - Monorepo-struktur](png/02-monorepo-struktur.png) | Viser hvordan kodebasen er delt i pakker. |
-| 3 | [04 - KI-chat-pipeline](png/04-ki-chat-pipeline.png) | Viser hvordan KI-svar henter Canvas- og kunnskapsbasekontekst. |
-| 4 | [08 - Middleware-stack](png/08-middleware-stack.png) | Viser backendens sikkerhets- og kontrollflyt. |
-| 5 | [11 - Sikkerhetslag](png/11-sikkerhetslag.png) | Viser sentrale sikkerhetstiltak i løsningen. |
+| 3 | [04 - KI-chat-pipeline](png/04-ki-chat-pipeline.png) | Viser hvordan KI-svar bruker Canvas- og kunnskapsbasekontekst. |
+| 4 | [05 - Canvas-integrasjon](png/05-canvas-integrasjon.png) | Viser tokenbruk, caching og Canvas-dataflyt. |
+| 5 | [08 - Middleware-stack](png/08-middleware-stack.png) | Viser backendens sikkerhets- og kontrollflyt. |
+| 6 | [11 - Sikkerhetslag](png/11-sikkerhetslag.png) | Oppsummerer sentrale sikkerhetstiltak. |
+| 7 | [21 - Observability-stack](png/21-observability-stack.png) | Viser logging, tracing, målinger og analyseverktøy. |
 
-## Full oversikt
+## Full diagramkatalog
 
 | # | Diagram | Kort beskrivelse |
 |---|---|---|
@@ -32,7 +34,7 @@ Hvis du bare vil få en rask teknisk oversikt, les disse først:
 | 10 | [Deployment-arkitektur](png/10-deployment-arkitektur.png) | Vercel, Heroku, Cloudflare og GitHub Actions. |
 | 11 | [Sikkerhetslag](png/11-sikkerhetslag.png) | Oversikt over sikkerhetstiltak i løsningen. |
 | 12 | [BullMQ-køer](png/12-bullmq-koer.png) | Bakgrunnsjobber og asynkron prosessering. |
-| 13 | [Use case-diagram](png/13-use-case-diagram.png) | Aktører og 17 sentrale brukstilfeller. |
+| 13 | [Use case-diagram](png/13-use-case-diagram.png) | Aktører og sentrale brukstilfeller. |
 | 14 | [Brukerreise](png/14-brukerreise.png) | Studentens reise gjennom løsningen. |
 | 15 | [CI/CD-pipeline](png/15-cicd-pipeline.png) | Bygg, tester, sikkerhetsskann og deploy. |
 | 16 | [Milepæler og tidslinje](png/16-milepaeler-tidslinje.png) | Prosjektets viktigste milepæler. |
@@ -42,6 +44,8 @@ Hvis du bare vil få en rask teknisk oversikt, les disse først:
 | 20 | [STRIDE-trusselmodell](png/20-stride-trusselmodell.png) | Trusler og tiltak etter STRIDE. |
 | 21 | [Observability-stack](png/21-observability-stack.png) | Logging, målinger, tracing og analyseverktøy. |
 
-## Merknad
+## Bruk i rapporten
 
-Diagram `07-database-modeller-forenklet.png` finnes også som en enklere variant av datamodelldiagrammet, men hovedkatalogen bruker den fullstendige versjonen `07-database-modeller.png`.
+Hovedrapporten bruker utvalgte, forenklede figurer fra `rapport-figurer/hovedrapport/`. Vedlegg G fungerer som teknisk diagramkatalog og peker videre til PNG-filene i denne mappen.
+
+`07-database-modeller-forenklet.png` er en enklere variant av datamodelldiagrammet brukt i rapportkontekst. Den fullstendige varianten er `07-database-modeller.png`.
