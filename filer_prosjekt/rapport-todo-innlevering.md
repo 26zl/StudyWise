@@ -14,7 +14,7 @@ Dette er den korte praktiske rekkefølgen. Alt dere trenger ligger i denne filen
 2. Erstatt placeholderen `Tekst her forklare hva vi bruker av vedlegg og hvorfor` i vedleggsinnledningen.
 3. Fjern de to synlige review-markørene i § 3.3.3 og § 4.5.2. I § 4.5.2 skal også avsnittet etter `-----------------------REVIEW` fjernes hvis dere ikke skal ha Canvas-kontekst/`Vedlegg L` med. Søk etter de eksakte tekstene `………………………………….Review…………………………………..` og `-----------------------REVIEW`, ikke bare ordet `review`, fordi `review` også finnes legitimt i litteratur og metodebeskrivelser.
 4. Rett hovedteksten: `Vedlegg I` skal bli `Vedlegg G`, `Vedlegg J` skal bli `Vedlegg H`, og `Vedlegg K/L` skal ikke brukes hvis de ikke finnes som vedlegg.
-5. Link til full pentestrapport i GitHub-repoet i stedet for å vise til `Vedlegg K`.
+5. Ikke lag eget `Vedlegg K` for pentest. Omtal pentest kort som del av Vedlegg H / teknisk sikkerhetsvedlegg, og legg GitHub-lenke til full pentestrapport der.
 6. Søk etter `ligger her` og erstatt med konkrete GitHub-lenker eller `gjengitt nedenfor`.
 7. Rett diagram-/sikkerhetsvedlegg: diagramkatalogen er **Vedlegg G**, sikkerhetsvedlegget er **Vedlegg H**. Hvis underpunktene fortsatt heter `J1-J7`, endre dem til `H1-H7`.
 8. Rett caption/stiler: Figur 10 og tabelltekster som lekker inn i TOC.
@@ -25,7 +25,7 @@ Dette er den korte praktiske rekkefølgen. Alt dere trenger ligger i denne filen
 
 > Vedleggene inneholder utvalgte dokumentasjonsutdrag, skjermbilder og oversikter som støtter hovedteksten. Fullstendige tekniske artefakter, diagramfiler og rapporter ligger i prosjektets GitHub-repository. Hovedteksten oppsummerer og drøfter funnene, mens vedleggene dokumenterer grunnlaget.
 
-Merk for dagens struktur: Pentestrapport og Canvas-kontekst ligger ikke som faktisk vedleggsinnhold i PDF-en nå. `Vedlegg K` vises bare som en gammel/ødelagt TOC-linje, og `Vedlegg L` finnes bare som en feil henvisning i hovedteksten. Hvis dere ikke legger dem til, må hovedteksten omtale dem som repo-artefakt/avsnitt, ikke som Vedlegg K/L.
+Merk for dagens struktur: `Vedlegg K` vises bare som en gammel/ødelagt TOC-linje, og `Vedlegg L` finnes bare som en feil henvisning i hovedteksten. Ikke lag nye K/L-vedlegg rett før innlevering. Pentest kan omtales kort under Vedlegg H / teknisk sikkerhetsvedlegg, med lenke til full rapport i GitHub-repositoriet.
 
 ## Kritisk før ny PDF-eksport
 
@@ -38,12 +38,12 @@ Disse punktene er verifisert i PDF-en fra 18.05.2026 kl. 21:11 og bør fikses f�
 - [ ] **§ 3.3.3:** Fjern `………………………………….Review…………………………………..` på side 51.
 - [ ] **§ 4.5.2:** Fjern `-----------------------REVIEW` på side 97. Hvis Canvas-kontekst/`Vedlegg L` ikke skal være med, fjern hele avsnittet fra `For at KI-assistenten...` til og med `...for et gitt formål.`
 - [ ] **Hovedtekst s. 49:** Endre `Flere detaljerte tekniske diagrammer er samlet i Vedlegg I` til `Vedlegg G`.
-- [ ] **Hovedtekst s. 73:** Endre pentesthenvisningen fra `ligger i Vedlegg K` til konkret repo-lenke til `filer_prosjekt/pentest-studwize.md`.
+- [ ] **Hovedtekst s. 73:** Endre pentesthenvisningen fra `ligger i Vedlegg K` til at pentest er oppsummert i Vedlegg H, med lenke til full pentestrapport i GitHub-repositoriet.
 - [ ] **Hovedtekst s. 73:** Endre `Vedlegg J, figur J1` til `Vedlegg H, figur H1` hvis sikkerhetsunderpunktene endres til H1-H7.
 - [ ] **Hovedtekst s. 74:** Endre `Observability-oppsettet er dokumentert som teknisk diagram i Vedlegg I` til `Vedlegg G`.
 - [ ] **Hovedtekst s. 74:** Endre `skjermbilder ... lagt ved i Vedlegg J` til `Vedlegg H`.
 - [ ] **Hovedtekst s. 97:** Fjern hele `figur (vedlegg L)`-avsnittet hvis Canvas-kontekst ikke skal være med.
-- [ ] **Hovedtekst s. 107:** Endre `Detaljer ligger i Vedlegg K` til at detaljene ligger i full pentestrapport i GitHub-repositoriet.
+- [ ] **Hovedtekst s. 107:** Endre `Detaljer ligger i Vedlegg K` til at de viktigste funnene drøftes i kapittel 4.5.6, og at Vedlegg H inneholder kort oppsummering med lenke til full pentestrapport.
 - [ ] **`ligger her`:** Søk etter alle tre forekomster på side 132-134 og erstatt med konkret GitHub-lenke eller `gjengitt nedenfor`.
 - [ ] **Litteraturliste s. 119:** Fjern restemarkøren `Passe på alfabetisk rekkefølge` og kontroller at kildene er sortert alfabetisk.
 - [ ] **Vedlegg G s. 135-136:** PDF-en sier `PNG-format`, men lista viser `.md`-filnavn. Erstatt denne delen med den oppdaterte diagramkatalogen fra `filer_prosjekt/rapport-figurer/vedlegg/vedlegg-g-teknisk-diagramkatalog.md`, eller bruk konkrete PNG-lenker uten å lime inn alle diagrammene som bilder.
@@ -83,16 +83,13 @@ Sjekkpunkter:
 - [ ] TOC må ikke lenger liste MoSCoW/risikoanalyse som Vedlegg B/C hvis de ikke finnes der.
 - [ ] Vedlegg G skal være en katalog med lenker til diagrammene i repoet, ikke en full kopi av alle diagrammene.
 - [ ] Vedlegg G må ikke si `PNG-format` og deretter liste `.md`-filer uten klikkbare PNG-lenker.
-- [ ] Vedlegg H skal være skjermbilder/bevis fra Security Headers, DeepScan, GitHub Actions, Datadog, PostHog og Cloudflare.
-- [ ] Ikke bruk Vedlegg K/L i hovedtekst hvis de ikke finnes som vedlegg. Bruk repo-lenke for pentestrapport og vanlig teksthenvisning for Canvas-kontekst.
+- [ ] Vedlegg H skal være skjermbilder/bevis fra Security Headers, DeepScan, GitHub Actions, Datadog, PostHog og Cloudflare, og kan også inneholde kort pentestoppsummering med lenke til full rapport:
+  - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/pentest-studwize.md`
+- [ ] Ikke bruk Vedlegg K/L i hovedtekst hvis de ikke finnes som vedlegg. Bruk Vedlegg H for sikkerhet/pentest og vanlig teksthenvisning for Canvas-kontekst.
 
 ## Hovedtekst: korte henvisninger, ikke fulle vedlegg
 
 Bruk korte formuleringer som disse i hovedkapitlene:
-
-```text
-Vi gjennomførte en manuell pentest med 35 nummererte funn. De viktigste funnene var F-14 og F-29, som drøftes i 4.5.6. Full pentestrapport ligger i prosjektets GitHub-repository.
-```
 
 ```text
 Utvalgte sikkerhets- og observability-resultater er dokumentert i Vedlegg H, blant annet Security Headers, DeepScan, GitHub Actions, Datadog, PostHog og Cloudflare.
@@ -111,43 +108,22 @@ Detaljerte tekniske diagrammer er samlet i Vedlegg G som diagramkatalog, med len
   - Vedlegg D: skriv at Gantt-figuren er `gjengitt nedenfor`.
   - Vedlegg E: skriv at arkitekturfiguren er `gjengitt nedenfor`.
   - Vedlegg F: skriv at use case-figuren er `gjengitt nedenfor`.
-- [ ] For pentestrapport kan teksten peke direkte til:
-  - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/pentest-studwize.md`
 - [ ] Ikke bruk usikre lenker til filer som kanskje ikke finnes, som `moscow.md`, uten å kontrollere faktisk filsti først. **Verifisert 18.05.2026:** `moscow.md` finnes ikke i repoet. Hvis MoSCoW/risikoanalyse ikke er egne vedlegg, skal de heller ikke stå som Vedlegg B/C i TOC.
 
 ## Innhold som bør legges til hvis tiden holder
 
 Disse punktene er ikke like kritiske som restemarkører og vedleggsfeil, men de kan styrke rapporten hvis dere rekker det.
 
+- [ ] **Forord eller 5.4:** Legg inn 1-2 korte setninger som gir litt mer menneskelig motivasjon/refleksjon, uten å gjøre rapporten uformell. For eksempel:
+
+  > Som studenter kjente vi selv på problemet StudyWise forsøker å løse: informasjon, frister, dokumenter og KI-støtte ligger ofte spredt i ulike verktøy. Det gjorde prosjektet mer motiverende for oss, fordi vi ikke bare bygde en teknisk prototype, men et verktøy vi selv kunne sett nytte av i studiehverdagen.
+
+  Eller i 5.4:
+
+  > Det mest lærerike var kanskje at de vanskeligste valgene ikke handlet om hvilken modell eller database vi brukte, men om hvordan vi kunne gjøre løsningen trygg, forståelig og faktisk nyttig for studenter.
+
 - [ ] **§ 1.4, § 4.5.2 eller § 5.3:** Nevn at Canvas-institusjoner delvis er hardkodet og at dere ikke kan garantere støtte for alle universiteter/høyskoler. Dette ble ikke funnet tydelig i ny PDF.
 - [ ] **§ 4.5:** Nevn at CSP, Clerk og Cloudflare krevde mye tuning for å balansere sikkerhet mot fungerende tredjepartsskript. CSP nevnes, men ikke denne praktiske tuning-erfaringen.
-
-## Copy-paste-avsnitt klare for innliming
-
-Disse er ferdige tekstutkast som kan limes inn i Word og justeres språklig ved behov.
-
-### Til § 1.4, § 4.5.2 eller § 5.3 - Hardkodede Canvas-institusjoner
-
-> Canvas-støtten er også en avgrensning. I starten støttet vi bare USN, før løsningen ble utvidet med flere norske institusjoner. Listen over institusjoner er likevel basert på kjente Canvas-domener og er ikke en garanti for at alle universiteter eller høyskoler bruker Canvas, eller at Canvas-oppsettet deres fungerer likt. En mer moden løsning bør derfor ha en dynamisk institusjonskatalog eller institusjonell integrasjon i stedet for en hardkodet liste.
-
-### Til § 4.5 - CSP, Clerk og Cloudflare-tuning
-
-> En annen praktisk sikkerhetserfaring var at strenge sikkerhetsmekanismer måtte balanseres mot fungerende tredjepartsintegrasjoner. CSP-reglene måtte justeres flere ganger for å støtte Clerk, Cloudflare Turnstile, analyseverktøy og nødvendige scripts uten å åpne policyen mer enn nødvendig. Dette viser at sikkerhetsheadere ikke bare kan settes én gang og glemmes. I en moderne webapplikasjon med flere eksterne tjenester må CSP, CORS, Cloudflare-regler og autentiseringsflyt testes samlet.
-
-### Til hovedtekst - pentestrapport som repo-artefakt
-
-Bruk denne hvis dere beholder dagens vedleggsstruktur A-H og ikke skal ha eget Vedlegg K:
-
-> Vi gjennomførte en manuell penetrasjonstest av StudyWise med fokus på autentisering, autorisasjon, API-endepunkter, rate limiting, inputvalidering, kontosletting, Canvas-tokenhåndtering og KI-relaterte angrepsflater som prompt injection.
->
-> Testen resulterte i 35 nummererte funn. Ingen kritiske sårbarheter ble stående åpne ved levering. De mest relevante funnene for hovedrapporten er drøftet i kapittel 4.5.6, blant annet F-14 og F-29, fordi de påvirket sikkerhetsdesign og mitigeringer i løsningen.
->
-> Full pentestrapport ligger i prosjektets GitHub-repository:  
-> `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/pentest-studwize.md`
-
-Kort setning til hovedtekst hvis den trengs:
-
-> Full pentestrapport er ikke gjengitt i sin helhet i rapporten, men ligger som artefakt i prosjektets GitHub-repository.
 
 ## Siste Word-sjekk
 
