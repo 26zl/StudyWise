@@ -46,7 +46,7 @@ Disse punktene er verifisert i PDF-en og bør fikses før innlevering.
 
   > For administrator er de viktigste brukstilfellene å se overordnet statistikk og administrere drift og brukere. Publisering av systemmeldinger inngår i administrativ drift.
 
-- [ ] **Vedlegg J1-J7:** Sett inn skjermbildene, eller fjern underseksjonene som mangler bilde. Nå ser J1 Security Headers, J2 DeepScan, J3 GitHub Actions, J4 Datadog APM, J5 Datadog Host Metrics, J6 PostHog og J7 Cloudflare ut til å være tomme.
+- [ ] **Vedlegg J1-J7:** Kontroller visuelt at skjermbildene faktisk vises i PDF-eksporten for J1 Security Headers, J2 DeepScan, J3 GitHub Actions, J4 Datadog APM, J5 Datadog Host Metrics, J6 PostHog og J7 Cloudflare. Hvis en underseksjon mangler bilde, sett inn bilde eller fjern underseksjonen. Tekstuttrekket fra PDF viste kun overskriftene, men det betyr ikke nødvendigvis at bildene mangler visuelt.
 - [ ] **Vedlegg L - Canvas kontekst:** Fyll inn kort dokumentasjon av Canvas-kontekst, eller fjern vedlegget og alle henvisninger til det. Nå er vedlegget tomt.
 - [ ] **Innholdsfortegnelsen:** Tabell-bildetekster lekker fortsatt inn i TOC. Sett `Tabell X:`-tekstene til Word-stilen **Bildetekst/Caption**, ikke Heading, og oppdater TOC.
 - [ ] **Figur 7:** Endre svak bildetekst fra `Figur 7: wireframe og endelig design` til noe mer presist, for eksempel:
