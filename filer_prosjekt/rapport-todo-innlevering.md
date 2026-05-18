@@ -100,7 +100,7 @@ Utvalgte sikkerhets- og observability-resultater er dokumentert i Vedlegg J, bla
 ```
 
 ```text
-Detaljerte tekniske diagrammer er samlet i Vedlegg I som diagramkatalog, med lenker til fullstendige diagramfiler i GitHub-repositoriet.
+Detaljerte tekniske diagrammer er samlet i Vedlegg I som diagramkatalog, med lenker til høyoppløselige PNG-versjoner i GitHub-repositoriet.
 ```
 
 ## Ufullstendige lenker og "ligger her"
@@ -108,9 +108,9 @@ Detaljerte tekniske diagrammer er samlet i Vedlegg I som diagramkatalog, med len
 - [ ] Søk etter alle forekomster av `ligger her`.
 - [ ] Hvis full artefakt finnes i repoet, erstatt teksten med en konkret GitHub-lenke.
 - [ ] Hvis full artefakt allerede er gjengitt i vedlegget, skriv `gjengitt nedenfor` i stedet for `ligger her`.
-- [ ] For Vedlegg G og H kan teksten peke til Vedlegg I og konkrete diagramfiler:
-  - `01-arkitektur-overordnet.md`
-  - `13-use-case-diagram.md`
+- [ ] For Vedlegg G og H kan teksten peke til Vedlegg I og konkrete PNG-diagrammer:
+  - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/01-arkitektur-overordnet.png`
+  - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/13-use-case-diagram.png`
 - [ ] For Vedlegg K kan teksten peke til:
   - `https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/pentest-studwize.md`
 - [ ] Ikke bruk usikre lenker til filer som kanskje ikke finnes, som `moscow.md`, uten å kontrollere faktisk filsti først. **Verifisert 18.05.2026:** `moscow.md` finnes ikke i repoet. For Vedlegg B er MoSCoW-tabellen allerede gjengitt inline, så bytt `ligger her` med `er gjengitt nedenfor`.
@@ -120,38 +120,38 @@ Detaljerte tekniske diagrammer er samlet i Vedlegg I som diagramkatalog, med len
 Erstatt den enkle bullet-listen i Vedlegg I med klikkbare GitHub-lenker slik at sensor kan åpne hvert diagram direkte.
 
 ```markdown
-**Oversikt over diagramfiler (klikkbare lenker):**
+**Oversikt over diagramfiler (klikkbare lenker — PNG):**
 
 - [00 - Samlet oversikt over diagrammene](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/00-oversikt.md)
-- [01 - Overordnet systemarkitektur](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/01-arkitektur-overordnet.md)
-- [02 - Monorepo-struktur og pakker](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/02-monorepo-struktur.md)
-- [03 - Autentisering og brukerflyt](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/03-autentiseringsflyt.md)
-- [04 - KI-chat og modellkall](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/04-ki-chat-pipeline.md)
-- [05 - Integrasjon mot Canvas LMS](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/05-canvas-integrasjon.md)
-- [06 - Kunnskapsbase og RAG-flyt](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/06-kunnskapsbase-rag.md)
-- [07 - Datamodeller og datalagring](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/07-database-modeller.md)
-- [08 - Backend middleware-rekkefølge](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/08-middleware-stack.md)
-- [09 - Sletting av bruker og tilhørende data](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/09-bruker-sletting.md)
-- [10 - Deployment og infrastruktur](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/10-deployment-arkitektur.md)
-- [11 - Sikkerhetslag i løsningen](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/11-sikkerhetslag.md)
-- [12 - Jobbkøer og bakgrunnsprosesser (BullMQ)](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/12-bullmq-koer.md)
-- [13 - Fullstendig use case-diagram](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/13-use-case-diagram.md)
-- [14 - Brukerreise gjennom løsningen](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/14-brukerreise.md)
-- [15 - CI/CD-pipeline](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/15-cicd-pipeline.md)
-- [16 - Milepæler og tidslinje](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/16-milepaeler-tidslinje.md)
-- [17 - UML-klassediagram](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/17-uml-klassediagram.md)
-- [18 - Work Breakdown Structure](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/18-wbs-work-breakdown.md)
-- [19 - Teststrategi](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/19-test-strategi.md)
-- [20 - STRIDE-basert trusselmodell](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/20-stride-trusselmodell.md)
-- [21 - Observability-stack](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/21-observability-stack.md)
+- [01 - Overordnet systemarkitektur](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/01-arkitektur-overordnet.png)
+- [02 - Monorepo-struktur og pakker](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/02-monorepo-struktur.png)
+- [03 - Autentisering og brukerflyt](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/03-autentiseringsflyt.png)
+- [04 - KI-chat og modellkall](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/04-ki-chat-pipeline.png)
+- [05 - Integrasjon mot Canvas LMS](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/05-canvas-integrasjon.png)
+- [06 - Kunnskapsbase og RAG-flyt](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/06-kunnskapsbase-rag.png)
+- [07 - Datamodeller og datalagring](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/07-database-modeller.png)
+- [08 - Backend middleware-rekkefølge](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/08-middleware-stack.png)
+- [09 - Sletting av bruker og tilhørende data](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/09-bruker-sletting.png)
+- [10 - Deployment og infrastruktur](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/10-deployment-arkitektur.png)
+- [11 - Sikkerhetslag i løsningen](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/11-sikkerhetslag.png)
+- [12 - Jobbkøer og bakgrunnsprosesser (BullMQ)](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/12-bullmq-koer.png)
+- [13 - Fullstendig use case-diagram](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/13-use-case-diagram.png)
+- [14 - Brukerreise gjennom løsningen](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/14-brukerreise.png)
+- [15 - CI/CD-pipeline](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/15-cicd-pipeline.png)
+- [16 - Milepæler og tidslinje](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/16-milepaeler-tidslinje.png)
+- [17 - UML-klassediagram](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/17-uml-klassediagram.png)
+- [18 - Work Breakdown Structure](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/18-wbs-work-breakdown.png)
+- [19 - Teststrategi](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/19-test-strategi.png)
+- [20 - STRIDE-basert trusselmodell](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/20-stride-trusselmodell.png)
+- [21 - Observability-stack](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/21-observability-stack.png)
 
-Hele diagrammappen kan også åpnes samlet:
-[filer_prosjekt/diagrammer/](https://github.com/26zl/StudyWise/tree/main/filer_prosjekt/diagrammer)
+Hele PNG-mappen kan også åpnes samlet:
+[filer_prosjekt/diagrammer/png/](https://github.com/26zl/StudyWise/tree/main/filer_prosjekt/diagrammer/png)
 ```
 
 Legg gjerne til denne setningen rett under introduksjonen i Vedlegg I:
 
-> Lenkene under åpner mermaid-kilden direkte på GitHub, hvor diagrammene kan leses i kontekst. Høyoppløselige PNG-eksporter ligger i `filer_prosjekt/diagrammer/png/`.
+> Lenkene under åpner høyoppløselig PNG-versjon av hvert diagram direkte på GitHub (2400 px bredde, scale 3). Mermaid-kildene ligger i `filer_prosjekt/diagrammer/` for de som vil se den underliggende notasjonen.
 
 ## Punkt som er foreldet eller feil i gammel TODO
 

@@ -2,13 +2,40 @@
 
 Dette vedlegget samler alle 21 tekniske diagrammene for StudyWise i én katalog. Hensikten er å gi sensor og videre utviklere full sporbarhet over arkitektur, sikkerhet, observabilitet og prosjektmetodikk uten at hovedrapporten blir tung. Hovedrapporten bruker Figur 1-13 (se `rapport-figurer/hovedrapport/`); resten ligger her som referansemateriale.
 
-Hver oppføring under viser figurnummer for vedlegget (Figur M.N), kildediagram, PNG-fil til innsetting i Word, og en kort forklaring av hva diagrammet viser. Mermaid-kildene ligger i `filer_prosjekt/diagrammer/*.md` og kan redigeres og re-genereres ved senere endringer.
+Hver oppføring under viser figurnummer for vedlegget (Figur M.N), PNG-fil til innsetting i Word, GitHub-lenke til ferdig PNG, og en kort forklaring av hva diagrammet viser. Mermaid-kildene ligger i `filer_prosjekt/diagrammer/*.md` som sporbar kilde, men sensor bør primært få PNG-lenkene fordi de viser ferdig rendret diagram.
 
 ## Slik bruker du katalogen
 
 - Lim inn PNG-en fra `../../diagrammer/png/` til Word på riktig sted i vedlegget.
 - Bruk figurteksten under "Bildetekst" som caption i Word.
+- Bruk GitHub-lenken til PNG dersom diagrammet skal være klikkbart for sensor.
 - Behold Mermaid-kilden som sporbar kilde. Hvis et diagram endres, oppdater både `.md`-kilden og generer ny PNG.
+
+## Klikkbare PNG-lenker
+
+For sensor er disse PNG-lenkene mest nyttige:
+
+- [01 - Overordnet systemarkitektur](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/01-arkitektur-overordnet.png)
+- [02 - Monorepo-struktur og pakker](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/02-monorepo-struktur.png)
+- [03 - Autentisering og brukerflyt](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/03-autentiseringsflyt.png)
+- [04 - KI-chat og modellkall](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/04-ki-chat-pipeline.png)
+- [05 - Integrasjon mot Canvas LMS](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/05-canvas-integrasjon.png)
+- [06 - Kunnskapsbase og RAG-flyt](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/06-kunnskapsbase-rag.png)
+- [07 - Datamodeller og datalagring](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/07-database-modeller.png)
+- [08 - Backend middleware-rekkefølge](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/08-middleware-stack.png)
+- [09 - Sletting av bruker og tilhørende data](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/09-bruker-sletting.png)
+- [10 - Deployment og infrastruktur](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/10-deployment-arkitektur.png)
+- [11 - Sikkerhetslag i løsningen](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/11-sikkerhetslag.png)
+- [12 - Jobbkøer og bakgrunnsprosesser (BullMQ)](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/12-bullmq-koer.png)
+- [13 - Fullstendig use case-diagram](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/13-use-case-diagram.png)
+- [14 - Brukerreise gjennom løsningen](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/14-brukerreise.png)
+- [15 - CI/CD-pipeline](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/15-cicd-pipeline.png)
+- [16 - Milepæler og tidslinje](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/16-milepaeler-tidslinje.png)
+- [17 - UML-klassediagram](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/17-uml-klassediagram.png)
+- [18 - Work Breakdown Structure](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/18-wbs-work-breakdown.png)
+- [19 - Teststrategi](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/19-test-strategi.png)
+- [20 - STRIDE-basert trusselmodell](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/20-stride-trusselmodell.png)
+- [21 - Observability-stack](https://github.com/26zl/StudyWise/blob/main/filer_prosjekt/diagrammer/png/21-observability-stack.png)
 
 ## Sammendrag av plassering
 
