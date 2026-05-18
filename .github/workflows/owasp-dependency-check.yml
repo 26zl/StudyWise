@@ -8,6 +8,9 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # 12.2.2/latest krasjet under NVD-import med "connectionPool is null" i GitHub Actions.
+  # 12.2.1 er pinned til amd64-digest for reproducerbar ukentlig skann.
+  DEPENDENCY_CHECK_IMAGE: owasp/dependency-check@sha256:e8e40735ec315869d46662c495588c41bc4a06bab8c069863cb9da4bb2b491a0
 
 permissions:
   contents: read
@@ -17,7 +20,7 @@ jobs:
   owasp-dependency-check:
     name: OWASP Dependency-Check
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
 
     steps:
       - name: Harden Runner
@@ -54,9 +57,9 @@ jobs:
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/.dependency-check
-          key: dependency-check-data-${{ runner.os }}-${{ github.run_id }}
+          key: dependency-check-data-v2-12.2.1-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            dependency-check-data-${{ runner.os }}-
+            dependency-check-data-v2-12.2.1-${{ runner.os }}-
 
       # Vi kjører OWASP-containeren direkte i stedet for dependency-check/Dependency-Check_Action.
       # Den gamle actionen sender ekstra argumenter som én samlet streng og legger alltid på --noupdate,
@@ -75,12 +78,16 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -v "$GITHUB_WORKSPACE:/src" \
             -v "$HOME/.dependency-check:/usr/share/dependency-check/data" \
-            owasp/dependency-check@sha256:84cd5c929a59566f24ab22055a6c0891e39f68d416f3ca370d66edc254f496b8 \
+            "$DEPENDENCY_CHECK_IMAGE" \
             --data /usr/share/dependency-check/data \
             --project "StudyWise" \
             --scan /src \
             --format HTML \
             --out /src/reports \
+            --nvdApiDelay 10000 \
+            --nvdMaxRetryCount 20 \
+            --connectiontimeout 30000 \
+            --readtimeout 120000 \
             --enableRetired \
             --exclude "/src/**/node_modules/**" \
             --exclude "/src/**/.next/**" \
