@@ -81,4 +81,4 @@ flowchart TB
 
 ## Hvor er den fullstendige versjonen?
 
-Det detaljerte ER-diagrammet med alle felt og typer ligger i `07-database-modeller.md` og som PNG i `png/07-database-modeller.png`. Det henvises til derfra i Vedlegg M (teknisk diagramkatalog).
+Denne forenklede varianten er eksportert som `png/07-database-modeller-forenklet.png`. Det detaljerte ER-diagrammet med alle felt og typer ligger i `07-database-modeller.md` og som PNG i `png/07-database-modeller.png`. Det henvises til derfra i Vedlegg M (teknisk diagramkatalog).

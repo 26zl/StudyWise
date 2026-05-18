@@ -16,7 +16,7 @@ features:
   - title: Kalender og frister
     details: Kombinert kalendervisning med Canvas-frister og oppgaver, filtrert per semester og emne.
   - title: Sikkerhet og personvern
-    details: Ende-til-ende-kryptering av chat-historikk (AES-256-GCM), Clerk-autentisering, rate-limiting, CSRF-beskyttelse og GDPR-bevisst dataflyt.
+    details: Kryptering i ro av chat-historikk og tokens (AES-256-GCM), obligatorisk MFA via Clerk, rate-limiting, CSRF-beskyttelse og GDPR-bevisst dataflyt.
 ---
 
 # Om prosjektet
@@ -33,7 +33,7 @@ StudyWise er et pågående bachelorprosjekt (2026) og en teknisk prototype. Det 
 
 StudyWise er bygd som et **pnpm-monorepo** med fem pakker: `frontend`, `backend`, `common` (delte Zod-skjemaer og TypeScript-typer), `docs` og `tests` (integrasjons-/E2E-testkjøring). Frontend og backend deler datakontrakter gjennom `common`, som sikrer konsistens i validering og typer på tvers av hele stacken.
 
-All kommunikasjon mellom bruker og backend går via frontend og Cloudflare-edge — frontend kaller aldri eksterne tjenester direkte. Next.js proxyer alle `/api/*`-forespørsler videre til `https://api.studwize.page`, som går gjennom Cloudflare før Express-backenden på Heroku nås. Backend er den autoritative sikkerhetsgrensen: autentisering, autorisering, validering og datahenting skjer alltid server-side.
+Alle applikasjonskall mot StudyWise-backend går via frontend og Cloudflare-edge. Next.js proxyer alle `/api/*`-forespørsler videre til `https://api.studwize.page`, som går gjennom Cloudflare før Express-backenden på Heroku nås. Enkelte klientnære tredjepartstjenester, som Clerk, Cloudflare Turnstile, Datadog RUM og PostHog, kan likevel kalles direkte fra nettleseren. Backend er den autoritative sikkerhetsgrensen for StudyWise-data: autorisering, validering og datahenting skjer server-side.
 
 ### Dataflyt
 
@@ -70,7 +70,7 @@ Bruker → Cloudflare → Frontend → Cloudflare API-edge → Backend → KI-tj
 | **Vektorsøk**             | Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde                                                      |
 | **Filer/dokumenter**      | Multer, unpdf (PDF), mammoth (Word), tesseract.js + sharp (OCR)                                                                           |
 | **API**                   | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible                                                              |
-| **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend), PostHog (produktanalyse, cookieless), LangSmith (KI-feilsøking)                |
+| **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend), PostHog (cookie-samtykke-styrt produktanalyse), LangSmith (KI-feilsøking)     |
 | **E-postlevering**        | Resend (via Cloudflare Worker-relay for kontaktskjema)                                                                                    |
 | **Tooling**               | syncpack (versjons-drift), knip (død kode)                                                                                                |
 | **CI/CD**                 | GitHub Actions, Heroku (backend), Vercel (frontend), Cloudflare (CDN/WAF), GitHub Pages (docs)                                            |
@@ -123,7 +123,7 @@ Admin har et eget panel for vedlikehold, brukerhåndtering og publisering av glo
 Sikkerhet er integrert i hele stacken:
 
 - **Kryptering**: Canvas API-tokens og chat-historikk krypteres med AES-256-GCM
-- **Autentisering**: Clerk Bearer-token med valgfri 2FA; sesjoner håndteres via sikre cookies
+- **Autentisering**: Clerk Bearer-token med obligatorisk MFA/2FA; backup codes støttes som recovery-mekanisme, og sesjoner håndteres via sikre cookies
 - **CSRF**: State-endrende forespørsler krever en egen header og origin-validering
 - **Rate limiting**: Per IP og per tjeneste (innlogging, KI, Canvas, kontaktskjema)
 - **HTTPS og sikkerhetsheadere**: Helmet med nonce-basert CSP, HSTS preload og Cloudflare Full (strict) TLS til origin i offentlig demo / produksjonslik deploy
@@ -133,7 +133,7 @@ Sikkerhet er integrert i hele stacken:
 
 ### Avgrensninger og videre hardening
 
-StudyWise er en bachelorprototype i produksjonslik drift. Videre arbeid bør prioritere institusjonsgodkjent Canvas-integrasjon (OAuth/LTI/developer key), avklaring av Sikt/personvern ved videre brukertesting, ny autentisert penetrasjonstest etter siste sikkerhetsendringer, videre optimalisering av Heroku-minnebruk og sterkere standardkrav til MFA/passkeys for administrative kontoer. Tredjepartsavhengigheter som Cloudflare, Vercel, Heroku, Clerk og KI-leverandører er bevisste arkitekturvalg og må vurderes videre i risiko- og personvernarbeid.
+StudyWise er en bachelorprototype i produksjonslik drift. Videre arbeid bør prioritere institusjonsgodkjent Canvas-integrasjon (OAuth/LTI/developer key), avklaring av Sikt/personvern ved videre brukertesting, ny autentisert penetrasjonstest etter siste sikkerhetsendringer, videre optimalisering av Heroku-minnebruk og vurdering av passkeys og institusjonelle autentiseringspolicyer. Tredjepartsavhengigheter som Cloudflare, Vercel, Heroku, Clerk og KI-leverandører er bevisste arkitekturvalg og må vurderes videre i risiko- og personvernarbeid.
 
 ## Testing og kvalitetssikring
 

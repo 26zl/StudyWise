@@ -43,7 +43,7 @@ Vi har estimert ca. 30 minutter for en grundig orientering før selve hovedrappo
 
 | Steg | Dokument | Tid | Hva du får ut av det |
 |------|----------|-----|----------------------|
-| 1 | [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) | 10 min | 20 mermaid-diagrammer som dokumenterer arkitekturen, med anbefalt rekkefølge. |
+| 1 | [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) | 10 min | 21 mermaid-diagrammer som dokumenterer arkitekturen, med anbefalt rekkefølge. |
 | 2 | [`Prosjektbeskrivelse_gruppe3.pdf`](Prosjektbeskrivelse_gruppe3.pdf) | 5 min | Opprinnelig prosjektbeskrivelse — viser ambisjonsnivå og avgrensning ved oppstart. |
 | 3 | [`BOP-Prosjektskisse-Gruppe3-1.pdf`](BOP-Prosjektskisse-Gruppe3-1.pdf) | 5 min | Tidlig prosjektskisse — viser at de tekniske valgene er begrunnet og forankret. |
 | 4 | [`brukertest-skjema.md`](brukertest-skjema.md) | 5 min | Brukertest-instrument: 53 spørsmål inkludert SUS-skala. Viser metodisk arbeid. |
@@ -55,7 +55,7 @@ Vi har estimert ca. 30 minutter for en grundig orientering før selve hovedrappo
 
 ### `diagrammer/`
 
-20 mermaid-diagrammer som dokumenterer den tekniske arkitekturen — eksportert som både `.md` (kilde) og `.png` (høy oppløsning). Se [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) for full leseguide.
+21 mermaid-diagrammer som dokumenterer den tekniske arkitekturen — eksportert som både `.md` (kilde) og `.png` (høy oppløsning). Se [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) for full leseguide. I tillegg finnes en forenklet variant av datamodelldiagrammet som arbeids-/rapportvariant.
 
 | Område | Diagrammer |
 |--------|-----------|
@@ -65,6 +65,7 @@ Vi har estimert ca. 30 minutter for en grundig orientering før selve hovedrappo
 | Sikkerhet og personvern | 08, 09, 11, 20 |
 | Brukersentrert design | 13, 14 |
 | Kvalitet og prosjekt | 15, 16, 18, 19 |
+| Observabilitet og drift | 21 |
 | UML | 03, 04, 13, 17 |
 
 ### `rapport-figurer/`
@@ -110,7 +111,7 @@ Compliance-mappen i rotkatalogen (`compliance/`) inneholder alle styrende dokume
 | **Sikkerhet og personvern (GDPR)** | Diagram 03, 08, 09, 10, 11 + rotmappens `CLAUDE.md` (guardrails-seksjon). Cloudflare-only API-path, 15 sikkerhetslag og soft-delete-flyt for kontosletting. |
 | **Brukersentrert utvikling** | `brukertest-skjema.md`, `kanban-brukerhistorier.txt`. SUS-måling, 55 brukerhistorier, ekte testdeltakere. |
 | **Prosjektledelse og metodikk** | `kanban-brukerhistorier.txt`, `teknisk-kanban-issues.txt`, `Prosjektbeskrivelse_gruppe3.pdf`. Sporbar Kanban-flyt fra brukerhistorie til implementasjon. |
-| **Drift og leveranse** | Diagram 10, 13. Løsningen er deployet som offentlig demo / produksjonslik drift med CI/CD, helsestatus og observabilitet. |
+| **Drift og leveranse** | Diagram 10, 15 og 21. Løsningen er deployet som offentlig demo / produksjonslik drift med CI/CD, helsestatus og observabilitet. |
 | **Kommunikasjon** | `manus-milepael-3.md`. Norske variabelnavn og kommentarer gjennomgående i kodebasen for tilgjengelighet. |
 
 ## Tekniske verifiserings­tips

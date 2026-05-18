@@ -1,6 +1,6 @@
 # Diagrammer — oversikt
 
-Denne mappen inneholder 20 mermaid-diagrammer som dokumenterer den tekniske arkitekturen, sentrale flyter, sikkerhets- og personvernarbeidet, og prosjektmetodikken til **StudyWise** — en KI-basert studieassistent integrert med Canvas LMS, utviklet som bacheloroppgave i IT ved USN (gruppe 3, 2026). Diagrammene er ment som et raskt orienteringsverktøy for lesere som vil få et inntrykk av løsningens omfang og kvalitet uten å lese all kildekoden først.
+Denne mappen inneholder 21 mermaid-diagrammer som dokumenterer den tekniske arkitekturen, sentrale flyter, sikkerhets- og personvernarbeidet, og prosjektmetodikken til **StudyWise** — en KI-basert studieassistent integrert med Canvas LMS, utviklet som bacheloroppgave i IT ved USN (gruppe 3, 2026). Diagrammene er ment som et raskt orienteringsverktøy for lesere som vil få et inntrykk av løsningens omfang og kvalitet uten å lese all kildekoden først.
 
 Hvert diagram finnes i to formater:
 
@@ -44,6 +44,8 @@ For en rask oversikt (≈ 10 minutter) anbefaler vi denne rekkefølgen:
 | 19 | [test-strategi](19-test-strategi.md) | Test-pyramide + dekningsmatrise: 1192 enhetstester (60 filer), 120 auth-scenarier og 11 Playwright E2E-spec-filer. |
 | 20 | [stride-trusselmodell](20-stride-trusselmodell.md) | STRIDE-kategorier med konkrete trusler og tiltak (visualisering av compliance/THREAT_MODEL.md). |
 | 21 | [observability-stack](21-observability-stack.md) | Datadog (RUM, APM, infra, logs) og Grafana-dashboardet som leser fra Datadogs API — med tag-distribusjon og parallelle løp (LangSmith, PostHog). |
+
+Merk: `07-database-modeller-forenklet.md` finnes også i mappen, med egen PNG i `png/07-database-modeller-forenklet.png`, som en forenklet arbeids-/rapportvariant av datamodelldiagrammet. Hovedkatalogen bruker `07-database-modeller.md`.
 
 ## Tematisk gruppering
 

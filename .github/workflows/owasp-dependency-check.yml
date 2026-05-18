@@ -60,7 +60,7 @@ jobs:
           project: "StudyWise"
           path: "."
           format: "HTML"
-          others: >-
+          others: |
             --enableRetired
             --exclude "**/node_modules/**"
             --exclude "**/.next/**"

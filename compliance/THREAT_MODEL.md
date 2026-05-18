@@ -32,7 +32,7 @@ Fysiske angrep og sosial manipulering behandles separat i
 
 | Trussel | Vektor | Tiltak |
 | ------- | ------ | ------ |
-| Angriper logger inn som annen bruker | Stjålne credentials, session hijacking | Clerk-håndtert auth, valgfri 2FA, sikre cookies, Turnstile mot bot, rate-limiting på innlogging, step-up auth for sensitive ops |
+| Angriper logger inn som annen bruker | Stjålne credentials, session hijacking | Clerk-håndtert auth med obligatorisk MFA, backup codes som recovery-mekanisme, sikre cookies, Turnstile mot bot, rate-limiting på innlogging, step-up auth for sensitive ops |
 | OAuth-konto-konflikt / account takeover | Samme Google/Microsoft-konto kobles til to brukere | `oauth_account_conflict`-logikk avviser nye signups som kolliderer, tombstone-sporing 90 dager |
 | CSRF / forfalskede requests | Ondsinnet nettside sender requests i brukerens navn | Origin-validering, CSRF-token på state-endrende endepunkter |
 | Falsk webhook | Spoofed Clerk webhook | Signatur-verifisering av Clerk webhook-secret, rå body-parsing |
@@ -60,8 +60,8 @@ Fysiske angrep og sosial manipulering behandles separat i
 | Trussel | Vektor | Tiltak |
 | ------- | ------ | ------ |
 | Canvas-token lekker | Logging, XSS, DB-dump | AES-256-GCM kryptering, kun server-side bruk, ingen logging av tokenet |
-| Chat-innhold lekker | DB-dump, backup-komprimering | AES-256-GCM-blob per samtale; kun brukeren kan dekryptere (kombinert med tilgang) |
-| PII i kunnskapsbase lekker til Pinecone | Brukerens egne dokumenter | Automatisk PII-sanitering (e-post, telefon, fødselsnummer, studentnummer, norske adresser, signatur-navn) før indeksering |
+| Chat-innhold lekker | DB-dump, backup-komprimering | AES-256-GCM-blob per samtale; dekrypteres server-side kun for autorisert brukerflyt |
+| PII i kunnskapsbase lekker til Pinecone | Brukerens egne dokumenter | Best-effort PII-sanitering før indeksering der det er relevant (e-post, telefon, fødselsnummer, studentnummer, norske adresser, signatur-navn) |
 | Intern teknologi-lekkasje via status-side | Offentlig status avslører stack | Public `/status` mapper til brukerfokuserte buckets ("Innlogging", "KI-chat"); interne detaljer bak admin-gated `/health/dependencies` |
 | Audit-logger eksponerer PII | IP/UA koblet til bruker | Pseudonymisering ved kontosletting; 24-måneders TTL; admin-only tilgang |
 | SSRF mot intern infrastruktur | Web-crawler leser interne URL-er | SSRF-guard avviser lokale IP-er, link-local, metadata-endepunkter |

@@ -102,9 +102,11 @@ studentnummer, navn i signaturer).
 
 **Tiltak:**
 
-- Automatisk PII-sanitering før Pinecone-indeksering (regex for e-post,
-  telefon, fødselsnummer, studentnummer, norske adresser, signatur-navn).
-- Dokument-innhold anonymisert i Pinecone (vektorer + tekstbiter uten ID).
+- Best-effort PII-sanitering før Pinecone-indeksering der det er relevant
+  (regex for e-post, telefon, fødselsnummer, studentnummer, norske adresser,
+  signatur-navn).
+- Dokument-innhold lagres i Pinecone som tekstbiter med teknisk metadata for
+  tilgangsfilter og sletting, men uten Canvas-token eller autentiseringshemmeligheter.
 - Ved sletting av kunnskapsbase eller konto slettes alt i Pinecone.
 - Systemprompt instruerer KI-en om ikke å gjengi personnavn fra dokumenter.
 
@@ -248,7 +250,7 @@ Alle rettigheter er implementert:
 
 ## 7. Sikkerhetsarkitektur — oppsummering
 
-- TLS 1.3 overalt
+- HTTPS/TLS for offentlige endepunkter og tredjepartskall der tjenestene støtter det
 - AES-256-GCM for sensitive felt
 - CSP, Helmet, CSRF-beskyttelse
 - Rate limiting (per-IP og per-bruker)
@@ -257,7 +259,7 @@ Alle rettigheter er implementert:
 - RBAC + step-up auth for sensitive operasjoner
 - Audit logging med pseudonymisering ved sletting
 - CI: OSV-Scanner, TruffleHog, SBOM-generering
-- MFA-støtte via Clerk (brukervalgt)
+- Obligatorisk MFA via Clerk, med backup codes som recovery-mekanisme
 
 Se `/sikkerhet`-siden for brukerrettet versjon.
 
