@@ -34,6 +34,84 @@ Copy-paste-setning som kan legges i vedleggsinnledningen:
 
 > Vedleggene inneholder utvalgte dokumentasjonsutdrag, skjermbilder og oversikter som støtter hovedteksten. Fullstendige tekniske artefakter, diagramfiler og rapporter ligger i prosjektets GitHub-repository. Hovedteksten oppsummerer og drøfter funnene, mens vedleggene dokumenterer grunnlaget.
 
+### Hvordan bruke vedlegg riktig i teksten
+
+Dere skal bruke vedlegg aktivt i hovedteksten, men dere skal ikke lime inn samme dokumentasjon fullt ut både i hovedtekst og vedlegg.
+
+Kort fasit:
+
+```text
+Ja, bruk vedlegg i teksten.
+Nei, ikke lim inn alt både i hovedtekst og vedlegg.
+Ja, ha noen viktige figurer i hovedteksten.
+Ja, legg bevis, skjermbilder og store artefakter i vedlegg.
+Ja, fullversjoner kan ligge i GitHub-repoet.
+```
+
+Riktig fordeling:
+
+```text
+Hovedtekst: Vi gjorde X, dette betyr Y, se Vedlegg J/K.
+Vedlegg: Her er skjermbildet, utdraget eller katalogen.
+Repo: Her ligger full dokumentasjon og store filer.
+```
+
+Eksempel for pentest:
+
+```text
+Vi gjennomførte en manuell penetrasjonstest med 35 nummererte funn. De viktigste funnene var F-14 og F-29, som drøftes i kapittel 4.5.6. Et utdrag av pentestrapporten ligger i Vedlegg K, mens full rapport ligger i prosjektets GitHub-repository.
+```
+
+Ikke lim inn hele pentestrapporten i kapittel 4. Kapittel 4 skal drøfte hovedfunnene. Vedlegg K skal dokumentere utdraget. Full rapport kan ligge i `filer_prosjekt/pentest-studwize.md`.
+
+Eksempel for sikkerhet og observability:
+
+```text
+Utvalgte resultater fra sikkerhets- og observability-verktøy er dokumentert i Vedlegg J, blant annet Security Headers, DeepScan, GitHub Actions, Datadog, PostHog og Cloudflare.
+```
+
+Eksempel for diagrammer:
+
+```text
+Detaljerte tekniske diagrammer er samlet i Vedlegg I som diagramkatalog, med lenker til høyoppløselige PNG-versjoner i GitHub-repositoriet.
+```
+
+Eksempel for pentestrapport:
+
+```text
+Full pentestrapport ligger i Vedlegg K og i prosjektets GitHub-repository.
+```
+
+### Bilder i hovedtekst eller vedlegg
+
+Bruk denne regelen:
+
+```text
+Hvis bildet er nødvendig for å forstå avsnittet, ha det i hovedteksten.
+Hvis bildet bare dokumenterer eller beviser noe, legg det i vedlegg.
+```
+
+Bilder som kan være i hovedteksten:
+
+- Overordnet arkitekturdiagram.
+- Use case-diagram.
+- Middleware-diagram.
+- CI/CD-diagram hvis flyten drøftes i teksten.
+- SUS-figur hvis brukertesten drøftes i teksten.
+
+Bilder som bør ligge i vedlegg:
+
+- Security Headers A+.
+- DeepScan-resultat.
+- GitHub Actions-skjermbilde.
+- Datadog-skjermbilde.
+- PostHog-skjermbilde.
+- Cloudflare-skjermbilde.
+- Mange produksjonsskjermbilder.
+- Teknisk diagramkatalog.
+- Pentestrapport.
+- Canvas-kontekst.
+
 ## Kritisk før ny PDF-eksport
 
 Disse punktene er verifisert i PDF-en og bør fikses før innlevering.
