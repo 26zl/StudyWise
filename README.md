@@ -18,7 +18,7 @@ Bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026 — gruppe 3
 - **Dokumentasjon:** <https://26zl.github.io/StudyWise/>
 - **Statusside:** <https://www.studwize.page/status>
 
-> For en raskere orientering i prosjektet, se `filer_prosjekt/00-LESEGUIDE.md` og diagrammene i `filer_prosjekt/diagrammer/`.
+> For en raskere orientering i prosjektet, se [leseguiden](filer_prosjekt/00-LESEGUIDE.md) og [diagrammene](filer_prosjekt/diagrammer/).
 
 ## Prototype-scope og avgrensning
 
@@ -121,6 +121,16 @@ Installer pakker med `--filter`: `pnpm --filter frontend add <pakke>`
 cp docker.env.example .env    # Fyll inn verdier
 docker compose up --build     # Start MongoDB, Redis, backend, frontend
 ```
+
+I Docker bruker frontend `http://backend:4000` internt for API-kall. Ikke sett
+`INTERNAL_API_URL=http://localhost:4000` for Docker, fordi `localhost` inne i en
+container peker på containeren selv. Hvis Docker-URL-en må overstyres, bruk
+`DOCKER_INTERNAL_API_URL`.
+
+Merk for lokal Docker: Turnstile er av som standard, Clerk-webhooks testes bare
+fullt hvis `CLERK_WEBHOOK_SECRET` er satt i `backend/.env` og Clerk peker mot en
+lokal webhook-tunnel, og docs/VitePress startes ikke av Compose. Kjør
+`pnpm dev:docs` separat hvis du vil teste dokumentasjonssiden lokalt.
 
 ## Git hooks og kvalitetssjekker
 

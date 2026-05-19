@@ -2,9 +2,15 @@
 # Bruk: docker compose up --build
 #
 # Forutsetninger:
-#   - backend/.env ma finnes (kopier fra backend/.env.example, fyll inn alle pakrevde variabler)
-#   - .env i prosjektrot ma settes (kopier fra docker.env.example, fyll inn verdier)
+#   - backend/.env må finnes (kopier fra backend/.env.example, fyll inn alle påkrevde variabler)
+#   - .env i prosjektrot må settes (kopier fra docker.env.example, fyll inn verdier)
 #   - MongoDB og Redis startes av compose; backend/frontend bruker dem i nettverket
+#
+# Merk:
+#   - Turnstile er av som standard i lokal Docker. Sett flagg og nøkler i .env for å teste det.
+#   - Clerk-webhooks testes bare fullt lokalt hvis CLERK_WEBHOOK_SECRET er satt i backend/.env
+#     og Clerk peker mot en lokal tunnel/webhook-URL.
+#   - Docs/VitePress startes ikke av denne compose-filen. Kjør pnpm dev:docs separat ved behov.
 
 services:
   mongo:
@@ -77,7 +83,9 @@ services:
         NEXT_PUBLIC_TURNSTILE_ENABLED: ${NEXT_PUBLIC_TURNSTILE_ENABLED:-false}
         NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
         NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY:-}
-        INTERNAL_API_URL: ${INTERNAL_API_URL:-http://backend:4000}
+        # I Docker peker localhost på frontend-containeren selv.
+        # Bruk Compose-servicenavnet slik at serverside-videresendinger treffer backend.
+        INTERNAL_API_URL: ${DOCKER_INTERNAL_API_URL:-http://backend:4000}
         NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/sign-in}
         NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/sign-up}
         NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL:-/dashboard}
@@ -93,7 +101,9 @@ services:
     environment:
       # development slik at auth-cookies (secure/sameSite) fungerer over http://localhost
       - NODE_ENV=development
-      - INTERNAL_API_URL=${INTERNAL_API_URL:-http://backend:4000}
+      # Hold Docker adskilt fra lokale miljøfiler utenfor Docker der INTERNAL_API_URL
+      # kan være http://localhost:4000. I Docker må servicenavnet brukes.
+      - INTERNAL_API_URL=${DOCKER_INTERNAL_API_URL:-http://backend:4000}
       - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
       - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
       - NEXT_PUBLIC_TURNSTILE_ENABLED=${NEXT_PUBLIC_TURNSTILE_ENABLED:-false}

@@ -43,7 +43,7 @@ Prosjektet er en bachelorprototype, ikke en offisiell tjeneste fra USN, Canvas/I
 
 ### Teknisk dokumentasjon og diagrammer
 
-- [`diagrammer/`](diagrammer/) - Mermaid-kilder og høyoppløselige PNG-eksporter for 21 tekniske diagrammer.
+- [`diagrammer/`](diagrammer/) - Mermaid-kilder og høyoppløselige PNG-eksporter for 21 hoveddiagrammer, samt en forenklet datamodellfigur brukt i rapportkontekst.
 - [`diagrammer/00-oversikt.md`](diagrammer/00-oversikt.md) - samlet diagramoversikt med anbefalt leserekkefølge.
 - [`rapport-figurer/hovedrapport/`](rapport-figurer/hovedrapport/) - PNG-kopier brukt som figurer i hovedrapporten.
 - [`rapport-figurer/vedlegg/`](rapport-figurer/vedlegg/) - figurer og diagramkatalog brukt i vedlegg:
