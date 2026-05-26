@@ -334,12 +334,12 @@ async function planClerk() {
     userCount: userIds.length,
     userIds,
     async execute() {
-      const deleted = [];
+      let deletedUsers = 0;
       for (const userId of userIds) {
         await clerk.users.deleteUser(userId);
-        deleted.push(userId);
+        deletedUsers += 1;
       }
-      return { deletedUsers: deleted.length };
+      return { deletedUsers };
     },
     async close() {
       // Clerk-SDK-en holder ingen eksplisitt tilkobling åpen.
