@@ -2,15 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Database,
-  Link,
-  FileText,
-  Trash2,
-  Pencil,
-  ChevronRight,
-  Loader2,
-} from "lucide-react";
+import { Database, Link, FileText, Trash2, Pencil, ChevronRight, Loader2 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import { showToast } from "@/app/components/ui/Toaster";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
@@ -111,7 +103,10 @@ export function KbListe({ onSelectBase, visOpprettForm, setVisOpprettForm }: KbL
       {/* Opprett-skjema */}
       {visOpprettForm && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800">
-          <label htmlFor="kb-new-name" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          <label
+            htmlFor="kb-new-name"
+            className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+          >
             {t("kb.baseName")}
           </label>
           <div className="flex gap-2">
@@ -123,7 +118,9 @@ export function KbListe({ onSelectBase, visOpprettForm, setVisOpprettForm }: KbL
               placeholder={t("kb.baseNamePlaceholder")}
               maxLength={KB_MAX_BASE_NAME_LENGTH}
               className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-              onKeyDown={(e) => { if (e.key === "Enter") håndterOpprett(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") håndterOpprett();
+              }}
             />
             <button
               type="button"
@@ -131,11 +128,18 @@ export function KbListe({ onSelectBase, visOpprettForm, setVisOpprettForm }: KbL
               disabled={!nyttNavn.trim() || opprettMutation.isPending}
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
-              {opprettMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : t("common.actions.save")}
+              {opprettMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t("common.actions.save")
+              )}
             </button>
             <button
               type="button"
-              onClick={() => { setVisOpprettForm(false); setNyttNavn(""); }}
+              onClick={() => {
+                setVisOpprettForm(false);
+                setNyttNavn("");
+              }}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600"
             >
               {t("common.actions.cancel")}
@@ -165,7 +169,9 @@ export function KbListe({ onSelectBase, visOpprettForm, setVisOpprettForm }: KbL
                   onChange={(e) => setRedigerNavn(e.target.value)}
                   maxLength={KB_MAX_BASE_NAME_LENGTH}
                   className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm dark:border-slate-600 dark:bg-slate-900"
-                  onKeyDown={(e) => { if (e.key === "Enter") håndterOppdater(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") håndterOppdater();
+                  }}
                   autoFocus
                 />
                 <button
@@ -236,7 +242,11 @@ export function KbListe({ onSelectBase, visOpprettForm, setVisOpprettForm }: KbL
                       disabled={slettMutation.isPending}
                       className="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
                     >
-                      {slettMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : t("kb.confirmDelete")}
+                      {slettMutation.isPending ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        t("kb.confirmDelete")
+                      )}
                     </button>
                   ) : (
                     <button

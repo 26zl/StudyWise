@@ -154,10 +154,7 @@ export function checkChunkSparsity(text: string): { sparse: boolean; avgWordsPer
  * Prøver å bryte på avsnittgrenser (\n\n), deretter setningsgrenser (.),
  * og faller tilbake til ordgrenser som siste utvei.
  */
-export function chunkText(
-  text: string,
-  opts?: { chunkSize?: number; overlap?: number },
-): string[] {
+export function chunkText(text: string, opts?: { chunkSize?: number; overlap?: number }): string[] {
   const chunkSize = opts?.chunkSize ?? CHUNK_SIZE;
   const overlap = opts?.overlap ?? CHUNK_OVERLAP;
 
@@ -241,7 +238,10 @@ export function searchChunks(
 ): ScoredChunk[] {
   const terms = extractSearchTerms(message);
   if (terms.length === 0) {
-    logger.debug({ messagePreview: message.substring(0, 80) }, "searchChunks: ingen søketermer ekstrahert fra melding");
+    logger.debug(
+      { messagePreview: message.substring(0, 80) },
+      "searchChunks: ingen søketermer ekstrahert fra melding",
+    );
     return [];
   }
 
@@ -261,10 +261,7 @@ export function searchChunks(
     if (opts?.fileHint) {
       const fileLower = chunk.source.fileName.toLowerCase();
       const hintLower = opts.fileHint.toLowerCase().replace(/\.pdf$/i, "");
-      if (
-        fileLower.includes(hintLower) ||
-        hintLower.includes(fileLower.replace(/\.pdf$/i, ""))
-      ) {
+      if (fileLower.includes(hintLower) || hintLower.includes(fileLower.replace(/\.pdf$/i, ""))) {
         score *= 2.0;
       }
     }
@@ -346,10 +343,7 @@ export function buildChunkContextFromEntries(
 /**
  * Beholder eksisterende signatur for keyword-søk-kontekst.
  */
-export function buildChunkContext(
-  chunks: ScoredChunk[],
-  maxChars?: number,
-): string {
+export function buildChunkContext(chunks: ScoredChunk[], maxChars?: number): string {
   return buildChunkContextFromEntries(
     chunks.map((chunk) => ({
       text: chunk.text,

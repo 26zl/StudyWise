@@ -68,7 +68,4 @@ StudyContextSchema.index({ userId: 1, courseId: 1 }, { unique: true });
 // TTL 90 dager — gammel kontekst er sjelden relevant
 StudyContextSchema.index({ updatedAt: 1 }, { expireAfterSeconds: 90 * 24 * 60 * 60 });
 
-export const StudyContext = mongoose.model<IStudyContext>(
-  "StudyContext",
-  StudyContextSchema,
-);
+export const StudyContext = mongoose.model<IStudyContext>("StudyContext", StudyContextSchema);

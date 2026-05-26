@@ -64,8 +64,7 @@ export async function requireAcceptedTerms(
     return next();
   }
 
-  const user = (req as Request & { authenticatedUser?: IUser })
-    .authenticatedUser;
+  const user = (req as Request & { authenticatedUser?: IUser }).authenticatedUser;
 
   // Hvis ingen autentisert bruker er satt, har auth-laget allerede tatt
   // beslutningen — vi blander oss ikke inn (publike endepunkter, eller en

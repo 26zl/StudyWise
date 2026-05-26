@@ -61,9 +61,7 @@ export async function updateStudyContext(
         } else {
           // Legg til nytt tema, fjern eldste hvis over grensen
           if (existing.topics.length >= MAX_TOPICS_PER_COURSE) {
-            existing.topics.sort(
-              (a, b) => a.lastAskedAt.getTime() - b.lastAskedAt.getTime(),
-            );
+            existing.topics.sort((a, b) => a.lastAskedAt.getTime() - b.lastAskedAt.getTime());
             existing.topics.shift();
           }
           existing.topics.push({
@@ -87,22 +85,21 @@ export async function updateStudyContext(
         userId,
         courseId,
         courseName,
-        topics: [{
-          topic: topic!,
-          queryCount: 1,
-          lastAskedAt: new Date(),
-          summary,
-        }],
+        topics: [
+          {
+            topic: topic!,
+            queryCount: 1,
+            lastAskedAt: new Date(),
+            summary,
+          },
+        ],
         totalInteractions: 1,
         preferredExplanationLevel: detectedLevel ?? undefined,
       });
     }
   } catch (error) {
     // Aldri la kontekst-oppdatering feile chat-flyten
-    logger.warn(
-      { err: error, userId, courseId },
-      "Feil ved oppdatering av studiekontekst",
-    );
+    logger.warn({ err: error, userId, courseId }, "Feil ved oppdatering av studiekontekst");
   }
 }
 
@@ -115,9 +112,7 @@ export async function loadStudyContextForUser(
   courseId?: string | null,
 ): Promise<string> {
   try {
-    const query = courseId
-      ? { userId, courseId }
-      : { userId };
+    const query = courseId ? { userId, courseId } : { userId };
 
     const contexts = await StudyContext.find(query)
       .sort({ updatedAt: -1 })
@@ -127,8 +122,10 @@ export async function loadStudyContextForUser(
     if (contexts.length === 0) return "";
 
     let kontekst = "\n\n[STUDIEKONTEKST — Tidligere samtaler]\n";
-    kontekst += "Studenten har tidligere diskutert følgende temaer. Bruk dette for å gi mer målrettede svar, ";
-    kontekst += "men ikke referer direkte til denne konteksten med mindre studenten spør om noe relatert.\n\n";
+    kontekst +=
+      "Studenten har tidligere diskutert følgende temaer. Bruk dette for å gi mer målrettede svar, ";
+    kontekst +=
+      "men ikke referer direkte til denne konteksten med mindre studenten spør om noe relatert.\n\n";
 
     for (const ctx of contexts) {
       kontekst += `Kurs: ${ctx.courseName}\n`;
@@ -157,10 +154,7 @@ export async function loadStudyContextForUser(
     kontekst += "[SLUTT STUDIEKONTEKST]\n";
     return kontekst;
   } catch (error) {
-    logger.warn(
-      { err: error, userId },
-      "Feil ved lasting av studiekontekst",
-    );
+    logger.warn({ err: error, userId }, "Feil ved lasting av studiekontekst");
     return "";
   }
 }
@@ -174,7 +168,11 @@ function detectExplanationLevelSignal(
   message: string,
 ): "simple" | "standard" | "detailed" | "expert" | null {
   const t = message.toLowerCase();
-  if (/\b(forklar (det )?enkl(ere|t)|som om jeg er fem|mer grunnleggende|på en enklere måte|kortere)\b/.test(t)) {
+  if (
+    /\b(forklar (det )?enkl(ere|t)|som om jeg er fem|mer grunnleggende|på en enklere måte|kortere)\b/.test(
+      t,
+    )
+  ) {
     return "simple";
   }
   if (/\b(mer detaljert|gå i dybden|forklar grundig(ere)?|utdyp|dypere forklaring)\b/.test(t)) {
@@ -186,15 +184,12 @@ function detectExplanationLevelSignal(
   return null;
 }
 
-
 /**
  * Ekstraherer et kort tematittel fra brukerens melding.
  * Fjerner vanlige spørsmålsord og returnerer kjernen av spørsmålet.
  */
 function extractTopic(message: string): string | null {
-  let cleaned = message
-    .replace(/[?!.]+$/g, "")
-    .trim();
+  let cleaned = message.replace(/[?!.]+$/g, "").trim();
 
   // Fjern vanlige innledende ord
   const prefixes = [

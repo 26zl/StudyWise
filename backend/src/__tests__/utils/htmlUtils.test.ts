@@ -56,7 +56,7 @@ describe("stripHtml", () => {
   });
 
   it("dekoder &quot; og &#39;", () => {
-    expect(stripHtml("&quot;sitat&quot; og &#39;apostrof&#39;")).toBe('"sitat" og \'apostrof\'');
+    expect(stripHtml("&quot;sitat&quot; og &#39;apostrof&#39;")).toBe("\"sitat\" og 'apostrof'");
   });
 
   it("dekoder &amp; sist (unngår dobbel-dekoding)", () => {

@@ -142,7 +142,10 @@ async function getClerkUserId(page: Page): Promise<string | null> {
 /**
  * Kall /me med debug flow-id-headeren.
  */
-async function callMeWithFlowId(page: Page, flowId: string): Promise<{ status: number; body: unknown }> {
+async function callMeWithFlowId(
+  page: Page,
+  flowId: string,
+): Promise<{ status: number; body: unknown }> {
   try {
     const result = await page.evaluate(async (fid: string) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -199,11 +202,14 @@ async function fillClerkSignupForm(page: Page, email: string, username: string, 
 async function handleVerificationStep(page: Page) {
   // Egendefinert verifiseringsskjema bruker #verify-code
   const verifyInput = page.locator("#verify-code");
-  const isVerifyStep = await verifyInput.waitFor({ state: "visible", timeout: 5_000 }).then(() => true).catch(() => false);
+  const isVerifyStep = await verifyInput
+    .waitFor({ state: "visible", timeout: 5_000 })
+    .then(() => true)
+    .catch(() => false);
 
   if (isVerifyStep) {
     // I Clerk dev-modus viser siden ofte verifiseringskoden i teksten
-    const pageText = await page.textContent("body") ?? "";
+    const pageText = (await page.textContent("body")) ?? "";
     const codeMatch = pageText.match(/(?:verification|code|kode)[^\d]*(\d{6})/i);
     if (codeMatch) {
       await verifyInput.fill(codeMatch[1]);
@@ -377,7 +383,9 @@ test.describe("Duplicate Signup Reproduction", () => {
       ev.meBody = meResult.body;
 
       if (meResult.status === 200 && meResult.body && typeof meResult.body === "object") {
-        const user = (meResult.body as { user?: { id?: string; email?: string; username?: string } }).user;
+        const user = (
+          meResult.body as { user?: { id?: string; email?: string; username?: string } }
+        ).user;
         ev.localUserId = user?.id ?? null;
         ev.localEmail = user?.email ?? null;
         ev.localUsername = user?.username ?? null;
@@ -385,7 +393,9 @@ test.describe("Duplicate Signup Reproduction", () => {
     }
 
     evidence.firstSignup = ev;
-    console.log(`\nFirst signup: clerkId=${ev.clerkUserId}, localId=${ev.localUserId}, meStatus=${ev.meStatus}`);
+    console.log(
+      `\nFirst signup: clerkId=${ev.clerkUserId}, localId=${ev.localUserId}, meStatus=${ev.meStatus}`,
+    );
 
     // Logg ut
     try {
@@ -423,7 +433,8 @@ test.describe("Duplicate Signup Reproduction", () => {
     const currentUrl = page.url();
 
     // Sjekk om Clerk viste en feil (e-post allerede tatt, osv.)
-    const clerkError = await page.locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
+    const clerkError = await page
+      .locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
       .allTextContents()
       .catch(() => []);
 
@@ -451,14 +462,16 @@ test.describe("Duplicate Signup Reproduction", () => {
     await page.waitForTimeout(3000);
 
     // Sjekk for brukernavn-konflikt-modal
-    const usernameModal = await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username")')
+    const usernameModal = await page
+      .locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username")')
       .waitFor({ state: "visible", timeout: 5_000 })
       .then(() => true)
       .catch(() => false);
     ev.usernameConflictModalShown = usernameModal;
 
     // Sjekk om vi ble logget ut (konto-konflikt)
-    const signInPageVisible = page.url().includes("/auth/sign-in") || page.url().includes("/auth/sign-up");
+    const signInPageVisible =
+      page.url().includes("/auth/sign-in") || page.url().includes("/auth/sign-up");
     if (signInPageVisible && !page.url().includes("/auth/sign-up")) {
       ev.accountConflictSignout = true;
     }
@@ -473,7 +486,9 @@ test.describe("Duplicate Signup Reproduction", () => {
       ev.meBody = meResult.body;
 
       if (meResult.status === 200 && meResult.body && typeof meResult.body === "object") {
-        const user = (meResult.body as { user?: { id?: string; email?: string; username?: string } }).user;
+        const user = (
+          meResult.body as { user?: { id?: string; email?: string; username?: string } }
+        ).user;
         ev.localUserId = user?.id ?? null;
         ev.localEmail = user?.email ?? null;
         ev.localUsername = user?.username ?? null;
@@ -484,7 +499,9 @@ test.describe("Duplicate Signup Reproduction", () => {
     evidence.diagnosticAfter = await callDiagnostic(page);
 
     evidence.secondSignup = ev;
-    console.log(`\nSecond signup: clerkId=${ev.clerkUserId}, localId=${ev.localUserId}, meStatus=${ev.meStatus}`);
+    console.log(
+      `\nSecond signup: clerkId=${ev.clerkUserId}, localId=${ev.localUserId}, meStatus=${ev.meStatus}`,
+    );
     console.log(`Username conflict modal: ${ev.usernameConflictModalShown}`);
     console.log(`Account conflict signout: ${ev.accountConflictSignout}`);
   });

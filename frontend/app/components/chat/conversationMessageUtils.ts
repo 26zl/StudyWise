@@ -32,9 +32,10 @@ export function erBildefil(navn: string): boolean {
 }
 
 // Finner meldingsinnhold og prioriterer eksplisitt vedlegg-metadata.
-export function hentSamtaleinnhold(
-  melding: ConversationDisplayMessage,
-): { tekst: string; filer: string[] } {
+export function hentSamtaleinnhold(melding: ConversationDisplayMessage): {
+  tekst: string;
+  filer: string[];
+} {
   if (melding.vedleggNavn && melding.vedleggNavn.length > 0) {
     return { tekst: melding.innhold, filer: melding.vedleggNavn };
   }
@@ -67,7 +68,9 @@ export function lagSamtaleForhandsvisning(
   meldinger: Pick<ChatMessage, "rolle" | "innhold">[],
   fallback = "",
 ): string {
-  const sisteMelding = [...meldinger].reverse().find((melding) => melding.innhold.trim().length > 0);
+  const sisteMelding = [...meldinger]
+    .reverse()
+    .find((melding) => melding.innhold.trim().length > 0);
   if (!sisteMelding) return fallback;
 
   const { tekst } = hentSamtaleinnhold(sisteMelding);

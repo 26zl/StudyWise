@@ -11,8 +11,7 @@ function createSubscription(input?: {
   return {
     endpoint: input?.endpoint ?? "https://push.example/subscription",
     options: {
-      applicationServerKey:
-        input?.applicationServerKey ?? new Uint8Array([1, 2, 3, 4]),
+      applicationServerKey: input?.applicationServerKey ?? new Uint8Array([1, 2, 3, 4]),
       userVisibleOnly: true,
     },
     unsubscribe: input?.unsubscribe ?? vi.fn().mockResolvedValue(true),

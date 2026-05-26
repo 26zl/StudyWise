@@ -91,9 +91,7 @@ function safeUserProjection(u: {
   };
 }
 
-function isUserLikeResult(
-  value: unknown,
-): value is {
+function isUserLikeResult(value: unknown): value is {
   _id: unknown;
   clerkId?: string;
   email?: string;
@@ -251,8 +249,16 @@ router.get("/auth-diagnostic", async (req: Request, res: Response) => {
 
     // Global username duplicates (active only)
     const usernameDuplicateAggregation = await User.aggregate([
-      { $match: { deletedAt: { $exists: false }, usernameNormalized: { $exists: true, $ne: null } } },
-      { $group: { _id: "$usernameNormalized", count: { $sum: 1 }, ids: { $push: { $toString: "$_id" } } } },
+      {
+        $match: { deletedAt: { $exists: false }, usernameNormalized: { $exists: true, $ne: null } },
+      },
+      {
+        $group: {
+          _id: "$usernameNormalized",
+          count: { $sum: 1 },
+          ids: { $push: { $toString: "$_id" } },
+        },
+      },
       { $match: { count: { $gt: 1 } } },
       { $limit: 10 },
     ]);
@@ -399,7 +405,7 @@ testAuthFlowRouter.post("/test-update-profile", async (req: Request, res: Respon
     if (existingUser) {
       logger.info(
         { clerkId, flowId, newUsername, conflictingUserId: existingUser._id },
-        "test-update-profile: username conflict detected (early check)"
+        "test-update-profile: username conflict detected (early check)",
       );
       return res.status(409).json({
         error: "username_conflict",
@@ -421,7 +427,7 @@ testAuthFlowRouter.post("/test-update-profile", async (req: Request, res: Respon
             usernameNormalized: sanitized.usernameNormalized,
           },
         },
-        { returnDocument: "after" }
+        { returnDocument: "after" },
       );
 
       logger.info({ clerkId, flowId, newUsername }, "test-update-profile: success");
@@ -434,7 +440,7 @@ testAuthFlowRouter.post("/test-update-profile", async (req: Request, res: Respon
       if (isMongoDuplicateKeyError(error)) {
         logger.info(
           { clerkId, flowId, newUsername },
-          "test-update-profile: username conflict detected (db fallback)"
+          "test-update-profile: username conflict detected (db fallback)",
         );
         return res.status(409).json({
           error: "username_conflict",

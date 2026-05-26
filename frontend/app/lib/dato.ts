@@ -24,10 +24,7 @@ export function formaterTall(verdi: number, language: Language = "nb"): string {
 }
 
 /** Kort dato: "5. des." */
-export function formaterDatoShort(
-  d: Date | string | number,
-  language: Language = "nb",
-): string {
+export function formaterDatoShort(d: Date | string | number, language: Language = "nb"): string {
   return tilDato(d).toLocaleDateString(getLocale(language), {
     day: "numeric",
     month: "short",
@@ -35,10 +32,7 @@ export function formaterDatoShort(
 }
 
 /** Lang dato: "5. desember 2025" */
-export function formaterDatoLong(
-  d: Date | string | number,
-  language: Language = "nb",
-): string {
+export function formaterDatoLong(d: Date | string | number, language: Language = "nb"): string {
   return tilDato(d).toLocaleDateString(getLocale(language), {
     day: "numeric",
     month: "long",
@@ -47,10 +41,7 @@ export function formaterDatoLong(
 }
 
 /** Full dato med ukedag: "fredag 5. desember 2025" */
-export function formaterDatoFull(
-  d: Date | string | number,
-  language: Language = "nb",
-): string {
+export function formaterDatoFull(d: Date | string | number, language: Language = "nb"): string {
   return tilDato(d).toLocaleDateString(getLocale(language), {
     weekday: "long",
     year: "numeric",
@@ -60,10 +51,7 @@ export function formaterDatoFull(
 }
 
 /** Dato med klokkeslett: "5. des. kl. 14:30" */
-export function formaterDatoMedTid(
-  d: Date | string | number,
-  language: Language = "nb",
-): string {
+export function formaterDatoMedTid(d: Date | string | number, language: Language = "nb"): string {
   const date = tilDato(d);
   const locale = getLocale(language);
   const dato = date.toLocaleDateString(locale, {
@@ -78,10 +66,7 @@ export function formaterDatoMedTid(
 }
 
 /** Kun klokkeslett: "14:30" */
-export function formaterKlokkeslett(
-  d: Date | string | number,
-  language: Language = "nb",
-): string {
+export function formaterKlokkeslett(d: Date | string | number, language: Language = "nb"): string {
   return tilDato(d).toLocaleTimeString(getLocale(language), {
     hour: "2-digit",
     minute: "2-digit",
@@ -89,10 +74,7 @@ export function formaterKlokkeslett(
 }
 
 /** Dato og tid for eksport/visning: "5. desember 2025, 14:30" */
-export function formaterDatoOgTid(
-  d: Date | string | number,
-  language: Language = "nb",
-): string {
+export function formaterDatoOgTid(d: Date | string | number, language: Language = "nb"): string {
   const date = tilDato(d);
   const locale = getLocale(language);
   const dato = date.toLocaleDateString(locale, {
@@ -119,10 +101,7 @@ export function dagerFraIdag(d: Date | string | number): number {
 }
 
 /** Tekst for frist/hendelse: "I dag", "I morgen", "Om X dager", "X dag/dager siden". */
-export function formaterDagerRelativtFrist(
-  dager: number,
-  language: Language = "nb",
-): string {
+export function formaterDagerRelativtFrist(dager: number, language: Language = "nb"): string {
   if (language === "en") {
     if (dager < 0) {
       const n = Math.abs(dager);

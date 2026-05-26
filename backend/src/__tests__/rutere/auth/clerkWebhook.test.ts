@@ -47,15 +47,9 @@ function lagGyldigSignatur(
   timestamp: string,
   secret: string,
 ): string {
-  const secretBytes = Buffer.from(
-    secret.startsWith("whsec_") ? secret.slice(6) : secret,
-    "base64",
-  );
+  const secretBytes = Buffer.from(secret.startsWith("whsec_") ? secret.slice(6) : secret, "base64");
   const signedContent = `${svixId}.${timestamp}.${payload}`;
-  const sig = crypto
-    .createHmac("sha256", secretBytes)
-    .update(signedContent)
-    .digest("base64");
+  const sig = crypto.createHmac("sha256", secretBytes).update(signedContent).digest("base64");
   return `v1,${sig}`;
 }
 
@@ -112,11 +106,7 @@ describe("verifySvixSignature", () => {
     const futureTs = (Math.floor(Date.now() / 1000) + 301).toString();
     const sig = lagGyldigSignatur(PAYLOAD, svixId, futureTs, SECRET);
     expect(
-      verifySvixSignature(
-        PAYLOAD,
-        { svixId, svixTimestamp: futureTs, svixSignature: sig },
-        SECRET,
-      ),
+      verifySvixSignature(PAYLOAD, { svixId, svixTimestamp: futureTs, svixSignature: sig }, SECRET),
     ).toBe(false);
   });
 
@@ -167,11 +157,7 @@ describe("verifySvixSignature", () => {
     const gyldig = lagGyldigSignatur(PAYLOAD, svixId, ts, SECRET);
     const mangeSigs = `v1,ugyldig== ${gyldig} v1,ogsaaugyldig==`;
     expect(
-      verifySvixSignature(
-        PAYLOAD,
-        { svixId, svixTimestamp: ts, svixSignature: mangeSigs },
-        SECRET,
-      ),
+      verifySvixSignature(PAYLOAD, { svixId, svixTimestamp: ts, svixSignature: mangeSigs }, SECRET),
     ).toBe(true);
   });
 
@@ -188,11 +174,7 @@ describe("verifySvixSignature", () => {
     const ts = nowSec();
     const kortSig = "v1,kort";
     expect(
-      verifySvixSignature(
-        PAYLOAD,
-        { svixId, svixTimestamp: ts, svixSignature: kortSig },
-        SECRET,
-      ),
+      verifySvixSignature(PAYLOAD, { svixId, svixTimestamp: ts, svixSignature: kortSig }, SECRET),
     ).toBe(false);
   });
 

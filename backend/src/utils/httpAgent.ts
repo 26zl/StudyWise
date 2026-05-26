@@ -33,5 +33,5 @@ setGlobalDispatcher(dispatcher);
 
 logger.info(
   { connections: 64, keepAliveTimeout: 30_000 },
-  "Undici global dispatcher konfigurert (connection pooling aktiv)"
+  "Undici global dispatcher konfigurert (connection pooling aktiv)",
 );

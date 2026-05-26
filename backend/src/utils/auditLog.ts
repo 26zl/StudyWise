@@ -3,7 +3,12 @@
  * for korrelasjon. Aldri logg hemmeligheter, tokens eller rå PII i metadata.
  */
 import type { Request } from "express";
-import { AuditLog, type AuditCategory, type AuditOutcome, AUTH_PROVIDER_CLERK } from "../database/models/AuditLog.js";
+import {
+  AuditLog,
+  type AuditCategory,
+  type AuditOutcome,
+  AUTH_PROVIDER_CLERK,
+} from "../database/models/AuditLog.js";
 
 export type AuditPayload = {
   actorUserId: string;
@@ -81,7 +86,13 @@ export function getDeletedAuditActorId(userId: string): string {
   return `deleted:${userId}`;
 }
 
-function getRequestContext(req?: Request): { ip?: string; userAgent?: string; requestId?: string; traceId?: string; spanId?: string } {
+function getRequestContext(req?: Request): {
+  ip?: string;
+  userAgent?: string;
+  requestId?: string;
+  traceId?: string;
+  spanId?: string;
+} {
   if (!req) return {};
   const span = (req as Request & { _dd?: { span_id?: string; trace_id?: string } })._dd;
   return {
@@ -140,10 +151,7 @@ export async function anonymizeAuditTrailForDeletedUser(userId: string): Promise
       { actorUserId: userId },
       { $set: { actorUserId: anonymizedActorId, ip: null, userAgent: null } },
     ),
-    AuditLog.updateMany(
-      { targetUserId: userId },
-      { $set: { targetUserId: anonymizedActorId } },
-    ),
+    AuditLog.updateMany({ targetUserId: userId }, { $set: { targetUserId: anonymizedActorId } }),
   ]);
 }
 
@@ -225,11 +233,7 @@ function isSensitiveMetadataKey(key: string): boolean {
   );
 }
 
-function sanitizeUnknownValue(
-  value: unknown,
-  depth: number,
-  keyName?: string,
-): unknown {
+function sanitizeUnknownValue(value: unknown, depth: number, keyName?: string): unknown {
   if (keyName && isSensitiveMetadataKey(keyName)) {
     return REDACTED_METADATA_VALUE;
   }
@@ -276,11 +280,7 @@ function sanitizeUnknownValue(
   if (isPlainObject(value)) {
     const out: Record<string, unknown> = {};
     for (const [childKey, childValue] of Object.entries(value)) {
-      const sanitizedChild = sanitizeUnknownValue(
-        childValue,
-        depth + 1,
-        childKey,
-      );
+      const sanitizedChild = sanitizeUnknownValue(childValue, depth + 1, childKey);
       if (sanitizedChild !== undefined) {
         out[childKey] = sanitizedChild;
       }

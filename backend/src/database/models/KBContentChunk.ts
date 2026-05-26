@@ -74,10 +74,7 @@ KBContentChunkSchema.index({ userId: 1, sourceUrl: 1 });
 KBContentChunkSchema.index({ userId: 1, domain: 1, path: 1 });
 
 // Unikt per bruker/base/kilde/chunk
-KBContentChunkSchema.index(
-  { userId: 1, baseId: 1, sourceId: 1, chunkIndex: 1 },
-  { unique: true },
-);
+KBContentChunkSchema.index({ userId: 1, baseId: 1, sourceId: 1, chunkIndex: 1 }, { unique: true });
 
 export const KBContentChunk = mongoose.model<IKBContentChunk>(
   "KBContentChunk",

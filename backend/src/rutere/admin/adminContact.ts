@@ -41,10 +41,7 @@ router.get("/contact/messages", async (req, res) => {
     Math.max(1, parseInt(parsed.data.limit ?? String(DEFAULT_LIMIT), 10) || DEFAULT_LIMIT),
     MAX_LIMIT,
   );
-  const offset = Math.min(
-    Math.max(0, parseInt(parsed.data.offset ?? "0", 10) || 0),
-    MAX_OFFSET,
-  );
+  const offset = Math.min(Math.max(0, parseInt(parsed.data.offset ?? "0", 10) || 0), MAX_OFFSET);
   const status = parsed.data.status ?? "all";
   const errorIdFilter = parsed.data.errorId;
 
@@ -64,11 +61,7 @@ router.get("/contact/messages", async (req, res) => {
     }
 
     const [items, total, unread] = await Promise.all([
-      ContactMessage.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(offset)
-        .limit(limit)
-        .lean(),
+      ContactMessage.find(filter).sort({ createdAt: -1 }).skip(offset).limit(limit).lean(),
       ContactMessage.countDocuments(filter),
       ContactMessage.countDocuments({ status: "unread" }),
     ]);
@@ -203,10 +196,7 @@ router.delete("/contact/messages/:id", requireRecentAuth, async (req, res) => {
       req,
     });
 
-    logger.info(
-      { adminUserId: actorUserId, messageId: targetId },
-      "Admin slettet kontaktmelding",
-    );
+    logger.info({ adminUserId: actorUserId, messageId: targetId }, "Admin slettet kontaktmelding");
 
     return res.json({ success: true });
   } catch (err) {
@@ -245,10 +235,7 @@ router.post("/contact/messages/:id/reply", requireRecentAuth, async (req, res) =
     });
 
     if (!result.success) {
-      logger.error(
-        { messageId: targetId, error: result.error },
-        "Kunne ikke sende kontaktsvar",
-      );
+      logger.error({ messageId: targetId, error: result.error }, "Kunne ikke sende kontaktsvar");
       void audit({
         actorUserId,
         action: AUDIT_ACTIONS.ADMIN_ACTION,
@@ -280,10 +267,7 @@ router.post("/contact/messages/:id/reply", requireRecentAuth, async (req, res) =
       req,
     });
 
-    logger.info(
-      { adminUserId: actorUserId, messageId: targetId },
-      "Admin sendte kontaktsvar",
-    );
+    logger.info({ adminUserId: actorUserId, messageId: targetId }, "Admin sendte kontaktsvar");
 
     return res.json({ success: true });
   } catch (err) {

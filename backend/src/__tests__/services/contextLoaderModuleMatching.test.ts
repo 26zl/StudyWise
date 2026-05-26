@@ -9,28 +9,19 @@ import {
 describe("modulTitleMatcherHint", () => {
   it("matcher nummerert leksjon mot romertallsmodul", () => {
     expect(
-      modulTitleMatcherHint(
-        "I. Introduksjon til Windows Server og datanett",
-        "leksjon 1",
-      ),
+      modulTitleMatcherHint("I. Introduksjon til Windows Server og datanett", "leksjon 1"),
     ).toBe(true);
   });
 
   it("matcher ikke feil romertallsmodul for nummerert leksjon", () => {
-    expect(
-      modulTitleMatcherHint(
-        "II. Nettverk, tjenester og protokoller",
-        "leksjon 1",
-      ),
-    ).toBe(false);
+    expect(modulTitleMatcherHint("II. Nettverk, tjenester og protokoller", "leksjon 1")).toBe(
+      false,
+    );
   });
 
   it("lar ikke oppgave-hint matche romertallsmodul bare på nummer", () => {
     expect(
-      modulTitleMatcherHint(
-        "I. Introduksjon til Windows Server og datanett",
-        "oppgave 1",
-      ),
+      modulTitleMatcherHint("I. Introduksjon til Windows Server og datanett", "oppgave 1"),
     ).toBe(false);
   });
 });

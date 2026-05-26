@@ -16,10 +16,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import {
-  buildMessagePool,
-  type LoadingMessageCategory,
-} from "./loadingMessages";
+import { buildMessagePool, type LoadingMessageCategory } from "./loadingMessages";
 
 // Stabil referanse for default-kategorier. Uten denne ville `categories = []`
 // i parameterlista laget et nytt array på hver render, og `useMemo` i
@@ -63,10 +60,7 @@ export function RotatingStatusMessage({
   // *innholdet* (sortert join) i stedet for array-referansen, så callere
   // som sender `categories={["status"]}` inline ikke forårsaker re-stokk.
   const effektiveKategorier = categories ?? INGEN_KATEGORIER;
-  const katKey = useMemo(
-    () => [...effektiveKategorier].sort().join("|"),
-    [effektiveKategorier],
-  );
+  const katKey = useMemo(() => [...effektiveKategorier].sort().join("|"), [effektiveKategorier]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pool = useMemo(() => buildMessagePool([...effektiveKategorier]), [katKey]);
 

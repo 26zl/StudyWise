@@ -18,7 +18,13 @@ import {
   CheckBox,
 } from "docx";
 import type { ExportProvider, ExportProviderResult } from "../export-types.js";
-import type { ExportDocument, ExportBlock, TextSegment, ListItem, ExportResponse } from "common/export";
+import type {
+  ExportDocument,
+  ExportBlock,
+  TextSegment,
+  ListItem,
+  ExportResponse,
+} from "common/export";
 
 export class WordExportProvider implements ExportProvider {
   readonly target = "word" as const;
@@ -139,7 +145,11 @@ export class WordExportProvider implements ExportProvider {
 
   private renderHeading(level: 1 | 2 | 3, segments: TextSegment[]): Paragraph {
     const headingLevel =
-      level === 1 ? HeadingLevel.HEADING_1 : level === 2 ? HeadingLevel.HEADING_2 : HeadingLevel.HEADING_3;
+      level === 1
+        ? HeadingLevel.HEADING_1
+        : level === 2
+          ? HeadingLevel.HEADING_2
+          : HeadingLevel.HEADING_3;
     return new Paragraph({
       children: this.segmentsToTextRuns(segments),
       heading: headingLevel,

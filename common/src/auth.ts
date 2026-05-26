@@ -51,10 +51,13 @@ export const StoredCanvasBaseUrlSchema = z
   })
   .transform(normalizeCanvasBaseUrl);
 
-export const CanvasBaseUrlSchema = StoredCanvasBaseUrlSchema
-  .refine((url) => isAllowedCanvasBaseUrl(url), {
-    message: "Må være en kjent Canvas-instans (f.eks. https://mitt.uib.no eller https://usn.instructure.com)",
-  });
+export const CanvasBaseUrlSchema = StoredCanvasBaseUrlSchema.refine(
+  (url) => isAllowedCanvasBaseUrl(url),
+  {
+    message:
+      "Må være en kjent Canvas-instans (f.eks. https://mitt.uib.no eller https://usn.instructure.com)",
+  },
+);
 
 // Request schema for lagring av Canvas token (canonicalisert: trim; tom streng/whitespace avvises)
 export const CanvasTokenRequestSchema = z.object({
@@ -295,7 +298,9 @@ export function isValidLastName(lastName: string | null | undefined): boolean {
 }
 
 /** Sjekker om brukerprofilen er ufullstendig (manglende eller for kort for-/etternavn). */
-export function isProfileIncomplete(user: { firstName?: string; lastName?: string } | null | undefined): boolean {
+export function isProfileIncomplete(
+  user: { firstName?: string; lastName?: string } | null | undefined,
+): boolean {
   if (!user) return true;
   return !isValidFirstName(user.firstName) || !isValidLastName(user.lastName);
 }

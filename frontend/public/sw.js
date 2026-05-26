@@ -1,6 +1,6 @@
 /* global self */
-// Brukes for å håndtere push-notifikasjoner for varslinger i StudyWise. 
-// Dette er en enkel service worker som viser notifikasjoner og åpner en bestemt URL når brukeren klikker på notifikasjonen. 
+// Brukes for å håndtere push-notifikasjoner for varslinger i StudyWise.
+// Dette er en enkel service worker som viser notifikasjoner og åpner en bestemt URL når brukeren klikker på notifikasjonen.
 // URL-en er hardkodet til "/dashboard?view=varslinger" for å sikre at brukeren alltid navigeres til riktig side, uavhengig av hva som sendes i push-meldingen.
 
 const NOTIFICATIONS_URL = "/dashboard?view=varslinger";

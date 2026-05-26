@@ -1,9 +1,8 @@
 /*
-* Next.js konfigurasjon for frontend.
-* Her definerer vi bl.a. API-rewrites (proxy-regler) og sikkerhetshoder (CSP, CORS, etc).
-* Samt initialiserer datadog og posthog RUM env-variabler for inlining i klienten. 
-*/
-
+ * Next.js konfigurasjon for frontend.
+ * Her definerer vi bl.a. API-rewrites (proxy-regler) og sikkerhetshoder (CSP, CORS, etc).
+ * Samt initialiserer datadog og posthog RUM env-variabler for inlining i klienten.
+ */
 
 import path from "path";
 import { fileURLToPath } from "url";
@@ -12,10 +11,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let rewritesLogged = false;
-const CLERK_CUSTOM_ORIGINS = [
-  "https://clerk.studwize.page",
-  "https://accounts.studwize.page",
-];
+const CLERK_CUSTOM_ORIGINS = ["https://clerk.studwize.page", "https://accounts.studwize.page"];
 
 function getApiUrl() {
   const configuredApiUrl = process.env.INTERNAL_API_URL?.trim();
@@ -167,8 +163,7 @@ const nextConfig = {
       process.env.NEXT_PUBLIC_DD_RUM_APPLICATION_ID || process.env.DD_RUM_APPLICATION_ID || "",
     NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN:
       process.env.NEXT_PUBLIC_DD_RUM_CLIENT_TOKEN || process.env.DD_RUM_CLIENT_TOKEN || "",
-    NEXT_PUBLIC_DD_SITE:
-      process.env.NEXT_PUBLIC_DD_SITE || process.env.DD_RUM_SITE || "",
+    NEXT_PUBLIC_DD_SITE: process.env.NEXT_PUBLIC_DD_SITE || process.env.DD_RUM_SITE || "",
   },
   transpilePackages: ["common"],
   serverExternalPackages: ["isomorphic-dompurify", "jsdom"],

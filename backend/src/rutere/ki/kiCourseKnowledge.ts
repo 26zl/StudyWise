@@ -7,11 +7,7 @@
 import { Router } from "express";
 import { ContentEmbedding } from "../../database/models/ContentEmbedding.js";
 import { logger } from "../../utils/logger.js";
-import {
-  apiError,
-  sendUnknownError,
-  requireUserId,
-} from "../../utils/apiError.js";
+import { apiError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import { CourseKnowledgeResponseSchema } from "common/ki";
 
 export const kiCourseKnowledgeRouter = Router();

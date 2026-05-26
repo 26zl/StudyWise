@@ -83,9 +83,7 @@ describe("common/admin.ts schemas", () => {
     });
 
     it("avviser search lengre enn 200 tegn", () => {
-      expect(() =>
-        AdminBrukereQuerySchema.parse({ search: "a".repeat(201) }),
-      ).toThrow();
+      expect(() => AdminBrukereQuerySchema.parse({ search: "a".repeat(201) })).toThrow();
     });
   });
 
@@ -128,9 +126,7 @@ describe("common/admin.ts schemas", () => {
     });
 
     it("avviser ugyldig e-post", () => {
-      expect(() =>
-        AdminBrukerSchema.parse({ ...validBruker, email: "ikke-en-epost" }),
-      ).toThrow();
+      expect(() => AdminBrukerSchema.parse({ ...validBruker, email: "ikke-en-epost" })).toThrow();
     });
 
     it("avviser lockedReason lengre enn 500 tegn", () => {
@@ -144,9 +140,7 @@ describe("common/admin.ts schemas", () => {
     });
 
     it("avviser ugyldig rolle", () => {
-      expect(() =>
-        AdminBrukerSchema.parse({ ...validBruker, rolle: "superadmin" }),
-      ).toThrow();
+      expect(() => AdminBrukerSchema.parse({ ...validBruker, rolle: "superadmin" })).toThrow();
     });
 
     it("aksepterer rolle admin", () => {
@@ -172,9 +166,7 @@ describe("common/admin.ts schemas", () => {
     });
 
     it("avviser begrunnelse lengre enn 500 tegn", () => {
-      expect(() =>
-        AdminLockUserSchema.parse({ reason: "a".repeat(501) }),
-      ).toThrow();
+      expect(() => AdminLockUserSchema.parse({ reason: "a".repeat(501) })).toThrow();
     });
   });
 
@@ -349,9 +341,7 @@ describe("common/admin.ts schemas", () => {
     });
 
     it("avviser targetUserId lengre enn 64 tegn", () => {
-      expect(() =>
-        AdminAuditQuerySchema.parse({ targetUserId: "x".repeat(65) }),
-      ).toThrow();
+      expect(() => AdminAuditQuerySchema.parse({ targetUserId: "x".repeat(65) })).toThrow();
     });
   });
 

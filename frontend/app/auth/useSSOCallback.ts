@@ -12,7 +12,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useClerk } from "@clerk/nextjs";
 import { useSignIn, useSignUp } from "@clerk/nextjs/legacy";
 import { useSearchParams } from "next/navigation";
-import { appendQueryParam, getPostAuthRedirectFromParams, withPostAuthRedirect } from "@/app/auth/redirects";
+import {
+  appendQueryParam,
+  getPostAuthRedirectFromParams,
+  withPostAuthRedirect,
+} from "@/app/auth/redirects";
 import { parseClerkError, withAuthTimeout, AuthTimeoutError } from "@/app/auth/authUI";
 import { detectSecondFactorStrategy } from "@/app/auth/mfaStrategy";
 import { useLanguage } from "@/app/i18n";
@@ -64,10 +68,7 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
       if (res.status === 409 || res.status === 403) {
         const json = await res.json().catch(() => ({}));
         const errorType = typeof json?.error === "string" ? json.error : undefined;
-        if (
-          errorType === "oauth_account_conflict" ||
-          errorType === "oauth_metadata_missing"
-        ) {
+        if (errorType === "oauth_account_conflict" || errorType === "oauth_metadata_missing") {
           await clerk.signOut().catch(() => {});
           setOauthConflict(true);
           return;
@@ -191,29 +192,29 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
     if (!setActive) return;
 
     const handleCallback = async () => {
-
       try {
         // Sett secondFactorUrl til current page URL slik at Clerk ikke navigerer bort ved MFA
         const currentUrl = window.location.href;
-        const callbackOpts = mode === "sign-in"
-          ? {
-              signInForceRedirectUrl: redirectUrl,
-              signUpForceRedirectUrl: redirectUrl,
-              signInUrl: signInHref,
-              signUpUrl: signUpHref,
-              continueSignUpUrl: continueSignUpHref,
-              firstFactorUrl: signInHref,
-              secondFactorUrl: currentUrl,
-            }
-          : {
-              signUpForceRedirectUrl: continueSignUpHref,
-              signInForceRedirectUrl: redirectUrl,
-              signUpUrl: signUpHref,
-              signInUrl: signInHref,
-              continueSignUpUrl: continueSignUpHref,
-              firstFactorUrl: signInHref,
-              secondFactorUrl: currentUrl,
-            };
+        const callbackOpts =
+          mode === "sign-in"
+            ? {
+                signInForceRedirectUrl: redirectUrl,
+                signUpForceRedirectUrl: redirectUrl,
+                signInUrl: signInHref,
+                signUpUrl: signUpHref,
+                continueSignUpUrl: continueSignUpHref,
+                firstFactorUrl: signInHref,
+                secondFactorUrl: currentUrl,
+              }
+            : {
+                signUpForceRedirectUrl: continueSignUpHref,
+                signInForceRedirectUrl: redirectUrl,
+                signUpUrl: signUpHref,
+                signInUrl: signInHref,
+                continueSignUpUrl: continueSignUpHref,
+                firstFactorUrl: signInHref,
+                secondFactorUrl: currentUrl,
+              };
 
         const callbackResult = await Promise.race([
           clerk.handleRedirectCallback(callbackOpts),
@@ -253,7 +254,9 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
                 await redirectOrConflict();
                 return;
               }
-            } catch { /* faller gjennom */ }
+            } catch {
+              /* faller gjennom */
+            }
           } else if (signInExternalStatus === "transferable") {
             try {
               const result = await signUp.create({ transfer: true });
@@ -262,7 +265,9 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
                 await redirectOrConflict();
                 return;
               }
-            } catch { /* faller gjennom */ }
+            } catch {
+              /* faller gjennom */
+            }
           }
         } else {
           // Sign-up: sjekk kun sign-up → sign-in transfer
@@ -279,7 +284,9 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
                 await redirectOrConflict();
                 return;
               }
-            } catch { /* faller gjennom */ }
+            } catch {
+              /* faller gjennom */
+            }
           }
         }
 
@@ -304,7 +311,20 @@ export function useSSOCallback(mode: SSOCallbackMode): SSOCallbackResult {
     };
 
     void handleCallback();
-  }, [clerk, signIn, signUp, setActiveSignIn, setActiveSignUp, redirectUrl, signInHref, signUpHref, continueSignUpHref, mode, t, redirectOrConflict]);
+  }, [
+    clerk,
+    signIn,
+    signUp,
+    setActiveSignIn,
+    setActiveSignUp,
+    redirectUrl,
+    signInHref,
+    signUpHref,
+    continueSignUpHref,
+    mode,
+    t,
+    redirectOrConflict,
+  ]);
 
   return {
     callbackError,

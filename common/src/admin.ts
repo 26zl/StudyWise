@@ -200,9 +200,19 @@ export const AdminAuditQuerySchema = z.object({
   category: AdminAuditCategorySchema.optional(),
   outcome: z.enum(["success", "failure"]).optional(),
   /** Filter på targetUserId — for å hente errors knyttet til en spesifikk bruker. */
-  targetUserId: z.string().trim().max(64).regex(/^[\w:.-]+$/).optional(),
+  targetUserId: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(/^[\w:.-]+$/)
+    .optional(),
   /** Filter på actorUserId — komplementært til targetUserId. */
-  actorUserId: z.string().trim().max(64).regex(/^[\w:.-]+$/).optional(),
+  actorUserId: z
+    .string()
+    .trim()
+    .max(64)
+    .regex(/^[\w:.-]+$/)
+    .optional(),
   /** ISO-dato eller YYYY-MM-DD for start av tidsvindu. */
   from: QueryDateValueSchema.optional(),
   /** ISO-dato eller YYYY-MM-DD for slutt av tidsvindu. */
@@ -1028,17 +1038,13 @@ export const AdminExtractionFailureItemSchema = z.object({
   createdAt: z.string(),
   updatedAt: z.string(),
 });
-export type AdminExtractionFailureItem = z.infer<
-  typeof AdminExtractionFailureItemSchema
->;
+export type AdminExtractionFailureItem = z.infer<typeof AdminExtractionFailureItemSchema>;
 
 export const AdminExtractionFailuresResponseSchema = z.object({
   total: z.number().int().min(0),
   items: z.array(AdminExtractionFailureItemSchema),
 });
-export type AdminExtractionFailuresResponse = z.infer<
-  typeof AdminExtractionFailuresResponseSchema
->;
+export type AdminExtractionFailuresResponse = z.infer<typeof AdminExtractionFailuresResponseSchema>;
 
 export const AdminExtractionRescanResponseSchema = z.object({
   sparseCandidatesFound: z.number().int().min(0),
@@ -1047,6 +1053,4 @@ export const AdminExtractionRescanResponseSchema = z.object({
   previousRetroactiveCleared: z.number().int().min(0),
   threshold: z.number().int().min(0),
 });
-export type AdminExtractionRescanResponse = z.infer<
-  typeof AdminExtractionRescanResponseSchema
->;
+export type AdminExtractionRescanResponse = z.infer<typeof AdminExtractionRescanResponseSchema>;

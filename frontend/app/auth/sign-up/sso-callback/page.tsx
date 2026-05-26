@@ -130,10 +130,7 @@ export default function SSOCallbackPage() {
                 </p>
               </div>
             ) : (
-              <LoadingView
-                fullPage={false}
-                translationKey="common.loading.redirecting"
-              />
+              <LoadingView fullPage={false} translationKey="common.loading.redirecting" />
             )}
           </AuthCard>
         )}

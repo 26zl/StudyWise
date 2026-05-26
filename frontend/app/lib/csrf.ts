@@ -3,10 +3,7 @@
  * Bruk withCsrfProtection() rundt fetch-options for POST/PUT/PATCH/DELETE mot /api/*.
  * Backend (csrf.ts) krever headeren + at Origin/Referer matcher WEB_ORIGINS.
  */
-import {
-  AUTH_CSRF_HEADER_NAME,
-  AUTH_CSRF_HEADER_VALUE,
-} from "common/auth";
+import { AUTH_CSRF_HEADER_NAME, AUTH_CSRF_HEADER_VALUE } from "common/auth";
 
 // Setter CSRF-header for state-endrende kall. GET/HEAD/OPTIONS påvirkes ikke.
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

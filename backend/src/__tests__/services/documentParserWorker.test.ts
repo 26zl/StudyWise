@@ -5,10 +5,7 @@ vi.mock("node:worker_threads", () => ({
   Worker: vi.fn(),
 }));
 
-import {
-  PARSE_TIMEOUT_MS,
-  parseDocumentInWorker,
-} from "../../services/documentParserWorker.js";
+import { PARSE_TIMEOUT_MS, parseDocumentInWorker } from "../../services/documentParserWorker.js";
 
 type WorkerEventName = "message" | "error" | "exit";
 
@@ -57,11 +54,7 @@ describe("parseDocumentInWorker", () => {
       truncated: false,
     };
 
-    const promise = parseDocumentInWorker(
-      Buffer.from("Hei verden"),
-      "text/plain",
-      "test.txt",
-    );
+    const promise = parseDocumentInWorker(Buffer.from("Hei verden"), "text/plain", "test.txt");
 
     expect(worker.postMessage).toHaveBeenCalledTimes(1);
     const [payload, transferList] = worker.postMessage.mock.calls[0] as [
@@ -85,11 +78,7 @@ describe("parseDocumentInWorker", () => {
     const worker = lagMockWorker();
     WorkerMock.mockImplementation(() => worker as never);
 
-    const promise = parseDocumentInWorker(
-      Buffer.from("henger"),
-      "text/plain",
-      "timeout.txt",
-    );
+    const promise = parseDocumentInWorker(Buffer.from("henger"), "text/plain", "timeout.txt");
 
     let settled = false;
     promise.then(
@@ -115,11 +104,7 @@ describe("parseDocumentInWorker", () => {
     const worker = lagMockWorker();
     WorkerMock.mockImplementation(() => worker as never);
 
-    const promise = parseDocumentInWorker(
-      Buffer.from("krasj"),
-      "text/plain",
-      "crash.txt",
-    );
+    const promise = parseDocumentInWorker(Buffer.from("krasj"), "text/plain", "crash.txt");
 
     worker.emit("exit", 1);
 

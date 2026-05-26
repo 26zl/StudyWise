@@ -72,7 +72,7 @@ async function callTestAuthFlow(
     headers: {
       "Content-Type": "application/json",
       "x-studywise-csrf": "1",
-      "Origin": BACKEND_URL,
+      Origin: BACKEND_URL,
     },
     body: JSON.stringify({ clerkId, flowId }),
   });
@@ -85,7 +85,9 @@ async function deleteClerkUser(userId: string): Promise<boolean> {
     await clerk.users.deleteUser(userId);
     return true;
   } catch (e) {
-    log(`  WARNING: Failed to delete Clerk user ${userId}: ${e instanceof Error ? e.message : String(e)}`);
+    log(
+      `  WARNING: Failed to delete Clerk user ${userId}: ${e instanceof Error ? e.message : String(e)}`,
+    );
     return false;
   }
 }
@@ -143,7 +145,9 @@ async function main() {
       log(`  Username: ${evidence.clerkUserA.username}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      const clerkErrors = (e as { errors?: Array<{ code?: string; message?: string; longMessage?: string }> }).errors;
+      const clerkErrors = (
+        e as { errors?: Array<{ code?: string; message?: string; longMessage?: string }> }
+      ).errors;
       if (clerkErrors) {
         log(`  Clerk API errors:`);
         for (const err of clerkErrors) {
@@ -195,7 +199,9 @@ async function main() {
       log(`  Username: ${evidence.clerkUserB.username}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      const clerkErrors = (e as { errors?: Array<{ code?: string; message?: string; longMessage?: string }> }).errors;
+      const clerkErrors = (
+        e as { errors?: Array<{ code?: string; message?: string; longMessage?: string }> }
+      ).errors;
       if (clerkErrors) {
         for (const err of clerkErrors) {
           log(`    Clerk error: code=${err.code}, message=${err.message}`);
@@ -205,7 +211,9 @@ async function main() {
       evidence.clerkBlockedDuplicateUsername = true;
 
       // Fallback: opprett bruker B med et ANNET brukernavn
-      log(`\n  Creating user B with DIFFERENT username (${TEST_USERNAME_B}) to test parallel flow...`);
+      log(
+        `\n  Creating user B with DIFFERENT username (${TEST_USERNAME_B}) to test parallel flow...`,
+      );
       try {
         const userB2 = await clerk.users.createUser({
           emailAddress: [TEST_EMAIL_B],
@@ -225,7 +233,9 @@ async function main() {
         log(`  Username: ${evidence.clerkUserB.username}`);
       } catch (e2) {
         const msg2 = e2 instanceof Error ? e2.message : String(e2);
-        const clerkErrors2 = (e2 as { errors?: Array<{ code?: string; message?: string; longMessage?: string }> }).errors;
+        const clerkErrors2 = (
+          e2 as { errors?: Array<{ code?: string; message?: string; longMessage?: string }> }
+        ).errors;
         if (clerkErrors2) {
           for (const err of clerkErrors2) {
             log(`    Clerk error: code=${err.code}, message=${err.message}`);
@@ -252,17 +262,20 @@ async function main() {
     header("STEP 5: Classification");
     evidence.classification = classify(evidence);
     log(`  ${evidence.classification}`);
-
   } finally {
     // ---- Opprydding: Slett test-Clerk-brukere ----
     header("CLEANUP: Deleting test Clerk users");
     if (evidence.clerkUserA) {
       evidence.cleanup.userADeleted = await deleteClerkUser(evidence.clerkUserA.id);
-      log(`  User A (${evidence.clerkUserA.id}): ${evidence.cleanup.userADeleted ? "deleted" : "FAILED"}`);
+      log(
+        `  User A (${evidence.clerkUserA.id}): ${evidence.cleanup.userADeleted ? "deleted" : "FAILED"}`,
+      );
     }
     if (evidence.clerkUserB) {
       evidence.cleanup.userBDeleted = await deleteClerkUser(evidence.clerkUserB.id);
-      log(`  User B (${evidence.clerkUserB.id}): ${evidence.cleanup.userBDeleted ? "deleted" : "FAILED"}`);
+      log(
+        `  User B (${evidence.clerkUserB.id}): ${evidence.cleanup.userBDeleted ? "deleted" : "FAILED"}`,
+      );
     }
 
     printSummary(evidence);

@@ -51,9 +51,9 @@ export function visbareKilder(kilder: KIChatSource[] | undefined): KIChatSource[
     const hasCanvasFile = Number.isFinite(kilde.fileId);
     const hasUrl = typeof kilde.sourceUrl === "string" && kilde.sourceUrl.length > 0;
     const hasKbFile =
-      kilde.sourceKind === "kb_file"
-      && typeof kilde.baseId === "string"
-      && typeof kilde.sourceId === "string";
+      kilde.sourceKind === "kb_file" &&
+      typeof kilde.baseId === "string" &&
+      typeof kilde.sourceId === "string";
     if (!hasCanvasFile && !hasUrl && !hasKbFile) continue;
     const key = `${kilde.sourceKind ?? "canvas_file"}:${kilde.courseId}:${kilde.fileId ?? "na"}:${kilde.fileName}:${kilde.sourceUrl ?? ""}:${kilde.sourceId ?? ""}`;
     if (seen.has(key)) continue;

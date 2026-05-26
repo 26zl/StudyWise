@@ -211,7 +211,8 @@ function extractPptx(buffer: Buffer, filename: string): ExtractResult | null {
     let slideCount = 0;
 
     // PPTX slides er i ppt/slides/slide1.xml, slide2.xml, ...
-    const entries = zip.getEntries()
+    const entries = zip
+      .getEntries()
       .filter((e) => /^ppt\/slides\/slide\d+\.xml$/i.test(e.entryName))
       .sort((a, b) => {
         const numA = parseInt(a.entryName.match(/slide(\d+)/)?.[1] ?? "0", 10);
@@ -222,7 +223,10 @@ function extractPptx(buffer: Buffer, filename: string): ExtractResult | null {
     for (const entry of entries) {
       if (slideCount >= MAX_SHEETS_OR_SLIDES) break;
       if (entry.header.size > MAX_DECOMPRESSED_ENTRY_SIZE) {
-        logger.warn({ filename, entryName: entry.entryName, size: entry.header.size }, "Utpakket fil for stor (mulig zip bomb), hopper over data");
+        logger.warn(
+          { filename, entryName: entry.entryName, size: entry.header.size },
+          "Utpakket fil for stor (mulig zip bomb), hopper over data",
+        );
         continue;
       }
       const xml = entry.getData().toString("utf-8");
@@ -248,7 +252,13 @@ function extractPptx(buffer: Buffer, filename: string): ExtractResult | null {
     const truncated = text.length > MAX_CONTENT_LENGTH;
     const content = truncated ? text.substring(0, MAX_CONTENT_LENGTH) : text;
     logger.info(
-      { filename, method: "pptx-xml", slidesProcessed: slideCount, textLength: content.length, truncated },
+      {
+        filename,
+        method: "pptx-xml",
+        slidesProcessed: slideCount,
+        textLength: content.length,
+        truncated,
+      },
       "PPTX-tekst ekstrahert",
     );
     return { content, truncated, fileExtension: ".pptx", language: null, method: "pptx-xml" };
@@ -267,7 +277,10 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
     const ssEntry = zip.getEntry("xl/sharedStrings.xml");
     if (ssEntry) {
       if (ssEntry.header.size > MAX_DECOMPRESSED_ENTRY_SIZE) {
-        logger.warn({ filename, entryName: ssEntry.entryName, size: ssEntry.header.size }, "Utpakket sharedStrings for stor (mulig zip bomb), hopper over");
+        logger.warn(
+          { filename, entryName: ssEntry.entryName, size: ssEntry.header.size },
+          "Utpakket sharedStrings for stor (mulig zip bomb), hopper over",
+        );
       } else {
         const ssXml = ssEntry.getData().toString("utf-8");
         const matches = [...ssXml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)];
@@ -278,7 +291,8 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
     }
 
     // Les ark (xl/worksheets/sheet1.xml, ...)
-    const sheetEntries = zip.getEntries()
+    const sheetEntries = zip
+      .getEntries()
       .filter((e) => /^xl\/worksheets\/sheet\d+\.xml$/i.test(e.entryName))
       .sort((a, b) => {
         const numA = parseInt(a.entryName.match(/sheet(\d+)/)?.[1] ?? "0", 10);
@@ -292,7 +306,10 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
     for (const entry of sheetEntries) {
       if (sheetCount >= MAX_SHEETS_OR_SLIDES) break;
       if (entry.header.size > MAX_DECOMPRESSED_ENTRY_SIZE) {
-        logger.warn({ filename, entryName: entry.entryName, size: entry.header.size }, "Utpakket ark for stort (mulig zip bomb), hopper over");
+        logger.warn(
+          { filename, entryName: entry.entryName, size: entry.header.size },
+          "Utpakket ark for stort (mulig zip bomb), hopper over",
+        );
         continue;
       }
       const xml = entry.getData().toString("utf-8");
@@ -350,7 +367,13 @@ function extractXlsx(buffer: Buffer, filename: string): ExtractResult | null {
     const truncated = text.length > MAX_CONTENT_LENGTH;
     const content = truncated ? text.substring(0, MAX_CONTENT_LENGTH) : text;
     logger.info(
-      { filename, method: "xlsx-xml", sheetsProcessed: sheetCount, textLength: content.length, truncated },
+      {
+        filename,
+        method: "xlsx-xml",
+        sheetsProcessed: sheetCount,
+        textLength: content.length,
+        truncated,
+      },
       "XLSX-data ekstrahert",
     );
     return { content, truncated, fileExtension: ".xlsx", language: null, method: "xlsx-xml" };

@@ -57,13 +57,24 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
       const s = stateRef.current;
       if (!s.alive) return;
       const map: Record<string, Direction> = {
-        ArrowUp: "UP", ArrowDown: "DOWN", ArrowLeft: "LEFT", ArrowRight: "RIGHT",
-        w: "UP", s: "DOWN", a: "LEFT", d: "RIGHT",
+        ArrowUp: "UP",
+        ArrowDown: "DOWN",
+        ArrowLeft: "LEFT",
+        ArrowRight: "RIGHT",
+        w: "UP",
+        s: "DOWN",
+        a: "LEFT",
+        d: "RIGHT",
       };
       const nd = map[e.key];
       if (!nd) return;
       e.preventDefault();
-      const opp: Record<Direction, Direction> = { UP: "DOWN", DOWN: "UP", LEFT: "RIGHT", RIGHT: "LEFT" };
+      const opp: Record<Direction, Direction> = {
+        UP: "DOWN",
+        DOWN: "UP",
+        LEFT: "RIGHT",
+        RIGHT: "LEFT",
+      };
       if (opp[nd] !== s.dir) s.nextDir = nd;
     }
     window.addEventListener("keydown", onKey);
@@ -74,7 +85,8 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
-    let startX = 0, startY = 0;
+    let startX = 0,
+      startY = 0;
     function onTouchStart(e: TouchEvent) {
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;
@@ -85,7 +97,12 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
       if (Math.abs(dx) < 20 && Math.abs(dy) < 20) return;
       const s = stateRef.current;
       if (!s.alive) return;
-      const opp: Record<Direction, Direction> = { UP: "DOWN", DOWN: "UP", LEFT: "RIGHT", RIGHT: "LEFT" };
+      const opp: Record<Direction, Direction> = {
+        UP: "DOWN",
+        DOWN: "UP",
+        LEFT: "RIGHT",
+        RIGHT: "LEFT",
+      };
       let nd: Direction;
       if (Math.abs(dx) > Math.abs(dy)) {
         nd = dx > 0 ? "RIGHT" : "LEFT";
@@ -120,7 +137,10 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
 
       /* Wall or self collision */
       if (
-        head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID ||
+        head.x < 0 ||
+        head.x >= GRID ||
+        head.y < 0 ||
+        head.y >= GRID ||
         s.snake.some((p) => p.x === head.x && p.y === head.y)
       ) {
         s.alive = false;
@@ -157,9 +177,7 @@ function SnakeGame({ onScore }: { onScore: (s: number) => void }) {
       for (let i = 0; i < s.snake.length; i++) {
         const p = s.snake[i];
         const isHead = i === 0;
-        ctx.fillStyle = isHead
-          ? (isDark ? "#60a5fa" : "#2563eb")
-          : (isDark ? "#3b82f6" : "#2563eb");
+        ctx.fillStyle = isHead ? (isDark ? "#60a5fa" : "#2563eb") : isDark ? "#3b82f6" : "#2563eb";
         ctx.globalAlpha = isHead ? 1 : 0.7 + 0.3 * (1 - i / s.snake.length);
         const r = 3;
         const x = p.x * CELL + 1;
@@ -223,9 +241,7 @@ export default function NotFound() {
         <p className="mt-2 text-sm font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
           {t("errorPages.notFound.eyebrow")}
         </p>
-        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
-          {t("errorPages.notFound.title")}
-        </h1>
+        <h1 className="mt-3 text-3xl font-bold sm:text-4xl">{t("errorPages.notFound.title")}</h1>
         <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">
           {t("errorPages.notFound.description")}
         </p>

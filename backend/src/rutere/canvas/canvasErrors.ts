@@ -13,11 +13,7 @@ export {
   getHttpStatusForCode,
 } from "common/canvasErrors";
 
-import {
-  type CanvasErrorCode,
-  getErrorMessage,
-  isRecoverableError,
-} from "common/canvasErrors";
+import { type CanvasErrorCode, getErrorMessage, isRecoverableError } from "common/canvasErrors";
 
 // Backend-spesifikk: Strukturert Canvas-feil med all nødvendig info
 export interface CanvasApiError extends Error {
@@ -40,7 +36,7 @@ export function createCanvasError(
     endpoint?: string;
     details?: string;
     retryAfter?: number;
-  }
+  },
 ): CanvasApiError {
   const error = new Error(message) as CanvasApiError;
   error.name = "CanvasApiError";
@@ -72,7 +68,10 @@ const ERROR_LABELS: Record<CanvasErrorCode, string> = {
  * Generer strukturert API feilrespons.
  * Bruker getErrorMessage() fra common for konsistente brukervenlige meldinger.
  */
-export function getErrorResponse(code: CanvasErrorCode, details?: string): {
+export function getErrorResponse(
+  code: CanvasErrorCode,
+  details?: string,
+): {
   feil: string;
   melding: string;
   kode: CanvasErrorCode;

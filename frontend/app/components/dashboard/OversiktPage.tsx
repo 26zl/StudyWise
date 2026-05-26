@@ -35,11 +35,7 @@ import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useAuth } from "@clerk/nextjs";
 import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
-import {
-  skalRedirecteTilAuth,
-  useAuthRedirect,
-  useFatalAuthSignOut,
-} from "@/app/auth/authUtils";
+import { skalRedirecteTilAuth, useAuthRedirect, useFatalAuthSignOut } from "@/app/auth/authUtils";
 import {
   useCanvasAllAssignments,
   useCanvasCourses,
@@ -53,15 +49,11 @@ import {
   formaterDatoShort,
   formaterDagerRelativtFrist,
 } from "@/app/lib/dato";
-import {
-  getBrukerdataFeilmelding,
-  lagBrukervennligFeilmelding,
-} from "@/app/lib/errorUtils";
+import { getBrukerdataFeilmelding, lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { erInnenforFristVindu, FRIST_VINDU_DAGER } from "@/app/lib/varsler";
 import { useLanguage, type Translator } from "@/app/i18n";
 import { fetchApi } from "@/app/lib/apiClient";
 import { useProgressStats } from "@/app/arbeidsplan/arbeidsplan-api";
-
 
 // Studiestatistikk
 interface StudyStatsToday {
@@ -152,15 +144,16 @@ export function OversiktPage() {
 
   const { ferdigeIdSet, toggleFerdig } = useManuellInnlevering();
 
-  const allAssignments: AssignmentMedEmne[] = (assignmentsQuery.isError
-    ? []
-    : assignmentsQuery.data ?? []
+  const allAssignments: AssignmentMedEmne[] = (
+    assignmentsQuery.isError ? [] : (assignmentsQuery.data ?? [])
   ).filter((a) => !a.course_id || !hiddenSet.has(a.course_id));
   const ikkeInnleverteAssignments = allAssignments.filter(
     (assignment) => !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id),
   );
 
-  const totalCourses = (coursesQuery.data?.courses ?? []).filter((c) => !hiddenSet.has(c.id)).length;
+  const totalCourses = (coursesQuery.data?.courses ?? []).filter(
+    (c) => !hiddenSet.has(c.id),
+  ).length;
 
   const upcomingAssignments = ikkeInnleverteAssignments.filter((assignment) =>
     erInnenforFristVindu(assignment.due_at),
@@ -226,7 +219,9 @@ export function OversiktPage() {
         <FeilMelding melding={brukerdataFeilmelding} />
         <button
           type="button"
-          onClick={() => { void megQuery.refetch(); }}
+          onClick={() => {
+            void megQuery.refetch();
+          }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
           {t("common.actions.retry")}
@@ -236,332 +231,322 @@ export function OversiktPage() {
   }
 
   return (
-      <div className="min-h-full">
-        <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-                  {t("overview.title")}
-                </h1>
-                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                  {t("overview.pageDescription")}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                  {formaterDatoFull(new Date(), language)}
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                <Link
-                  href="/dashboard"
-                  prefetch={false}
-                  aria-label={t("overview.openChat")}
-                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:px-4 sm:py-2"
-                >
-                  <MessageSquare size={18} />
-                  <span className="hidden sm:inline">{t("overview.openChat")}</span>
-                </Link>
-              </div>
+    <div className="min-h-full">
+      <div className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+                {t("overview.title")}
+              </h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {t("overview.pageDescription")}
+              </p>
+              <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                {formaterDatoFull(new Date(), language)}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              <Link
+                href="/dashboard"
+                prefetch={false}
+                aria-label={t("overview.openChat")}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 sm:px-4 sm:py-2"
+              >
+                <MessageSquare size={18} />
+                <span className="hidden sm:inline">{t("overview.openChat")}</span>
+              </Link>
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-          {!harCanvasToken && (
-            <CanvasTokenNotice />
-          )}
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+        {!harCanvasToken && <CanvasTokenNotice />}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <StatCard
-              icon={BookOpen}
-              label={t("overview.stats.totalCourses")}
-              value={totalCourses}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <StatCard
+            icon={BookOpen}
+            label={t("overview.stats.totalCourses")}
+            value={totalCourses}
+            color="blue"
+          />
+          <StatCard
+            icon={Clock}
+            label={t("overview.stats.upcomingDeadlines")}
+            value={assignmentsQuery.isError ? "—" : upcomingAssignments.length}
+            color="yellow"
+          />
+          <StatCard
+            icon={AlertCircle}
+            label={t("overview.stats.notSubmitted")}
+            value={assignmentsQuery.isError ? "—" : ikkeInnleverteCount}
+            color="slate"
+          />
+          <StatCard
+            icon={TrendingUp}
+            label={t("overview.stats.completedThisYear")}
+            value={assignmentsQuery.isError ? "—" : fullforteIAr}
+            color="green"
+          />
+        </div>
+
+        <StudyActivityCard
+          stats={studyStatsQuery.data}
+          progress={progressQuery.data}
+          isLoading={studyStatsQuery.isLoading}
+          t={t}
+        />
+
+        <div className="rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800/50">
+          <div className="flex gap-1" role="tablist" aria-label={t("overview.tabs.ariaLabel")}>
+            <button
+              type="button"
+              id="overview-tab-my-workplan"
+              role="tab"
+              aria-selected={activeTab === "mine-oppgaver"}
+              aria-controls="overview-panel-my-workplan"
+              aria-label={t("overview.tabs.myWorkPlan")}
+              onClick={() => byttTab("mine-oppgaver")}
+              onKeyDown={handleOverviewTabKeyDown}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === "mine-oppgaver"
+                  ? "bg-blue-600 text-white dark:bg-blue-500"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <TrendingUp className="h-4 w-4" aria-hidden />
+                {t("overview.tabs.myWorkPlan")}
+              </div>
+            </button>
+            <button
+              type="button"
+              id="overview-tab-ai-weekplan"
+              role="tab"
+              aria-selected={activeTab === "ki-forslag"}
+              aria-controls="overview-panel-ai-weekplan"
+              aria-label={t("overview.tabs.aiWeekPlan")}
+              onClick={() => byttTab("ki-forslag")}
+              onKeyDown={handleOverviewTabKeyDown}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
+                activeTab === "ki-forslag"
+                  ? "bg-blue-600 text-white dark:bg-blue-500"
+                  : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Sparkles className="h-4 w-4" aria-hidden />
+                {t("overview.tabs.aiWeekPlan")}
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div
+          id="overview-panel-my-workplan"
+          role="tabpanel"
+          aria-labelledby="overview-tab-my-workplan"
+          className={activeTab === "mine-oppgaver" ? "outline-none" : "hidden"}
+        >
+          <MinArbeidsplan />
+        </div>
+
+        <div
+          id="overview-panel-ai-weekplan"
+          role="tabpanel"
+          aria-labelledby="overview-tab-ai-weekplan"
+          className={activeTab === "ki-forslag" ? "outline-none" : "hidden"}
+        >
+          <div className="space-y-2">
+            {!harCanvasToken ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+                <CanvasTokenNotice message={t("overview.missingCanvasPlanner")} />
+              </div>
+            ) : assignmentsQuery.isLoading ? (
+              <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50 p-8">
+                <LoadingView translationKey="common.loading.assignments" fullPage={false} />
+              </div>
+            ) : assignmentsQuery.isError ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
+                <FeilMelding melding={oppgaveFeilmelding} />
+              </div>
+            ) : ikkeInnleverteAssignments.length > 0 ? (
+              <WeeklyPlanSuggestions
+                assignments={ikkeInnleverteAssignments.map((assignment) => ({
+                  id: assignment.id.toString(),
+                  name: assignment.name,
+                  dueAt: assignment.due_at ? new Date(assignment.due_at) : undefined,
+                  courseName: assignment.course_name,
+                  pointsPossible: assignment.points_possible || undefined,
+                }))}
+                onPlanCreated={handlePlanCreated}
+              />
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800/50">
+                <div className="flex flex-col items-center justify-center space-y-3 text-center">
+                  <AlertCircle className="h-12 w-12 text-slate-400 dark:text-slate-500" />
+                  <div>
+                    <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">
+                      {t("overview.noAssignments.title")}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {t("overview.noAssignments.description")}
+                    </p>
+                  </div>
+                  <Link
+                    href="/dashboard?view=settings"
+                    prefetch={false}
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+                  >
+                    {t("common.actions.goToSettings")}
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            {t("overview.quickAccess.title")}
+          </h2>
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
+            <QuickActionCard
+              title={t("overview.quickActions.aiAssistant.title")}
+              description={t("overview.quickActions.aiAssistant.description")}
+              icon={MessageSquare}
+              href="/dashboard"
               color="blue"
             />
-            <StatCard
-              icon={Clock}
-              label={t("overview.stats.upcomingDeadlines")}
-              value={assignmentsQuery.isError ? "—" : upcomingAssignments.length}
-              color="yellow"
+            <QuickActionCard
+              title={t("overview.quickActions.taskBreakdown.title")}
+              description={t("overview.quickActions.taskBreakdown.description")}
+              icon={Sparkles}
+              href="/ai-breakdown"
+              color="purple"
             />
-            <StatCard
-              icon={AlertCircle}
-              label={t("overview.stats.notSubmitted")}
-              value={assignmentsQuery.isError ? "—" : ikkeInnleverteCount}
-              color="slate"
-            />
-            <StatCard
-              icon={TrendingUp}
-              label={t("overview.stats.completedThisYear")}
-              value={assignmentsQuery.isError ? "—" : fullforteIAr}
+            <QuickActionCard
+              title={t("overview.quickActions.courses.title")}
+              description={t("overview.quickActions.courses.description")}
+              icon={BookOpen}
+              href="/dashboard?view=canvas-courses"
               color="green"
             />
+            <QuickActionCard
+              title={t("overview.quickActions.chatHistory.title")}
+              description={t("overview.quickActions.chatHistory.description")}
+              icon={History}
+              href="/dashboard/samtalehistorikk"
+              color="indigo"
+            />
+            <QuickActionCard
+              title={t("overview.quickActions.notifications.title")}
+              description={t("overview.quickActions.notifications.description")}
+              icon={Bell}
+              href="/dashboard?view=varslinger"
+              color="rose"
+            />
+            <QuickActionCard
+              title={t("overview.quickActions.calendar.title")}
+              description={t("overview.quickActions.calendar.description")}
+              icon={Calendar}
+              href="/dashboard?view=calendar"
+              color="teal"
+            />
+            <QuickActionCard
+              title={t("overview.quickActions.library.title")}
+              description={t("overview.quickActions.library.description")}
+              icon={Library}
+              href="/dashboard/bokmerker"
+              color="pink"
+            />
+            <QuickActionCard
+              title={t("overview.quickActions.quizFlashcards.title")}
+              description={t("overview.quickActions.quizFlashcards.description")}
+              icon={Brain}
+              href="/dashboard?view=quiz"
+              color="cyan"
+            />
+            <QuickActionCard
+              title={t("overview.quickActions.announcements.title")}
+              description={t("overview.quickActions.announcements.description")}
+              icon={Megaphone}
+              href="/dashboard?view=canvas-announcements"
+              color="orange"
+            />
+            <QuickActionCard
+              title={t("overview.quickActions.assignments.title")}
+              description={t("overview.quickActions.assignments.description")}
+              icon={ClipboardList}
+              href="/dashboard?view=canvas-assignments"
+              color="emerald"
+            />
           </div>
+        </div>
 
-          <StudyActivityCard
-            stats={studyStatsQuery.data}
-            progress={progressQuery.data}
-            isLoading={studyStatsQuery.isLoading}
-            t={t}
-          />
-
-          <div className="rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800/50">
-            <div className="flex gap-1" role="tablist" aria-label={t("overview.tabs.ariaLabel")}>
-              <button
-                type="button"
-                id="overview-tab-my-workplan"
-                role="tab"
-                aria-selected={activeTab === "mine-oppgaver"}
-                aria-controls="overview-panel-my-workplan"
-                aria-label={t("overview.tabs.myWorkPlan")}
-                onClick={() => byttTab("mine-oppgaver")}
-                onKeyDown={handleOverviewTabKeyDown}
-                className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === "mine-oppgaver"
-                    ? "bg-blue-600 text-white dark:bg-blue-500"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <TrendingUp className="h-4 w-4" aria-hidden />
-                  {t("overview.tabs.myWorkPlan")}
-                </div>
-              </button>
-              <button
-                type="button"
-                id="overview-tab-ai-weekplan"
-                role="tab"
-                aria-selected={activeTab === "ki-forslag"}
-                aria-controls="overview-panel-ai-weekplan"
-                aria-label={t("overview.tabs.aiWeekPlan")}
-                onClick={() => byttTab("ki-forslag")}
-                onKeyDown={handleOverviewTabKeyDown}
-                className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors ${
-                  activeTab === "ki-forslag"
-                    ? "bg-blue-600 text-white dark:bg-blue-500"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  {t("overview.tabs.aiWeekPlan")}
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div
-            id="overview-panel-my-workplan"
-            role="tabpanel"
-            aria-labelledby="overview-tab-my-workplan"
-            className={activeTab === "mine-oppgaver" ? "outline-none" : "hidden"}
-          >
-            <MinArbeidsplan />
-          </div>
-
-          <div
-            id="overview-panel-ai-weekplan"
-            role="tabpanel"
-            aria-labelledby="overview-tab-ai-weekplan"
-            className={activeTab === "ki-forslag" ? "outline-none" : "hidden"}
-          >
-            <div className="space-y-2">
-              {!harCanvasToken ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-                  <CanvasTokenNotice message={t("overview.missingCanvasPlanner")} />
-                </div>
-              ) : assignmentsQuery.isLoading ? (
-                <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/50 p-8">
-                  <LoadingView translationKey="common.loading.assignments" fullPage={false} />
-                </div>
-              ) : assignmentsQuery.isError ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-800/50">
-                  <FeilMelding melding={oppgaveFeilmelding} />
-                </div>
-              ) : ikkeInnleverteAssignments.length > 0 ? (
-                <WeeklyPlanSuggestions
-                  assignments={ikkeInnleverteAssignments.map((assignment) => ({
-                    id: assignment.id.toString(),
-                    name: assignment.name,
-                    dueAt: assignment.due_at
-                      ? new Date(assignment.due_at)
-                      : undefined,
-                    courseName: assignment.course_name,
-                    pointsPossible: assignment.points_possible || undefined,
-                  }))}
-                  onPlanCreated={handlePlanCreated}
-                />
-              ) : (
-                <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800/50">
-                  <div className="flex flex-col items-center justify-center space-y-3 text-center">
-                    <AlertCircle className="h-12 w-12 text-slate-400 dark:text-slate-500" />
-                    <div>
-                      <h3 className="mb-1 font-semibold text-slate-900 dark:text-white">
-                        {t("overview.noAssignments.title")}
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {t("overview.noAssignments.description")}
-                      </p>
-                    </div>
-                    <Link
-                      href="/dashboard?view=settings"
-                      prefetch={false}
-                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
-                    >
-                      {t("common.actions.goToSettings")}
-                    </Link>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
+        {upcomingAssignments.length > 0 ? (
           <div className="space-y-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t("overview.quickAccess.title")}
+            <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+              {t("overview.upcomingDeadlines", { days: FRIST_VINDU_DAGER })}
             </h2>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
-              <QuickActionCard
-                title={t("overview.quickActions.aiAssistant.title")}
-                description={t("overview.quickActions.aiAssistant.description")}
-                icon={MessageSquare}
-                href="/dashboard"
-                color="blue"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.taskBreakdown.title")}
-                description={t("overview.quickActions.taskBreakdown.description")}
-                icon={Sparkles}
-                href="/ai-breakdown"
-                color="purple"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.courses.title")}
-                description={t("overview.quickActions.courses.description")}
-                icon={BookOpen}
-                href="/dashboard?view=canvas-courses"
-                color="green"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.chatHistory.title")}
-                description={t("overview.quickActions.chatHistory.description")}
-                icon={History}
-                href="/dashboard/samtalehistorikk"
-                color="indigo"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.notifications.title")}
-                description={t("overview.quickActions.notifications.description")}
-                icon={Bell}
-                href="/dashboard?view=varslinger"
-                color="rose"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.calendar.title")}
-                description={t("overview.quickActions.calendar.description")}
-                icon={Calendar}
-                href="/dashboard?view=calendar"
-                color="teal"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.library.title")}
-                description={t("overview.quickActions.library.description")}
-                icon={Library}
-                href="/dashboard/bokmerker"
-                color="pink"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.quizFlashcards.title")}
-                description={t("overview.quickActions.quizFlashcards.description")}
-                icon={Brain}
-                href="/dashboard?view=quiz"
-                color="cyan"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.announcements.title")}
-                description={t("overview.quickActions.announcements.description")}
-                icon={Megaphone}
-                href="/dashboard?view=canvas-announcements"
-                color="orange"
-              />
-              <QuickActionCard
-                title={t("overview.quickActions.assignments.title")}
-                description={t("overview.quickActions.assignments.description")}
-                icon={ClipboardList}
-                href="/dashboard?view=canvas-assignments"
-                color="emerald"
-              />
-            </div>
-          </div>
+            <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/50">
+              {upcomingAssignments.slice(0, 5).map((assignment) => {
+                const daysUntil = dagerFraIdag(assignment.due_at!);
+                const isUrgent = daysUntil <= 2;
 
-          {upcomingAssignments.length > 0 ? (
-            <div className="space-y-2">
-              <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
-                {t("overview.upcomingDeadlines", { days: FRIST_VINDU_DAGER })}
-              </h2>
-              <div className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-800/50">
-                {upcomingAssignments.slice(0, 5).map((assignment) => {
-                  const daysUntil = dagerFraIdag(assignment.due_at!);
-                  const isUrgent = daysUntil <= 2;
-
-                  return (
-                    <div
-                      key={assignment.id}
-                      className="p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                          <button
-                            type="button"
-                            role="checkbox"
-                            aria-checked={false}
-                            aria-label={t("notifications.markAsSubmitted")}
-                            title={t("notifications.markAsSubmitted")}
-                            onClick={() => toggleFerdig(assignment.id)}
-                            className="mt-0.5 shrink-0 w-5 h-5 rounded border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <h3 className="truncate font-medium text-slate-900 dark:text-white">
-                              {assignment.name}
-                            </h3>
-                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                              {assignment.course_name}
-                            </p>
-                          </div>
+                return (
+                  <div
+                    key={assignment.id}
+                    className="p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={false}
+                          aria-label={t("notifications.markAsSubmitted")}
+                          title={t("notifications.markAsSubmitted")}
+                          onClick={() => toggleFerdig(assignment.id)}
+                          className="mt-0.5 shrink-0 w-5 h-5 rounded border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <h3 className="truncate font-medium text-slate-900 dark:text-white">
+                            {assignment.name}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            {assignment.course_name}
+                          </p>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <div
-                            className={`text-sm font-medium ${
-                              isUrgent
-                                ? "text-red-600 dark:text-red-400"
-                                : "text-slate-700 dark:text-slate-300"
-                            }`}
-                          >
-                            {formaterDagerRelativtFrist(daysUntil, language)}
-                          </div>
-                          <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            {formaterDatoShort(assignment.due_at!, language)}
-                          </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div
+                          className={`text-sm font-medium ${
+                            isUrgent
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          {formaterDagerRelativtFrist(daysUntil, language)}
+                        </div>
+                        <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {formaterDatoShort(assignment.due_at!, language)}
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
+    </div>
   );
 }
 
-function QuickActionCard({
-  title,
-  description,
-  icon: Icon,
-  href,
-  color,
-}: QuickActionCardProps) {
+function QuickActionCard({ title, description, icon: Icon, href, color }: QuickActionCardProps) {
   const colorClasses = {
     blue: "border-blue-200 bg-blue-50 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/10 dark:hover:bg-blue-900/20",
     green:
@@ -608,12 +593,8 @@ function QuickActionCard({
         <Icon size={18} />
       </div>
       <div className="min-w-0">
-        <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-white">
-          {title}
-        </h3>
-        <p className="truncate text-xs text-slate-600 dark:text-slate-400">
-          {description}
-        </p>
+        <h3 className="truncate text-sm font-semibold text-slate-900 dark:text-white">{title}</h3>
+        <p className="truncate text-xs text-slate-600 dark:text-slate-400">{description}</p>
       </div>
     </Link>
   );
@@ -652,13 +633,13 @@ function StudyActivityCard({
   isLoading: boolean;
   t: Translator;
 }) {
-  const hasAnyActivity = stats && (
-    stats.chatSessions > 0 ||
-    stats.tasksCompleted > 0 ||
-    stats.studyBlocksCompleted > 0 ||
-    stats.studyHoursCompleted > 0 ||
-    stats.topicsStudied > 0
-  );
+  const hasAnyActivity =
+    stats &&
+    (stats.chatSessions > 0 ||
+      stats.tasksCompleted > 0 ||
+      stats.studyBlocksCompleted > 0 ||
+      stats.studyHoursCompleted > 0 ||
+      stats.topicsStudied > 0);
 
   const percentage = progress?.percentage ?? 0;
 

@@ -112,9 +112,7 @@ interface CalendarSectionProps {
 }
 
 // Hoved-komponent
-export const CalendarSection: FC<CalendarSectionProps> = ({
-  harCanvasToken = false,
-}) => {
+export const CalendarSection: FC<CalendarSectionProps> = ({ harCanvasToken = false }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
@@ -126,7 +124,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   // Hent kombinert data fra Canvas
   const { data, isLoading, isError, error, hasLecturesData } = useCombinedCalendarData(
     filter,
-    harCanvasToken
+    harCanvasToken,
   );
   const hiddenSet = useHiddenCourseIds();
   const assignmentsRaw = useMemo(
@@ -141,16 +139,16 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
   useEffect(() => {
     setCompletedIds(new Set());
   }, [assignmentsRaw.length]);
-// Merk innleveringer som fullførte basert på lokal state
+  // Merk innleveringer som fullførte basert på lokal state
   const assignments: Assignment[] = useMemo(
     () =>
       assignmentsRaw.map((a) => ({
         ...a,
         completed: completedIds.has(a.id),
       })),
-    [assignmentsRaw, completedIds]
+    [assignmentsRaw, completedIds],
   );
-// Håndteringsfunksjoner for kalendernavigasjon og interaksjon
+  // Håndteringsfunksjoner for kalendernavigasjon og interaksjon
   const handlePrevMonth = () => setCurrentDate((prev) => subMonths(prev, 1));
   const handleNextMonth = () => setCurrentDate((prev) => addMonths(prev, 1));
   const handleToday = () => {
@@ -170,21 +168,29 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       return next;
     });
   };
-// Filtrer innleveringer for valgt dato
+  // Filtrer innleveringer for valgt dato
   const selectedDateAssignments = useMemo(() => {
     if (!selectedDate) return [];
     return assignments.filter(
       (a) =>
         a.dueDate.getDate() === selectedDate.getDate() &&
         a.dueDate.getMonth() === selectedDate.getMonth() &&
-        a.dueDate.getFullYear() === selectedDate.getFullYear()
+        a.dueDate.getFullYear() === selectedDate.getFullYear(),
     );
   }, [assignments, selectedDate]);
   const filterOptions: { value: CalendarFilterType; label: string; shortLabel: string }[] = useMemo(
     () => [
       { value: "all", label: labels.filters.all.label, shortLabel: labels.filters.all.shortLabel },
-      { value: "assignments", label: labels.filters.assignments.label, shortLabel: labels.filters.assignments.shortLabel },
-      { value: "timetable", label: labels.filters.timetable.label, shortLabel: labels.filters.timetable.shortLabel },
+      {
+        value: "assignments",
+        label: labels.filters.assignments.label,
+        shortLabel: labels.filters.assignments.shortLabel,
+      },
+      {
+        value: "timetable",
+        label: labels.filters.timetable.label,
+        shortLabel: labels.filters.timetable.shortLabel,
+      },
     ],
     [labels],
   );
@@ -192,7 +198,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
     () =>
       Array.from({ length: 12 }, (_, index) => ({
         value: index.toString(),
-        label: capitalizeLabel(format(new Date(new Date().getFullYear(), index, 1), "MMMM", { locale })),
+        label: capitalizeLabel(
+          format(new Date(new Date().getFullYear(), index, 1), "MMMM", { locale }),
+        ),
       })),
     [locale],
   );
@@ -203,7 +211,11 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       if (course.code === "Annet") return false;
       const codeMatch = course.code.match(COURSE_CODE_REGEX);
       const cleanCode = codeMatch ? codeMatch[0].toUpperCase() : course.code;
-      return self.findIndex((c) => (c.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? c.code) === cleanCode) === index;
+      return (
+        self.findIndex(
+          (c) => (c.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? c.code) === cleanCode,
+        ) === index
+      );
     });
   }, [courses]);
   if (!harCanvasToken) {
@@ -247,9 +259,7 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {labels.pageTitle}
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {labels.pageDescription}
-        </p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{labels.pageDescription}</p>
       </div>
 
       {/* Header: måned/år, navigasjon, filter */}
@@ -266,7 +276,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                 className="h-9 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {monthOptions.map((month) => (
-                  <option key={month.value} value={month.value}>{month.label}</option>
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
                 ))}
               </select>
               <select
@@ -275,7 +287,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                 className="h-9 sm:h-9 px-2 sm:px-3 rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 {years.map((year) => (
-                  <option key={year} value={year.toString()}>{year}</option>
+                  <option key={year} value={year.toString()}>
+                    {year}
+                  </option>
                 ))}
               </select>
             </div>
@@ -290,11 +304,21 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
               {labels.today}
             </button>
             <div className="flex items-center border border-slate-200 dark:border-slate-600 rounded-lg overflow-hidden">
-              <button type="button" onClick={handlePrevMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label={labels.prevMonth}>
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+                aria-label={labels.prevMonth}
+              >
                 <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
               <div className="w-px h-8 sm:h-9 bg-slate-200 dark:bg-slate-600" />
-              <button type="button" onClick={handleNextMonth} className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors" aria-label={labels.nextMonth}>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="h-8 w-8 sm:h-9 sm:w-9 flex items-center justify-center bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors"
+                aria-label={labels.nextMonth}
+              >
                 <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
@@ -313,7 +337,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                 onClick={() => setFilter(option.value)}
                 className={cn(
                   "px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors",
-                  filter === option.value ? "bg-blue-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                  filter === option.value
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700",
                 )}
               >
                 <span className="sm:hidden">{option.shortLabel}</span>
@@ -322,7 +348,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
             ))}
           </div>
           {filter === "timetable" && !hasLecturesData && (
-            <span className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">{labels.noLecturesFoundShort}</span>
+            <span className="text-[10px] sm:text-xs text-amber-600 dark:text-amber-400">
+              {labels.noLecturesFoundShort}
+            </span>
           )}
         </div>
       </div>
@@ -330,13 +358,23 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
       {/* Emneforklaring */}
       {uniqueCourses.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4 px-2 sm:px-3 py-1.5 sm:py-2 bg-slate-100/50 dark:bg-slate-800/50 rounded-lg text-[10px] sm:text-xs">
-          <span className="font-medium text-slate-500 dark:text-slate-400">{labels.coursesLegend}</span>
+          <span className="font-medium text-slate-500 dark:text-slate-400">
+            {labels.coursesLegend}
+          </span>
           {uniqueCourses.map((course) => {
-            const displayCode = course.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? course.code;
+            const displayCode =
+              course.code.match(COURSE_CODE_REGEX)?.[0]?.toUpperCase() ?? course.code;
             return (
               <div key={course.code} className="flex items-center gap-1 sm:gap-1.5">
-                <span className={cn("w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0", COURSE_COLOR_CLASSES[course.color])} />
-                <span className="text-slate-700 dark:text-slate-200 font-medium">{displayCode}</span>
+                <span
+                  className={cn(
+                    "w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full shrink-0",
+                    COURSE_COLOR_CLASSES[course.color],
+                  )}
+                />
+                <span className="text-slate-700 dark:text-slate-200 font-medium">
+                  {displayCode}
+                </span>
               </div>
             );
           })}
@@ -371,33 +409,34 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                     : undefined;
                 const oppsummeringstekst = [
                   assignment.title,
-                  assignment.courseCode &&
-                    `${labels.courseLabel}: ${assignment.courseCode}`,
+                  assignment.courseCode && `${labels.courseLabel}: ${assignment.courseCode}`,
                   assignment.dueDate &&
                     format(
                       assignment.dueDate,
                       language === "en" ? "MMMM d, yyyy" : "d. MMMM yyyy",
                       { locale },
                     ),
-                  assignment.location &&
-                    `${labels.locationLabel}: ${assignment.location}`,
+                  assignment.location && `${labels.locationLabel}: ${assignment.location}`,
                   beskrivelse,
-                ].filter(Boolean).join(". ");
+                ]
+                  .filter(Boolean)
+                  .join(". ");
                 return (
                   <li
                     key={assignment.id}
                     className="p-2 sm:p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600"
                   >
                     <div className="flex items-start gap-2 sm:gap-3">
-                      {assignment.source !== "event" && assignment.source !== "timetable" &&
-                       assignment.description !== "calendar_event" && (
-                        <input
-                          type="checkbox"
-                          checked={assignment.completed}
-                          onChange={() => handleToggleComplete(assignment.id)}
-                          className="mt-0.5 sm:mt-1 w-4 h-4 rounded border-slate-300 dark:border-slate-500"
-                        />
-                      )}
+                      {assignment.source !== "event" &&
+                        assignment.source !== "timetable" &&
+                        assignment.description !== "calendar_event" && (
+                          <input
+                            type="checkbox"
+                            checked={assignment.completed}
+                            onChange={() => handleToggleComplete(assignment.id)}
+                            className="mt-0.5 sm:mt-1 w-4 h-4 rounded border-slate-300 dark:border-slate-500"
+                          />
+                        )}
                       <div className="flex-1 min-w-0">
                         <p
                           className={`text-sm sm:text-base font-medium text-slate-900 dark:text-slate-100 ${
@@ -411,12 +450,15 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                         </p>
 
                         {/* Vis tidspunkt for forelesninger */}
-                        {(assignment.source === "event" || assignment.source === "timetable") && assignment.endDate && (
-                          <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 dark:text-slate-400">
-                            <Clock className="w-3 h-3 shrink-0" />
-                            <span>{formatTime(assignment.dueDate)} - {formatTime(assignment.endDate)}</span>
-                          </div>
-                        )}
+                        {(assignment.source === "event" || assignment.source === "timetable") &&
+                          assignment.endDate && (
+                            <div className="flex items-center gap-1 mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              <Clock className="w-3 h-3 shrink-0" />
+                              <span>
+                                {formatTime(assignment.dueDate)} - {formatTime(assignment.endDate)}
+                              </span>
+                            </div>
+                          )}
 
                         {/* Vis lokasjon */}
                         {assignment.location && (
@@ -448,7 +490,9 @@ export const CalendarSection: FC<CalendarSectionProps> = ({
                   : labels.noEventsThisDay}
             </p>
           ) : (
-            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">{labels.clickDate}</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm">
+              {labels.clickDate}
+            </p>
           )}
         </div>
       </div>

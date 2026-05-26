@@ -40,9 +40,7 @@ function renderBlock(block: ExportBlock): string {
     case "bullet_list":
       return block.items.map((item) => `- ${renderListItem(item)}`).join("\n");
     case "numbered_list":
-      return block.items
-        .map((item, idx) => `${idx + 1}. ${renderListItem(item)}`)
-        .join("\n");
+      return block.items.map((item, idx) => `${idx + 1}. ${renderListItem(item)}`).join("\n");
     case "checklist":
       return block.items
         .map((item) => `- [${item.checked ? "x" : " "}] ${renderListItem(item)}`)
@@ -105,7 +103,10 @@ export const markdownProvider: ExportProvider = {
         target: "markdown",
         content,
         mimeType: "text/markdown",
-        filename: `${doc.title.slice(0, 80).replace(/[^\w\sæøåÆØÅ-]/g, "").trim()}.md`,
+        filename: `${doc.title
+          .slice(0, 80)
+          .replace(/[^\w\sæøåÆØÅ-]/g, "")
+          .trim()}.md`,
       },
     };
   },

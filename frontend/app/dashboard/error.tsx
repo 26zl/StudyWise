@@ -32,9 +32,7 @@ export default function DashboardError({ error, reset }: ErrorPageProps) {
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/40">
           <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-300" />
         </div>
-        <h2 className="mt-4 text-xl font-semibold">
-          {t("errorPages.runtime.title")}
-        </h2>
+        <h2 className="mt-4 text-xl font-semibold">{t("errorPages.runtime.title")}</h2>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
           {t("errorPages.runtime.description")}
         </p>

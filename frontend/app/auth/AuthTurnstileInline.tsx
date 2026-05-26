@@ -10,8 +10,7 @@ import { lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
 import { turnstileEnabled } from "@/app/lib/validateEnv";
 
-const AUTH_TURNSTILE_SITE_KEY =
-  process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
+const AUTH_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
 
 // Effektivt aktiveringsflagg: krever både master-flagg OG sitekey
 const TURNSTILE_ACTIVE = turnstileEnabled && !!AUTH_TURNSTILE_SITE_KEY;
@@ -21,10 +20,7 @@ type AuthTurnstileInlineProps = {
   onVerified: () => void;
 };
 
-export function AuthTurnstileInline({
-  initialVerified,
-  onVerified,
-}: AuthTurnstileInlineProps) {
+export function AuthTurnstileInline({ initialVerified, onVerified }: AuthTurnstileInlineProps) {
   const { t } = useLanguage();
   const [isVerified, setIsVerified] = useState(initialVerified);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -41,32 +37,35 @@ export function AuthTurnstileInline({
   // lenger ned — bruker ref for å unngå TDZ samtidig som vi holder deps ærlige.
   const resetRef = useRef<(() => void) | null>(null);
 
-  const onTurnstileSuccess = useCallback(async (token: string) => {
-    if (isVerified || isVerifying) {
-      return;
-    }
+  const onTurnstileSuccess = useCallback(
+    async (token: string) => {
+      if (isVerified || isVerifying) {
+        return;
+      }
 
-    setIsVerifying(true);
-    setErrorMessage(null);
+      setIsVerifying(true);
+      setErrorMessage(null);
 
-    try {
-      await verifyAuthTurnstile(token);
-      setIsVerified(true);
-      onVerified();
-    } catch (error) {
-      const message = lagBrukervennligFeilmelding(
-        error instanceof Error ? error : null,
-        { auth: true },
-        t("errors.generic.default"),
-        t,
-      );
-      setErrorMessage(message);
-      showToast.error(t("auth.humanCheck.title"), message);
-      resetRef.current?.();
-    } finally {
-      setIsVerifying(false);
-    }
-  }, [isVerified, isVerifying, onVerified, t]);
+      try {
+        await verifyAuthTurnstile(token);
+        setIsVerified(true);
+        onVerified();
+      } catch (error) {
+        const message = lagBrukervennligFeilmelding(
+          error instanceof Error ? error : null,
+          { auth: true },
+          t("errors.generic.default"),
+          t,
+        );
+        setErrorMessage(message);
+        showToast.error(t("auth.humanCheck.title"), message);
+        resetRef.current?.();
+      } finally {
+        setIsVerifying(false);
+      }
+    },
+    [isVerified, isVerifying, onVerified, t],
+  );
 
   const onTurnstileError = useCallback(() => {
     setErrorMessage(t("auth.humanCheck.widgetError"));
@@ -75,7 +74,9 @@ export function AuthTurnstileInline({
   const { containerRef, isLoaded, reset } = useTurnstileScript({
     siteKey: AUTH_TURNSTILE_SITE_KEY,
     action: AUTH_TURNSTILE_ACTION,
-    onSuccess: (token) => { void onTurnstileSuccess(token); },
+    onSuccess: (token) => {
+      void onTurnstileSuccess(token);
+    },
     onError: onTurnstileError,
     onExpired: onTurnstileError,
     enabled: !isVerified && TURNSTILE_ACTIVE,
@@ -110,10 +111,7 @@ export function AuthTurnstileInline({
 
       <div className="space-y-3">
         <div className="relative flex justify-center">
-          <div
-            ref={containerRef}
-            className={isLoaded ? undefined : "opacity-0"}
-          />
+          <div ref={containerRef} className={isLoaded ? undefined : "opacity-0"} />
           {!isLoaded && (
             <div className="absolute inset-0 flex h-16.25 w-75 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
               <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
@@ -128,11 +126,7 @@ export function AuthTurnstileInline({
           </div>
         )}
 
-        {errorMessage && (
-          <p className="text-sm text-red-600 dark:text-red-400">
-            {errorMessage}
-          </p>
-        )}
+        {errorMessage && <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>}
       </div>
     </div>
   );

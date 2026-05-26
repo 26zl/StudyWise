@@ -64,13 +64,35 @@ export function isCourseOverviewQuery(message: string): boolean {
  */
 const STUDY_INTENT_KEYWORDS = [
   // Norsk
-  "eksamen", "øve", "øving", "lære", "forstå", "forklar",
-  "forberede", "forberedelse", "pugge", "studere", "repetisjon", "repetere",
-  "oppsummer", "pensum",
+  "eksamen",
+  "øve",
+  "øving",
+  "lære",
+  "forstå",
+  "forklar",
+  "forberede",
+  "forberedelse",
+  "pugge",
+  "studere",
+  "repetisjon",
+  "repetere",
+  "oppsummer",
+  "pensum",
   // Engelsk
-  "exam", "study", "studying", "learn", "understand", "explain",
-  "prepare", "preparation", "practice", "review", "summarize", "summarise",
-  "revise", "revision",
+  "exam",
+  "study",
+  "studying",
+  "learn",
+  "understand",
+  "explain",
+  "prepare",
+  "preparation",
+  "practice",
+  "review",
+  "summarize",
+  "summarise",
+  "revise",
+  "revision",
 ];
 
 function harStudieIntent(text: string): boolean {

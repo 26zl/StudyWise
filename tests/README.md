@@ -37,7 +37,7 @@ pnpm test:canvas:smoke # Canvas HTTP smoke
 
 ## Struktur
 
-``` text
+```text
 tests/
   run.ts                  # Unified test runner
   playwright.config.ts    # Playwright config for E2E-tester

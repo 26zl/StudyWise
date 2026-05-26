@@ -53,7 +53,11 @@ function normalizeEmailForUsernameCheck(value: string | null | undefined): strin
   return trimmed;
 }
 
-function fetchUsernameCheck(username: string, email?: string, signal?: AbortSignal): Promise<Response> {
+function fetchUsernameCheck(
+  username: string,
+  email?: string,
+  signal?: AbortSignal,
+): Promise<Response> {
   return fetch("/api/user/username/check", {
     method: "POST",
     headers: {
@@ -81,7 +85,8 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
   // flash av Turnstile-gate under SSR-hydrering (searchParams kan være tom under Suspense)
   const isOAuthReturn =
     searchParams.get("oauth") === "complete" ||
-    (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("oauth") === "complete");
+    (typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("oauth") === "complete");
   const isRedirectingToDashboard = isLoaded && isSignedIn && !isOAuthReturn;
 
   // Form state
@@ -308,7 +313,19 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
         setIsSubmitting(false);
       }
     },
-    [signUp, firstName, lastName, username, email, password, passwordValid, usernameStatus, isSubmitting, t, getSignUpErrorMessage],
+    [
+      signUp,
+      firstName,
+      lastName,
+      username,
+      email,
+      password,
+      passwordValid,
+      usernameStatus,
+      isSubmitting,
+      t,
+      getSignUpErrorMessage,
+    ],
   );
 
   // OAuth sign-up (Google/Microsoft)
@@ -422,10 +439,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     return (
       <div className="w-full max-w-md">
         <AuthCard>
-          <LoadingView
-            fullPage={false}
-            translationKey="common.loading.generic"
-          />
+          <LoadingView fullPage={false} translationKey="common.loading.generic" />
         </AuthCard>
       </div>
     );
@@ -436,10 +450,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
     return (
       <div className="w-full max-w-md">
         <AuthCard>
-          <LoadingView
-            fullPage={false}
-            translationKey="common.loading.redirecting"
-          />
+          <LoadingView fullPage={false} translationKey="common.loading.redirecting" />
         </AuthCard>
       </div>
     );
@@ -494,10 +505,7 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
       {/* Registreringsskjema */}
       {isVerified && step === "form" && (
         <AuthCard>
-          <AuthHeader
-            title={t("auth.signUp.title")}
-            subtitle={t("auth.signUp.subtitle")}
-          />
+          <AuthHeader title={t("auth.signUp.title")} subtitle={t("auth.signUp.subtitle")} />
 
           <p className="mb-4 text-center text-xs text-slate-500 dark:text-slate-400">
             {t("auth.signUp.termsPrefix")}{" "}
@@ -667,7 +675,6 @@ export function SignUpClient({ initialVerified }: SignUpClientProps) {
             >
               {t("auth.signUp.submitButton")}
             </AuthPrimaryButton>
-
           </form>
 
           <AuthFooterLink

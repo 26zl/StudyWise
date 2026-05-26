@@ -8,12 +8,7 @@ import {
   type CalendarItem,
   type CalendarItemsResponse,
 } from "common/calendar";
-import type {
-  Assignment,
-  Course,
-  CourseColor,
-  CalendarFilterType,
-} from "common/calendar-ui";
+import type { Assignment, Course, CourseColor, CalendarFilterType } from "common/calendar-ui";
 import { fetchCanvas } from "../canvas/canvas-api";
 import { useUIStore } from "../store/uiStore";
 import { CALENDAR_QUERY_OPTIONS } from "../lib/queryConfig";
@@ -178,9 +173,7 @@ export function mapCalendarItems(items: CalendarItem[]): {
       courseCode = "Annet";
       courseName = "Annet";
     }
-    const courseKey = item.course_id
-      ? `course-${item.course_id}`
-      : `code-${courseCode}`;
+    const courseKey = item.course_id ? `course-${item.course_id}` : `code-${courseCode}`;
     // Gi hvert emne sin egen unike farge
     const courseColor = getColorForKey(courseKey);
     // Legg til kurs hvis det ikke allerede finnes
@@ -220,16 +213,12 @@ export function isLectureOrEvent(a: Assignment): boolean {
   // Sjekk source
   if (a.source === "event" || a.source === "timetable") return true;
   // Sjekk raw_type (lagret i description) for calendar_events som feilaktig har source=todo
-  if (a.description === "calendar_event" || a.description === "CalendarEvent")
-    return true;
+  if (a.description === "calendar_event" || a.description === "CalendarEvent") return true;
   return false;
 }
 
 // Filtrer kalender-elementer basert på filtertype
-function filterAssignments(
-  assignments: Assignment[],
-  filter: CalendarFilterType,
-): Assignment[] {
+function filterAssignments(assignments: Assignment[], filter: CalendarFilterType): Assignment[] {
   if (filter === "all") {
     return assignments;
   }

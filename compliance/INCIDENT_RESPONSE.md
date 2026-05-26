@@ -16,20 +16,20 @@ alle steg med tidspunkt underveis.
 
 - **Kritisk** — databrudd med PII eksponert, Canvas-token-lekkasje,
   admin-konto kompromittert, ransomware.
-  *Varsling:* Ja — Datatilsynet innen 72t, brukere innen 72t.
+  _Varsling:_ Ja — Datatilsynet innen 72t, brukere innen 72t.
 - **Alvorlig** — uautorisert adgang uten PII-lekkasje, DoS som tok ned
   tjenesten > 4t, sårbarhet brukt i angrep.
-  *Varsling:* Kanskje — vurder risiko.
+  _Varsling:_ Kanskje — vurder risiko.
 - **Mindre** — skannet sårbarhet fikset før utnyttelse, melding via
   kontaktskjema, mistenkelig aktivitet uten bevis.
-  *Varsling:* Nei, men logg internt.
+  _Varsling:_ Nei, men logg internt.
 
 ## Sjekkliste ved kritisk hendelse
 
 ### Første time (T+0 til T+1t)
 
 - **Noter tidspunkt for oppdagelse** (UTC). Dette er startpunktet for
-      72-timers-fristen.
+  72-timers-fristen.
 - **Samle team.** Minimum to personer som kan koordinere.
 - **Stopp blødningen.**
   - Roter `ENCRYPTION_KEY` hvis den kan være kompromittert.
@@ -38,7 +38,7 @@ alle steg med tidspunkt underveis.
   - Deaktiver konto(er) som er kompromittert.
 - **Ikke slett logger.** Bevar alt til etterforskning.
 - **Start incident-logg.** En markdown-fil per hendelse i `.incidents/`:
-      tidspunkt, hva ble observert, hvem gjorde hva, hvilke systemer berørt.
+  tidspunkt, hva ble observert, hvem gjorde hva, hvilke systemer berørt.
 
 ### Første 24 timer (T+1t til T+24t)
 
@@ -52,22 +52,22 @@ alle steg med tidspunkt underveis.
   - Sjekk deploy-historikk: ble noe endret nylig?
   - Sjekk Datadog/Grafana for anomalier.
 - **Konsulter veileder ved USN** hvis det er uklart om bachelor-teamet
-      må håndtere alene.
+  må håndtere alene.
 - **Forbered Datatilsynet-varsel** (utkast).
 
 ### Før T+72t
 
 - **Varsle Datatilsynet** (GDPR Art. 33) via skjema på
-      <https://www.datatilsynet.no/melde-avvik/>. Varselet skal inneholde:
+  <https://www.datatilsynet.no/melde-avvik/>. Varselet skal inneholde:
   - Hva slags brudd (kategori, omfang, antall berørte).
   - Navn + kontakt for ansvarlig person.
   - Sannsynlige konsekvenser.
   - Hva vi har gjort og planlegger å gjøre.
 - **Vurder direkte varsling til brukere** (Art. 34) — påkrevd hvis
-      bruddet "sannsynligvis medfører høy risiko for deres rettigheter og
-      friheter". Ved tvil: varsle.
+  bruddet "sannsynligvis medfører høy risiko for deres rettigheter og
+  friheter". Ved tvil: varsle.
 - **Varsel til brukere via e-post + banner på /status**.
-      Innhold:
+  Innhold:
   - Hva som skjedde (konkret).
   - Hvilke data som er berørt.
   - Hva brukeren bør gjøre (f.eks. roter Canvas-token, endre passord).
@@ -77,7 +77,7 @@ alle steg med tidspunkt underveis.
 ### Etter håndtering
 
 - **Post-mortem** skrevet innen 1 uke. Hva gikk galt, hva fungerte,
-      hvilke endringer må vi gjøre?
+  hvilke endringer må vi gjøre?
 - **Oppdater PIA.md** hvis risikobildet endret seg.
 - **Oppdater kode og prosesser** for å forhindre gjentagelse.
 - **Arkivér incident-logg** i `.incidents/YYYY-MM-DD-slug.md`.

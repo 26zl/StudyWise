@@ -47,10 +47,7 @@ export async function sweepCorruptedChatHistory(): Promise<{
     if (idsToDelete.length > 0) {
       const result = await ChatHistory.deleteMany({ _id: { $in: idsToDelete } });
       deleted = result.deletedCount ?? idsToDelete.length;
-      logger.warn(
-        { scanned, deleted },
-        "ChatHistory-cleanup: fjernet korrupte rader",
-      );
+      logger.warn({ scanned, deleted }, "ChatHistory-cleanup: fjernet korrupte rader");
     } else {
       logger.debug({ scanned }, "ChatHistory-cleanup: ingen korrupte rader funnet");
     }

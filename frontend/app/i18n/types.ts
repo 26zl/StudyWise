@@ -15,16 +15,11 @@ type PartialMessagesFor<T> = {
 };
 
 type NestedKeys<T> = {
-  [K in keyof T & string]: T[K] extends Primitive
-    ? K
-    : `${K}.${NestedKeys<T[K]>}`;
+  [K in keyof T & string]: T[K] extends Primitive ? K : `${K}.${NestedKeys<T[K]>}`;
 }[keyof T & string];
 
 export type MessageKey = NestedKeys<Messages>;
 
 export type TranslationValues = Record<string, number | string>;
 
-export type Translator = (
-  key: MessageKey,
-  values?: TranslationValues,
-) => string;
+export type Translator = (key: MessageKey, values?: TranslationValues) => string;

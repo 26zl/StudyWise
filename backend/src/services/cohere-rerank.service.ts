@@ -73,9 +73,7 @@ let lastCohereQuotaFailureAtMs: number | null = null;
 
 export function recordCohereQuotaFailure(): void {
   lastCohereQuotaFailureAtMs = Date.now();
-  logger.warn(
-    "Cohere quota-failure registrert — helsesjekk rapporterer down i 15 min",
-  );
+  logger.warn("Cohere quota-failure registrert — helsesjekk rapporterer down i 15 min");
 }
 
 function hasRecentCohereQuotaFailure(): boolean {
@@ -162,20 +160,17 @@ export async function cohereRerank(
 
         if (!res.ok) {
           const body = await res.text();
-          logger.warn(
-            { status: res.status, body },
-            "Cohere rerank API feilet",
-          );
+          logger.warn({ status: res.status, body }, "Cohere rerank API feilet");
           // 402 (Payment Required) eller 429 med quota/billing-hint = trial oppbrukt.
           // Marker helsen som down slik at admin-statusen viser riktig bilde.
           const lowerBody = body.toLowerCase();
           if (
-            res.status === 402
-            || lowerBody.includes("quota")
-            || lowerBody.includes("billing")
-            || lowerBody.includes("trial")
-            || lowerBody.includes("insufficient")
-            || lowerBody.includes("credits")
+            res.status === 402 ||
+            lowerBody.includes("quota") ||
+            lowerBody.includes("billing") ||
+            lowerBody.includes("trial") ||
+            lowerBody.includes("insufficient") ||
+            lowerBody.includes("credits")
           ) {
             recordCohereQuotaFailure();
           }

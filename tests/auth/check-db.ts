@@ -58,7 +58,10 @@ interface Report {
 }
 
 // ---------- Konstanter ----------
-const REQUIRED_INDEXES: Record<string, { key: Record<string, number>; unique: boolean; sparse: boolean }> = {
+const REQUIRED_INDEXES: Record<
+  string,
+  { key: Record<string, number>; unique: boolean; sparse: boolean }
+> = {
   email_1: { key: { email: 1 }, unique: true, sparse: false },
   clerk_id_unique: { key: { clerkId: 1 }, unique: true, sparse: true },
   username_normalized_unique: { key: { usernameNormalized: 1 }, unique: true, sparse: true },
@@ -138,7 +141,11 @@ async function main(): Promise<Report> {
   for (const [name, expected] of Object.entries(REQUIRED_INDEXES)) {
     const found = rawIndexes.find((idx) => idx.name === name);
     const exists = !!found;
-    const correct = exists && keysMatch(found!.key as Record<string, unknown>, expected.key) && !!found!.unique === expected.unique && !!found!.sparse === expected.sparse;
+    const correct =
+      exists &&
+      keysMatch(found!.key as Record<string, unknown>, expected.key) &&
+      !!found!.unique === expected.unique &&
+      !!found!.sparse === expected.sparse;
     report.requiredIndexes.push({ name, found: exists, correct });
     if (!exists) {
       report.missingIndexes.push(name);
@@ -163,82 +170,128 @@ async function main(): Promise<Report> {
 
   // ---- 3. Dupliserte e-poster ----
   header("DUPLICATE EMAILS (active)");
-  const emailDupes: DuplicateGroup[] = await collection.aggregate([
-    { $match: { deletedAt: { $exists: false } } },
-    { $group: { _id: "$email", count: { $sum: 1 }, ids: { $push: { $toString: "$_id" } }, clerkIds: { $push: "$clerkId" } } },
-    { $match: { count: { $gt: 1 } } },
-    { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
-  ]).toArray() as DuplicateGroup[];
+  const emailDupes: DuplicateGroup[] = (await collection
+    .aggregate([
+      { $match: { deletedAt: { $exists: false } } },
+      {
+        $group: {
+          _id: "$email",
+          count: { $sum: 1 },
+          ids: { $push: { $toString: "$_id" } },
+          clerkIds: { $push: "$clerkId" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+      { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
+    ])
+    .toArray()) as DuplicateGroup[];
   report.duplicateEmails = emailDupes;
   if (emailDupes.length > 0) {
     report.passed = false;
-    for (const d of emailDupes) log(`  FAIL: email "${String(d.value)}" appears ${d.count} times — ids: ${d.ids.join(", ")}`);
+    for (const d of emailDupes)
+      log(`  FAIL: email "${String(d.value)}" appears ${d.count} times — ids: ${d.ids.join(", ")}`);
   } else {
     log("  OK: No duplicate emails");
   }
 
   // ---- 4. Dupliserte brukernavn ----
   header("DUPLICATE USERNAME_NORMALIZED (active)");
-  const usernameDupes: DuplicateGroup[] = await collection.aggregate([
-    { $match: { deletedAt: { $exists: false }, usernameNormalized: { $exists: true, $ne: null } } },
-    { $group: { _id: "$usernameNormalized", count: { $sum: 1 }, ids: { $push: { $toString: "$_id" } }, clerkIds: { $push: "$clerkId" } } },
-    { $match: { count: { $gt: 1 } } },
-    { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
-  ]).toArray() as DuplicateGroup[];
+  const usernameDupes: DuplicateGroup[] = (await collection
+    .aggregate([
+      {
+        $match: { deletedAt: { $exists: false }, usernameNormalized: { $exists: true, $ne: null } },
+      },
+      {
+        $group: {
+          _id: "$usernameNormalized",
+          count: { $sum: 1 },
+          ids: { $push: { $toString: "$_id" } },
+          clerkIds: { $push: "$clerkId" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+      { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
+    ])
+    .toArray()) as DuplicateGroup[];
   report.duplicateUsernameNormalized = usernameDupes;
   if (usernameDupes.length > 0) {
     report.passed = false;
-    for (const d of usernameDupes) log(`  FAIL: usernameNormalized "${String(d.value)}" appears ${d.count} times — ids: ${d.ids.join(", ")}`);
+    for (const d of usernameDupes)
+      log(
+        `  FAIL: usernameNormalized "${String(d.value)}" appears ${d.count} times — ids: ${d.ids.join(", ")}`,
+      );
   } else {
     log("  OK: No duplicate usernames");
   }
 
   // ---- 5. Dupliserte clerkId-er ----
   header("DUPLICATE CLERK IDS (active)");
-  const clerkIdDupes: DuplicateGroup[] = await collection.aggregate([
-    { $match: { deletedAt: { $exists: false }, clerkId: { $exists: true, $ne: null } } },
-    { $group: { _id: "$clerkId", count: { $sum: 1 }, ids: { $push: { $toString: "$_id" } }, clerkIds: { $push: "$clerkId" } } },
-    { $match: { count: { $gt: 1 } } },
-    { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
-  ]).toArray() as DuplicateGroup[];
+  const clerkIdDupes: DuplicateGroup[] = (await collection
+    .aggregate([
+      { $match: { deletedAt: { $exists: false }, clerkId: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: "$clerkId",
+          count: { $sum: 1 },
+          ids: { $push: { $toString: "$_id" } },
+          clerkIds: { $push: "$clerkId" },
+        },
+      },
+      { $match: { count: { $gt: 1 } } },
+      { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
+    ])
+    .toArray()) as DuplicateGroup[];
   report.duplicateClerkIds = clerkIdDupes;
   if (clerkIdDupes.length > 0) {
     report.passed = false;
-    for (const d of clerkIdDupes) log(`  FAIL: clerkId "${String(d.value)}" appears ${d.count} times — ids: ${d.ids.join(", ")}`);
+    for (const d of clerkIdDupes)
+      log(
+        `  FAIL: clerkId "${String(d.value)}" appears ${d.count} times — ids: ${d.ids.join(", ")}`,
+      );
   } else {
     log("  OK: No duplicate clerkIds");
   }
 
   // ---- 6. Dupliserte OAuth-identiteter ----
   header("DUPLICATE OAUTH IDENTITIES (active)");
-  const oauthDupes: DuplicateGroup[] = await collection.aggregate([
-    { $match: { deletedAt: { $exists: false }, "oauthAccounts.0": { $exists: true } } },
-    { $unwind: "$oauthAccounts" },
-    {
-      $group: {
-        _id: { provider: "$oauthAccounts.provider", providerAccountId: "$oauthAccounts.providerAccountId" },
-        count: { $sum: 1 },
-        ids: { $push: { $toString: "$_id" } },
-        clerkIds: { $push: "$clerkId" },
+  const oauthDupes: DuplicateGroup[] = (await collection
+    .aggregate([
+      { $match: { deletedAt: { $exists: false }, "oauthAccounts.0": { $exists: true } } },
+      { $unwind: "$oauthAccounts" },
+      {
+        $group: {
+          _id: {
+            provider: "$oauthAccounts.provider",
+            providerAccountId: "$oauthAccounts.providerAccountId",
+          },
+          count: { $sum: 1 },
+          ids: { $push: { $toString: "$_id" } },
+          clerkIds: { $push: "$clerkId" },
+        },
       },
-    },
-    { $match: { count: { $gt: 1 } } },
-    { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
-  ]).toArray() as DuplicateGroup[];
+      { $match: { count: { $gt: 1 } } },
+      { $project: { _id: 0, value: "$_id", count: 1, ids: 1, clerkIds: 1 } },
+    ])
+    .toArray()) as DuplicateGroup[];
   report.duplicateOAuthIdentities = oauthDupes;
   if (oauthDupes.length > 0) {
     report.passed = false;
-    for (const d of oauthDupes) log(`  FAIL: OAuth ${JSON.stringify(d.value)} appears ${d.count} times — ids: ${d.ids.join(", ")}`);
+    for (const d of oauthDupes)
+      log(
+        `  FAIL: OAuth ${JSON.stringify(d.value)} appears ${d.count} times — ids: ${d.ids.join(", ")}`,
+      );
   } else {
     log("  OK: No duplicate OAuth identities");
   }
 
   // ---- 7. Feilformatert brukernavn-normalisering ----
   header("USERNAME NORMALIZATION CONSISTENCY");
-  const allWithUsername = await collection.find(
-    { deletedAt: { $exists: false }, username: { $exists: true, $ne: null } },
-    { projection: { _id: 1, username: 1, usernameNormalized: 1 } },
-  ).toArray();
+  const allWithUsername = await collection
+    .find(
+      { deletedAt: { $exists: false }, username: { $exists: true, $ne: null } },
+      { projection: { _id: 1, username: 1, usernameNormalized: 1 } },
+    )
+    .toArray();
 
   for (const doc of allWithUsername) {
     const _id = String(doc._id);
@@ -247,18 +300,34 @@ async function main(): Promise<Report> {
     const expected = username.toLowerCase().trim();
 
     if (!normalized) {
-      report.malformedUsers.push({ _id, username, usernameNormalized: undefined, issue: "username exists but usernameNormalized is missing" });
+      report.malformedUsers.push({
+        _id,
+        username,
+        usernameNormalized: undefined,
+        issue: "username exists but usernameNormalized is missing",
+      });
       report.passed = false;
     } else if (normalized !== expected) {
-      report.malformedUsers.push({ _id, username, usernameNormalized: normalized, issue: `usernameNormalized "${normalized}" does not match expected "${expected}"` });
+      report.malformedUsers.push({
+        _id,
+        username,
+        usernameNormalized: normalized,
+        issue: `usernameNormalized "${normalized}" does not match expected "${expected}"`,
+      });
       report.passed = false;
     }
   }
 
-  const normalizedWithoutUsername = await collection.find(
-    { deletedAt: { $exists: false }, usernameNormalized: { $exists: true, $ne: null }, username: { $exists: false } },
-    { projection: { _id: 1, usernameNormalized: 1 } },
-  ).toArray();
+  const normalizedWithoutUsername = await collection
+    .find(
+      {
+        deletedAt: { $exists: false },
+        usernameNormalized: { $exists: true, $ne: null },
+        username: { $exists: false },
+      },
+      { projection: { _id: 1, usernameNormalized: 1 } },
+    )
+    .toArray();
   for (const doc of normalizedWithoutUsername) {
     report.malformedUsers.push({
       _id: String(doc._id),
@@ -276,10 +345,24 @@ async function main(): Promise<Report> {
 
   // ---- 8. Slettede brukere med gjenværende identitetsfelt ----
   header("DELETED USERS WITH LINGERING IDENTITY FIELDS");
-  const deletedUsers = await collection.find(
-    { deletedAt: { $exists: true } },
-    { projection: { _id: 1, deletedAt: 1, clerkId: 1, oauthAccounts: 1, username: 1, usernameNormalized: 1, firstName: 1, lastName: 1, authProviders: 1 } },
-  ).toArray();
+  const deletedUsers = await collection
+    .find(
+      { deletedAt: { $exists: true } },
+      {
+        projection: {
+          _id: 1,
+          deletedAt: 1,
+          clerkId: 1,
+          oauthAccounts: 1,
+          username: 1,
+          usernameNormalized: 1,
+          firstName: 1,
+          lastName: 1,
+          authProviders: 1,
+        },
+      },
+    )
+    .toArray();
 
   for (const doc of deletedUsers) {
     const lingering: string[] = [];
@@ -301,7 +384,8 @@ async function main(): Promise<Report> {
   }
 
   if (report.lingeringDeletedUsers.length > 0) {
-    for (const d of report.lingeringDeletedUsers) log(`  WARN: Deleted user ${d._id} still has: ${d.lingeringFields.join(", ")}`);
+    for (const d of report.lingeringDeletedUsers)
+      log(`  WARN: Deleted user ${d._id} still has: ${d.lingeringFields.join(", ")}`);
   } else {
     log("  OK: No deleted users with lingering identity fields");
   }

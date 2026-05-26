@@ -24,10 +24,7 @@ import {
   AdminRedisRelinkStatesResponseSchema,
   type AdminRedisRelinkStateItem,
 } from "common/admin";
-import redisClient, {
-  invalidateCacheByPattern,
-  isRedisReady,
-} from "../../cache/redis.js";
+import redisClient, { invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
 import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -265,10 +262,7 @@ router.post("/redis/flush", requireRecentAuth, async (req, res) => {
       req,
     });
 
-    logger.info(
-      { adminUserId: actorUserId, prefix, deletedCount },
-      "Admin tømte Redis-prefix",
-    );
+    logger.info({ adminUserId: actorUserId, prefix, deletedCount }, "Admin tømte Redis-prefix");
 
     return res.json(AdminRedisFlushResponseSchema.parse({ prefix, deletedCount }));
   } catch (err) {
@@ -292,10 +286,7 @@ router.get("/redis/relink-states", async (req, res) => {
     })) {
       for (const key of keys) {
         const userId = key.slice(RELINK_STATE_KEY_PREFIX.length);
-        const [ttl, value] = await Promise.all([
-          redisClient.ttl(key),
-          redisClient.get(key),
-        ]);
+        const [ttl, value] = await Promise.all([redisClient.ttl(key), redisClient.get(key)]);
 
         let count: number | undefined;
         let env: string | undefined;

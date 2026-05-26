@@ -61,7 +61,7 @@ function sendCloseHeartbeatKeepalive(type: ActivityType, token: string | null): 
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
         [AUTH_CSRF_HEADER_NAME]: AUTH_CSRF_HEADER_VALUE,
       },
       body: JSON.stringify({ type }),

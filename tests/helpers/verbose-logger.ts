@@ -229,7 +229,9 @@ export class VerboseLogger {
     if (this.verbose || level === "error" || level === "warn" || level === "success") {
       this.writeToConsole(level, message, prefix);
       if (data !== undefined && this.verbose) {
-        process.stdout.write(`  ${this.colorize("→", COLORS.dim)} ${JSON.stringify(data, null, 2)}\n`);
+        process.stdout.write(
+          `  ${this.colorize("→", COLORS.dim)} ${JSON.stringify(data, null, 2)}\n`,
+        );
       }
     }
 
@@ -241,7 +243,14 @@ export class VerboseLogger {
   }
 
   // Detaljert bevislogging for scenariosteg
-  logClerkCreate(label: string, result: { ok: boolean; user?: { id: string; email: string; username: string | null }; error?: unknown }): void {
+  logClerkCreate(
+    label: string,
+    result: {
+      ok: boolean;
+      user?: { id: string; email: string; username: string | null };
+      error?: unknown;
+    },
+  ): void {
     if (result.ok && result.user) {
       this.success(`Clerk ${label} created`, {
         clerkId: result.user.id,
@@ -260,12 +269,20 @@ export class VerboseLogger {
     }
   }
 
-  logDbSnapshot(snapshot: { available: boolean; emailMatches: unknown[]; usernameMatches: unknown[]; clerkIdMatches: unknown[] }): void {
+  logDbSnapshot(snapshot: {
+    available: boolean;
+    emailMatches: unknown[];
+    usernameMatches: unknown[];
+    clerkIdMatches: unknown[];
+  }): void {
     if (!snapshot.available) {
       this.warn("DB snapshot unavailable");
       return;
     }
-    this.step("DB snapshot captured", `emails=${snapshot.emailMatches.length}, usernames=${snapshot.usernameMatches.length}, clerkIds=${snapshot.clerkIdMatches.length}`);
+    this.step(
+      "DB snapshot captured",
+      `emails=${snapshot.emailMatches.length}, usernames=${snapshot.usernameMatches.length}, clerkIds=${snapshot.clerkIdMatches.length}`,
+    );
     if (this.verbose && (snapshot.emailMatches.length > 0 || snapshot.usernameMatches.length > 0)) {
       this.debug("DB matches", {
         emails: snapshot.emailMatches,
@@ -276,9 +293,15 @@ export class VerboseLogger {
   }
 
   logClassification(classification: string): void {
-    const isGood = classification.includes("BLOCKED") || classification.includes("SAFE") || classification === "TWO_DISTINCT_LOCAL_USERS";
-    const isBad = classification.includes("DUPLICATE") || classification.includes("BROKEN") || classification.includes("FAILED");
-    
+    const isGood =
+      classification.includes("BLOCKED") ||
+      classification.includes("SAFE") ||
+      classification === "TWO_DISTINCT_LOCAL_USERS";
+    const isBad =
+      classification.includes("DUPLICATE") ||
+      classification.includes("BROKEN") ||
+      classification.includes("FAILED");
+
     if (isGood) {
       this.success(`Classification: ${classification}`);
     } else if (isBad) {
@@ -305,7 +328,13 @@ export class VerboseLogger {
   }
 
   // Oppsummeringsmetoder
-  printSummary(totals: { total: number; executed: number; manualRequired: number; setupFailed: number; classifications: Record<string, number> }): void {
+  printSummary(totals: {
+    total: number;
+    executed: number;
+    manualRequired: number;
+    setupFailed: number;
+    classifications: Record<string, number>;
+  }): void {
     this.header("MATRIX SUMMARY");
     this.info(`Total scenarios: ${totals.total}`);
     this.info(`Executed: ${totals.executed}`);

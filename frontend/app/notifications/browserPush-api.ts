@@ -22,9 +22,7 @@ export interface BrowserPushSubscribeResult {
 
 function base64UrlToUint8Array(base64UrlString: string): Uint8Array {
   const padding = "=".repeat((4 - (base64UrlString.length % 4)) % 4);
-  const base64 = (base64UrlString + padding)
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
+  const base64 = (base64UrlString + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
   const buffer = new ArrayBuffer(rawData.length);
   const bytes = new Uint8Array(buffer);
@@ -34,9 +32,7 @@ function base64UrlToUint8Array(base64UrlString: string): Uint8Array {
   return bytes;
 }
 
-function asUint8Array(
-  value: ArrayBuffer | ArrayBufferView | null | undefined,
-): Uint8Array | null {
+function asUint8Array(value: ArrayBuffer | ArrayBufferView | null | undefined): Uint8Array | null {
   if (!value) {
     return null;
   }
@@ -88,9 +84,7 @@ export async function getBrowserPushClientConfig(): Promise<WebPushClientConfigR
   return WebPushClientConfigResponseSchema.parse(json);
 }
 
-export function serializePushSubscription(
-  subscription: PushSubscription,
-): WebPushSubscription {
+export function serializePushSubscription(subscription: PushSubscription): WebPushSubscription {
   const json = subscription.toJSON();
 
   if (!json.endpoint || !json.keys?.auth || !json.keys.p256dh) {
@@ -142,8 +136,7 @@ export async function subscribeToBrowserPush(
     return {
       subscription: await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey:
-          base64UrlToUint8Array(trimmedPublicKey) as BufferSource,
+        applicationServerKey: base64UrlToUint8Array(trimmedPublicKey) as BufferSource,
       }),
       replacedEndpoint,
     };
@@ -152,15 +145,12 @@ export async function subscribeToBrowserPush(
   return {
     subscription: await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey:
-        base64UrlToUint8Array(trimmedPublicKey) as BufferSource,
+      applicationServerKey: base64UrlToUint8Array(trimmedPublicKey) as BufferSource,
     }),
   };
 }
 
-export async function saveBrowserPushSubscription(
-  subscription: PushSubscription,
-): Promise<void> {
+export async function saveBrowserPushSubscription(subscription: PushSubscription): Promise<void> {
   const res = await fetchApi("/api/user/push-subscriptions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -176,9 +166,7 @@ export async function saveBrowserPushSubscription(
   WebPushSubscriptionResponseSchema.parse(json);
 }
 
-export async function deleteBrowserPushSubscription(
-  endpoint: string,
-): Promise<void> {
+export async function deleteBrowserPushSubscription(endpoint: string): Promise<void> {
   const res = await fetchApi("/api/user/push-subscriptions", {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },

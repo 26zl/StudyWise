@@ -11,13 +11,19 @@ export const KI_MAX_MESSAGE_LENGTH_FRONTEND = 45000; // Frontend-grense (buffer 
 
 const KIClientContentSchema = z
   .string()
-  .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`)
+  .max(
+    KI_MAX_MESSAGE_LENGTH_BACKEND,
+    `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`,
+  )
   .refine((value) => value.trim().length > 0, "Meldingen kan ikke være tom");
 
 // zod schemas for KI API
 export const KIMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
-  content: z.string().min(1, "Meldingsinnhold kan ikke være tomt").max(KI_MAX_MESSAGE_LENGTH_BACKEND),
+  content: z
+    .string()
+    .min(1, "Meldingsinnhold kan ikke være tomt")
+    .max(KI_MAX_MESSAGE_LENGTH_BACKEND),
   timestamp: z.string().optional(),
 });
 
@@ -34,7 +40,10 @@ export type ExplanationLevel = z.infer<typeof ExplanationLevelSchema>;
 
 // Request-schema for KI chat API
 export const KIChatRequestSchema = z.object({
-  messages: z.array(KIChatClientMessageSchema).min(1, "Minst én melding må sendes inn").max(200, "Maks 200 meldinger kan sendes inn"),
+  messages: z
+    .array(KIChatClientMessageSchema)
+    .min(1, "Minst én melding må sendes inn")
+    .max(200, "Maks 200 meldinger kan sendes inn"),
   model: z.string().trim().min(1).max(100).optional(),
   temperature: z.number().min(0).max(1).optional(),
   explanationLevel: ExplanationLevelSchema.optional(),
@@ -175,10 +184,12 @@ const multerStringField = z
     return trimmed === "" ? undefined : trimmed;
   });
 
-const optionalNullableDateSchema = z.preprocess(
-  (value) => (value == null || value === "" ? undefined : value),
-  z.coerce.date().optional(),
-).optional();
+const optionalNullableDateSchema = z
+  .preprocess(
+    (value) => (value == null || value === "" ? undefined : value),
+    z.coerce.date().optional(),
+  )
+  .optional();
 
 // Request-body for dokumentanalyse (question/sporsmaal, model) – multer sender ofte string eller string[]
 export const KIDocumentAnalyseRequestSchema = z.object({
@@ -205,16 +216,18 @@ export const KIDocumentAnalyseResponseSchema = z.object({
   usage: UsageSchema.optional(),
 });
 
-export const QuizGenerateRequestSchema = z.object({
-  courseId: z.number().int().positive(),
-  courseName: z.string().trim().min(1).max(200),
-  moduleNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
-  fileNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
-  questionCount: z.number().int().min(1).max(50).default(10),
-}).refine(
-  (d) => (d.moduleNames && d.moduleNames.length > 0) || (d.fileNames && d.fileNames.length > 0),
-  { message: "Minst én modul eller fil må velges" },
-);
+export const QuizGenerateRequestSchema = z
+  .object({
+    courseId: z.number().int().positive(),
+    courseName: z.string().trim().min(1).max(200),
+    moduleNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    fileNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    questionCount: z.number().int().min(1).max(50).default(10),
+  })
+  .refine(
+    (d) => (d.moduleNames && d.moduleNames.length > 0) || (d.fileNames && d.fileNames.length > 0),
+    { message: "Minst én modul eller fil må velges" },
+  );
 
 export const QuizQuestionSchema = z.object({
   id: z.uuid(),
@@ -228,16 +241,18 @@ export const QuizGenerateResponseSchema = z.object({
   questions: z.array(QuizQuestionSchema).min(1).max(50),
 });
 
-export const FlashcardsGenerateRequestSchema = z.object({
-  courseId: z.number().int().positive(),
-  courseName: z.string().trim().min(1).max(200),
-  moduleNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
-  fileNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
-  cardCount: z.number().int().min(1).max(50).default(10),
-}).refine(
-  (d) => (d.moduleNames && d.moduleNames.length > 0) || (d.fileNames && d.fileNames.length > 0),
-  { message: "Minst én modul eller fil må velges" },
-);
+export const FlashcardsGenerateRequestSchema = z
+  .object({
+    courseId: z.number().int().positive(),
+    courseName: z.string().trim().min(1).max(200),
+    moduleNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    fileNames: z.array(z.string().trim().min(1).max(200)).max(50).optional(),
+    cardCount: z.number().int().min(1).max(50).default(10),
+  })
+  .refine(
+    (d) => (d.moduleNames && d.moduleNames.length > 0) || (d.fileNames && d.fileNames.length > 0),
+    { message: "Minst én modul eller fil må velges" },
+  );
 
 export const FlashcardSchema = z.object({
   id: z.uuid(),
@@ -277,9 +292,17 @@ export type AsyncJobStatus = z.infer<typeof AsyncJobStatusSchema>;
 // for å holde generering, lagring og visning i sync.
 export const SubTaskSchema = z.object({
   id: z.string().min(1),
-  title: z.string().trim().min(1, "Tittel kan ikke være tom").max(200, "Tittel må være maks 200 tegn"),
+  title: z
+    .string()
+    .trim()
+    .min(1, "Tittel kan ikke være tom")
+    .max(200, "Tittel må være maks 200 tegn"),
   description: z.string().max(1000, "Beskrivelse må være maks 1000 tegn").default(""),
-  estimatedTime: z.string().trim().min(1, "Tidsestimat kan ikke være tomt").max(50, "Tidsestimat for langt"),
+  estimatedTime: z
+    .string()
+    .trim()
+    .min(1, "Tidsestimat kan ikke være tomt")
+    .max(50, "Tidsestimat for langt"),
   priority: z.enum(["low", "medium", "high"]),
   completed: z.boolean(),
   completedAt: z.coerce.date().optional().nullable(),
@@ -323,10 +346,7 @@ export const WeeklyPlanAssignmentSchema = z.object({
     .max(200, "Oppgavenavn må være maks 200 tegn"),
   dueAt: optionalNullableDateSchema,
   courseName: z.string().trim().max(200, "Emnenavn må være maks 200 tegn").optional(),
-  description: z
-    .string()
-    .max(5000, "Oppgavebeskrivelse må være maks 5000 tegn")
-    .optional(),
+  description: z.string().max(5000, "Oppgavebeskrivelse må være maks 5000 tegn").optional(),
   pointsPossible: z.number().min(0).max(1000).optional(),
 });
 
@@ -403,17 +423,13 @@ export const KIOppsummeringResponseSchema = z
 
 // Typeeksporter
 export type KIOppsummeringRequest = z.infer<typeof KIOppsummeringRequestSchema>;
-export type KIOppsummeringResponse = z.infer<
-  typeof KIOppsummeringResponseSchema
->;
+export type KIOppsummeringResponse = z.infer<typeof KIOppsummeringResponseSchema>;
 export type KIMessage = z.infer<typeof KIMessageSchema>;
 export type KIChatRequest = z.infer<typeof KIChatRequestSchema>;
 export type KIChatResponse = z.infer<typeof KIChatResponseSchema>;
 export type KIModelsResponse = z.infer<typeof KIModelsResponseSchema>;
 export type KIDocumentAnalyseRequest = z.infer<typeof KIDocumentAnalyseRequestSchema>;
-export type KIDocumentAnalyseResponse = z.infer<
-  typeof KIDocumentAnalyseResponseSchema
->;
+export type KIDocumentAnalyseResponse = z.infer<typeof KIDocumentAnalyseResponseSchema>;
 export type QuizGenerateRequest = z.infer<typeof QuizGenerateRequestSchema>;
 export type QuizQuestion = z.infer<typeof QuizQuestionSchema>;
 export type QuizGenerateResponse = z.infer<typeof QuizGenerateResponseSchema>;
@@ -422,19 +438,9 @@ export type Flashcard = z.infer<typeof FlashcardSchema>;
 export type FlashcardsGenerateResponse = z.infer<typeof FlashcardsGenerateResponseSchema>;
 export type SubTask = z.infer<typeof SubTaskSchema>;
 export type TaskBreakdownResponse = z.infer<typeof TaskBreakdownResponseSchema>;
-export type TaskBreakdownGenerateRequest = z.infer<
-  typeof TaskBreakdownGenerateRequestSchema
->;
+export type TaskBreakdownGenerateRequest = z.infer<typeof TaskBreakdownGenerateRequestSchema>;
 export type WeeklyPlanAssignment = z.infer<typeof WeeklyPlanAssignmentSchema>;
-export type WeeklyPlanGenerateRequest = z.infer<
-  typeof WeeklyPlanGenerateRequestSchema
->;
-export type WeeklyPlanSuggestionBlock = z.infer<
-  typeof WeeklyPlanSuggestionBlockSchema
->;
-export type WeeklyPlanSuggestionDraft = z.infer<
-  typeof WeeklyPlanSuggestionDraftSchema
->;
-export type WeeklyPlanSuggestionResponse = z.infer<
-  typeof WeeklyPlanSuggestionResponseSchema
->;
+export type WeeklyPlanGenerateRequest = z.infer<typeof WeeklyPlanGenerateRequestSchema>;
+export type WeeklyPlanSuggestionBlock = z.infer<typeof WeeklyPlanSuggestionBlockSchema>;
+export type WeeklyPlanSuggestionDraft = z.infer<typeof WeeklyPlanSuggestionDraftSchema>;
+export type WeeklyPlanSuggestionResponse = z.infer<typeof WeeklyPlanSuggestionResponseSchema>;

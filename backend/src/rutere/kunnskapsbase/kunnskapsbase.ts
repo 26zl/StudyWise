@@ -102,7 +102,7 @@ const upload = multer({
     files: 1,
   },
   fileFilter: (_req, file, cb) => {
-    if (KB_ALLOWED_MIME_TYPES.includes(file.mimetype as typeof KB_ALLOWED_MIME_TYPES[number])) {
+    if (KB_ALLOWED_MIME_TYPES.includes(file.mimetype as (typeof KB_ALLOWED_MIME_TYPES)[number])) {
       cb(null, true);
     } else {
       cb(new Error(INVALID_KB_FILE_TYPE_ERROR));
@@ -138,9 +138,7 @@ router.get("/", rateLimitKB, async (req: Request, res: Response) => {
   if (!userId) return;
 
   try {
-    const baser = await KnowledgeBase.find({ userId })
-      .sort({ createdAt: -1 })
-      .lean();
+    const baser = await KnowledgeBase.find({ userId }).sort({ createdAt: -1 }).lean();
 
     const response = {
       baser: baser.map((b) => ({
@@ -210,7 +208,12 @@ router.post("/", rateLimitKBWrite, async (req: Request, res: Response) => {
     });
   } catch (err: unknown) {
     // Duplikat-navn feil (unique index)
-    if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: number }).code === 11000
+    ) {
       apiError.badRequest(res, "Du har allerede en base med dette navnet");
       return;
     }
@@ -282,7 +285,12 @@ router.patch("/:id", rateLimitKBWrite, async (req: Request, res: Response) => {
       oppdatertDato: base.updatedAt.toISOString(),
     });
   } catch (err: unknown) {
-    if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
+    if (
+      err &&
+      typeof err === "object" &&
+      "code" in err &&
+      (err as { code: number }).code === 11000
+    ) {
       apiError.badRequest(res, "Du har allerede en base med dette navnet");
       return;
     }
@@ -398,21 +406,17 @@ router.post("/:id/links", rateLimitKBWrite, async (req: Request, res: Response) 
 
     const nyLenke = oppdatertBase.lenker.find((l) => String(l._id) === String(lenkeIdObject));
     if (!nyLenke) {
-      sendUnknownError(res, new Error("Fant ikke nyopprettet lenke etter oppdatering"), { kontekst: "kb.leggTilLenke" });
+      sendUnknownError(res, new Error("Fant ikke nyopprettet lenke etter oppdatering"), {
+        kontekst: "kb.leggTilLenke",
+      });
       return;
     }
     const lenkeId = String(lenkeIdObject);
 
     // Indekser lenkeinnhold asynkront (blokkerer ikke responsen) med per-bruker concurrency-cap
     runKBIngestionJob(userId, () =>
-      crawlAndIndexLink(
-        userId,
-        baseId,
-        lenkeId,
-        parsed.data.url,
-        tittel,
-        crawlConfig,
-      ));
+      crawlAndIndexLink(userId, baseId, lenkeId, parsed.data.url, tittel, crawlConfig),
+    );
 
     void audit({
       actorUserId: userId,
@@ -448,7 +452,9 @@ router.delete("/:id/links/:linkId", rateLimitKBWrite, async (req: Request, res: 
     const base = await hentBaseForBruker(paramString(req.params.id), userId, res);
     if (!base) return;
 
-    const lenkeIndex = base.lenker.findIndex((l) => String(l._id) === paramString(req.params.linkId));
+    const lenkeIndex = base.lenker.findIndex(
+      (l) => String(l._id) === paramString(req.params.linkId),
+    );
     if (lenkeIndex === -1) {
       apiError.notFound(res, "Lenke");
       return;
@@ -523,20 +529,18 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
         return;
       }
 
-      const contentHash = crypto
-        .createHash("sha256")
-        .update(req.file.buffer)
-        .digest("hex");
+      const contentHash = crypto.createHash("sha256").update(req.file.buffer).digest("hex");
       const filIdObject = new Types.ObjectId();
       const now = new Date();
 
       // Normaliser filnavn: kun basename, fjern kontrolltegn og path-separatorer
-      const safeFilnavn = (req.file.originalname || "fil")
-        .split(/[\\/]/)
-        .pop()!
-        // eslint-disable-next-line no-control-regex -- fjerner kontrolltegn for å hindre injeksjon i logg/UI
-        .replace(/[\u0000-\u001f\u007f]/g, "")
-        .slice(0, 255) || "fil";
+      const safeFilnavn =
+        (req.file.originalname || "fil")
+          .split(/[\\/]/)
+          .pop()!
+          // eslint-disable-next-line no-control-regex -- fjerner kontrolltegn for å hindre injeksjon i logg/UI
+          .replace(/[\u0000-\u001f\u007f]/g, "")
+          .slice(0, 255) || "fil";
 
       const oppdatertBase = await KnowledgeBase.findOneAndUpdate(
         {
@@ -583,7 +587,9 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
 
       const nyFil = oppdatertBase.filer.find((f) => String(f._id) === String(filIdObject));
       if (!nyFil) {
-        sendUnknownError(res, new Error("Fant ikke nyopplastet fil etter oppdatering"), { kontekst: "kb.lastOppFil" });
+        sendUnknownError(res, new Error("Fant ikke nyopplastet fil etter oppdatering"), {
+          kontekst: "kb.lastOppFil",
+        });
         return;
       }
       const filId = String(filIdObject);
@@ -596,14 +602,8 @@ router.post("/:id/files", rateLimitKBWrite, (req: Request, res: Response) => {
 
       // Pars og indekser filinnhold asynkront med per-bruker concurrency-cap
       runKBIngestionJob(userId, () =>
-        parseAndIndexFile(
-          userId,
-          baseId,
-          filId,
-          file.originalname,
-          file.buffer,
-          file.mimetype,
-        ));
+        parseAndIndexFile(userId, baseId, filId, file.originalname, file.buffer, file.mimetype),
+      );
 
       void audit({
         actorUserId: userId,
@@ -721,7 +721,7 @@ function isSameDomainOrPath(seedUrl: string, candidateUrl: string, samePathOnly:
     const candidate = new URL(candidateUrl);
     const seedHost = seed.hostname.toLowerCase().replace(/^www\./, "");
     const candidateHost = candidate.hostname.toLowerCase().replace(/^www\./, "");
-    
+
     if (seedHost !== candidateHost) return false;
     if (samePathOnly) {
       // Kandidat må være under samme sti-prefiks
@@ -747,9 +747,7 @@ interface ResolvedKBCrawlOptions {
   samePathOnly: boolean;
 }
 
-function buildStoredCrawlConfig(
-  crawlOptions?: KBCrawlOptions,
-): KBCrawlOptions | undefined {
+function buildStoredCrawlConfig(crawlOptions?: KBCrawlOptions): KBCrawlOptions | undefined {
   if (!crawlOptions) return undefined;
 
   const hasAnyValue = Object.values(crawlOptions).some((value) => value !== undefined);
@@ -784,19 +782,18 @@ async function crawlAndIndexLink(
   tittel: string,
   crawlOptions?: KBCrawlOptions,
 ): Promise<void> {
-  const { maxDepth, maxPages, maxDocuments, samePathOnly } =
-    resolveKBCrawlOptions(crawlOptions);
+  const { maxDepth, maxPages, maxDocuments, samePathOnly } = resolveKBCrawlOptions(crawlOptions);
 
   const visited = new Set<string>();
   const queue: Array<{ url: string; depth: number; parentUrl?: string }> = [];
   const stats: CrawlStats = { pagesIndexed: 0, documentsIndexed: 0, totalChars: 0 };
   const startTime = Date.now();
-  
+
   // Seed URL
   const normalizedSeed = normalizeUrl(url);
   visited.add(normalizedSeed);
   queue.push({ url, depth: 0 });
-  
+
   const domainSelectors = getDomainSelectors(url);
   const limit = pLimit(KB_CRAWL_CONCURRENCY);
 
@@ -816,12 +813,12 @@ async function crawlAndIndexLink(
       // Prosesser neste batch parallelt (opptil concurrency limit)
       const batchSize = Math.min(queue.length, KB_CRAWL_CONCURRENCY);
       const batch = queue.splice(0, batchSize);
-      
+
       const batchResults = await Promise.allSettled(
         batch.map(({ url: pageUrl, depth, parentUrl }) =>
           limit(async () => {
             if (stats.pagesIndexed >= maxPages) return { links: [], documents: [] };
-            
+
             const fetched = await fetchExternalContent(pageUrl);
             if (fetched.kind === "failed" || fetched.kind === "skip") {
               return { links: [], documents: [] };
@@ -835,7 +832,7 @@ async function crawlAndIndexLink(
             if (fetched.kind === "html") {
               contentType = "text/html";
               text = extractTextFromHtml(fetched.html, domainSelectors);
-              
+
               // Oppdage undersider og dokumenter kun hvis dybde < maxDepth
               if (depth < maxDepth) {
                 discoveredLinks = findContentLinks(fetched.html, pageUrl);
@@ -844,7 +841,11 @@ async function crawlAndIndexLink(
             } else if (fetched.kind === "pdf") {
               contentType = "application/pdf";
               try {
-                const parsed = await parseDocumentInWorker(fetched.buffer, "application/pdf", pageUrl);
+                const parsed = await parseDocumentInWorker(
+                  fetched.buffer,
+                  "application/pdf",
+                  pageUrl,
+                );
                 text = parsed.text;
               } catch (parseErr) {
                 const parseWorkerError = getParseWorkerRuntimeError(parseErr);
@@ -869,7 +870,8 @@ async function crawlAndIndexLink(
                 baseId,
                 sourceId: lenkeId,
                 sourceType: "link",
-                sourceName: depth === 0 ? tittel : `${tittel} > ${pageUrl.split("/").pop() ?? "side"}`,
+                sourceName:
+                  depth === 0 ? tittel : `${tittel} > ${pageUrl.split("/").pop() ?? "side"}`,
                 content: text,
                 metadata: {
                   sourceUrl: pageUrl,
@@ -950,7 +952,7 @@ async function crawlAndIndexLink(
     }
 
     const elapsedMs = Date.now() - startTime;
-    
+
     if (stats.pagesIndexed === 0 && stats.documentsIndexed === 0) {
       logger.warn({ baseId, lenkeId, url }, "Deep crawl ga ingen indekserbart innhold");
       await setLinkCrawlStatus(baseId, lenkeId, "failed", "Ingen indekserbart innhold funnet");
@@ -977,10 +979,7 @@ async function crawlAndIndexLink(
       "Deep crawl av KB-lenke fullført",
     );
   } catch (err) {
-    logger.error(
-      { err, url, baseId, lenkeId, stats },
-      "Feil ved deep crawl av KB-lenke",
-    );
+    logger.error({ err, url, baseId, lenkeId, stats }, "Feil ved deep crawl av KB-lenke");
     await setLinkCrawlStatus(
       baseId,
       lenkeId,
@@ -1025,8 +1024,9 @@ async function parseAndIndexFile(
     } catch (parseErr) {
       const parseWorkerError = getParseWorkerRuntimeError(parseErr);
       if (parseWorkerError === PARSE_TIMEOUT_ERROR) {
-        const workerParseError = getParseWorkerUserMessage(parseErr, "knowledge-base")
-          ?? "Kunne ikke lese filen innen tidsgrensen (60 sekunder). Prøv en mindre fil eller et annet format.";
+        const workerParseError =
+          getParseWorkerUserMessage(parseErr, "knowledge-base") ??
+          "Kunne ikke lese filen innen tidsgrensen (60 sekunder). Prøv en mindre fil eller et annet format.";
         logger.warn(
           { filnavn, baseId, filId, parseError: workerParseError, parseWorkerError },
           "KB-fil parsing i worker time-out",
@@ -1035,8 +1035,9 @@ async function parseAndIndexFile(
         return;
       }
       if (parseWorkerError === PARSE_WORKER_CRASHED_ERROR) {
-        const workerParseError = getParseWorkerUserMessage(parseErr, "knowledge-base")
-          ?? "Dokumentparseren stoppet uventet under behandling. Prøv igjen.";
+        const workerParseError =
+          getParseWorkerUserMessage(parseErr, "knowledge-base") ??
+          "Dokumentparseren stoppet uventet under behandling. Prøv igjen.";
         logger.warn(
           { filnavn, baseId, filId, parseError: workerParseError, parseWorkerError },
           "KB-fil parsing i worker krasjet",
@@ -1058,10 +1059,7 @@ async function parseAndIndexFile(
     }
 
     if (!parsed.success) {
-      logger.warn(
-        { filnavn, baseId, filId, parseError: parsed.error },
-        "Parsing av KB-fil feilet",
-      );
+      logger.warn({ filnavn, baseId, filId, parseError: parsed.error }, "Parsing av KB-fil feilet");
       await markFileParseFailed(baseId, filId, parsed.error ?? "Ukjent feil ved parsing");
       return;
     }
@@ -1088,10 +1086,7 @@ async function parseAndIndexFile(
 
     logger.info({ baseId, filId, filnavn }, "Fil indeksert i kunnskapsbase");
   } catch (err) {
-    logger.error(
-      { err, filnavn, baseId, filId },
-      "Feil ved parsing/indeksering av fil",
-    );
+    logger.error({ err, filnavn, baseId, filId }, "Feil ved parsing/indeksering av fil");
     await markFileParseFailed(
       baseId,
       filId,

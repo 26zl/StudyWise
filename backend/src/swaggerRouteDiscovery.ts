@@ -30,10 +30,7 @@ interface DiscoveredRoute {
 }
 
 const HTTP_METHODS: HttpMethod[] = ["get", "post", "put", "patch", "delete"];
-const ROUTER_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "rutere",
-);
+const ROUTER_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "rutere");
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -50,9 +47,7 @@ function isRouteFile(filePath: string): boolean {
 function joinPaths(prefix: string, routePath: string): string {
   const raw = `${prefix}/${routePath}`.replace(/\/+/g, "/");
   const normalized = raw.startsWith("/") ? raw : `/${raw}`;
-  return normalized !== "/" && normalized.endsWith("/")
-    ? normalized.slice(0, -1)
-    : normalized;
+  return normalized !== "/" && normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }
 
 function toOpenApiPath(routePath: string): string {
@@ -109,9 +104,7 @@ function parseImports(source: string, fromFile: string): Map<string, ImportBindi
 
       for (const namedImport of namedImports) {
         const withoutType = namedImport.replace(/^type\s+/u, "").trim();
-        const [exportedName, alias] = withoutType
-          .split(/\s+as\s+/u)
-          .map((part) => part.trim());
+        const [exportedName, alias] = withoutType.split(/\s+as\s+/u).map((part) => part.trim());
         if (!exportedName) continue;
         importMap.set(alias || exportedName, {
           filePath: resolvedPath,
@@ -120,7 +113,10 @@ function parseImports(source: string, fromFile: string): Map<string, ImportBindi
       }
     }
 
-    const defaultClause = clause.replace(/\{[\s\S]+\}/u, "").replace(/,/g, "").trim();
+    const defaultClause = clause
+      .replace(/\{[\s\S]+\}/u, "")
+      .replace(/,/g, "")
+      .trim();
     const defaultImport = defaultClause.replace(/^type\s+/u, "").trim();
     if (defaultImport) {
       importMap.set(defaultImport, {
@@ -199,11 +195,13 @@ function discoverRoutesFromRouter(
   const imports = parseImports(source, filePath);
   const directRoutes = extractDirectRoutes(source, routerName, prefix, filePath);
 
-  const nestedRoutes = extractNestedRouters(source, routerName).flatMap(({ importedRouterName }) => {
-    const binding = imports.get(importedRouterName);
-    if (!binding) return [];
-    return discoverRoutesFromRouter(binding.filePath, binding.routerName, prefix, visited);
-  });
+  const nestedRoutes = extractNestedRouters(source, routerName).flatMap(
+    ({ importedRouterName }) => {
+      const binding = imports.get(importedRouterName);
+      if (!binding) return [];
+      return discoverRoutesFromRouter(binding.filePath, binding.routerName, prefix, visited);
+    },
+  );
 
   const mountedRoutes = extractMountedRouters(source, routerName).flatMap(
     ({ prefix: nestedPrefix, importedRouterName }) => {

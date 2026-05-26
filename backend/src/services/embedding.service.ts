@@ -64,9 +64,7 @@ export async function hasStoredContentForUser(userId: string): Promise<boolean> 
   return doc !== null;
 }
 
-export async function getStoredCourseCatalog(
-  userId: string,
-): Promise<StoredCourseCatalogEntry[]> {
+export async function getStoredCourseCatalog(userId: string): Promise<StoredCourseCatalogEntry[]> {
   const docs = await ContentEmbedding.aggregate<{
     courseId: string;
     courseName: string;
@@ -147,10 +145,7 @@ export async function getStoredFileStatusForCourse(
     { $project: { _id: 0, fileId: "$_id", fileHash: 1, hasEmbedding: 1 } },
   ]);
   return new Map(
-    docs.map((doc) => [
-      doc.fileId,
-      { fileHash: doc.fileHash, hasEmbedding: doc.hasEmbedding },
-    ]),
+    docs.map((doc) => [doc.fileId, { fileHash: doc.fileHash, hasEmbedding: doc.hasEmbedding }]),
   );
 }
 
@@ -224,8 +219,23 @@ export async function upsertStoredFileContent(options: {
     contentHash: string;
     externalUrl?: string;
   }> = [];
-  const toUpdate: Array<{ _id: mongoose.Types.ObjectId; text: string; tokenCount: number; contentHash: string }> = [];
-  const pineconeRecords: Array<{ id: string; text: string; metadata: { userId: string; courseId: string; moduleId: number; fileId: number; chunkIndex: number } }> = [];
+  const toUpdate: Array<{
+    _id: mongoose.Types.ObjectId;
+    text: string;
+    tokenCount: number;
+    contentHash: string;
+  }> = [];
+  const pineconeRecords: Array<{
+    id: string;
+    text: string;
+    metadata: {
+      userId: string;
+      courseId: string;
+      moduleId: number;
+      fileId: number;
+      chunkIndex: number;
+    };
+  }> = [];
 
   for (const chunk of chunks) {
     const hash = crypto.createHash("sha256").update(chunk.text, "utf8").digest("hex");
@@ -273,9 +283,7 @@ export async function upsertStoredFileContent(options: {
   // Slett overskytende chunks (f.eks. filen ble kortere).
   // Pinecone slettes FØR MongoDB slik at vi ikke mister referanser til orphaned vektorer.
   const newMaxIndex = chunks.length - 1;
-  const staleIds = existing
-    .filter((doc) => doc.chunkIndex > newMaxIndex)
-    .map((doc) => doc._id);
+  const staleIds = existing.filter((doc) => doc.chunkIndex > newMaxIndex).map((doc) => doc._id);
 
   let stalePineconeDeleted = false;
   if (staleIds.length > 0) {
@@ -301,7 +309,18 @@ export async function upsertStoredFileContent(options: {
       toUpdate.map((u) =>
         ContentEmbedding.updateOne(
           { _id: u._id },
-          { $set: { text: u.text, tokenCount: u.tokenCount, contentHash: u.contentHash, fileHash, courseName, moduleId, moduleTitle, fileName } },
+          {
+            $set: {
+              text: u.text,
+              tokenCount: u.tokenCount,
+              contentHash: u.contentHash,
+              fileHash,
+              courseName,
+              moduleId,
+              moduleTitle,
+              fileName,
+            },
+          },
         ),
       ),
     );
@@ -322,7 +341,10 @@ export async function upsertStoredFileContent(options: {
     } catch (err: unknown) {
       // Ved duplikatnøkkel-feil (E11000) har noen chunks allerede blitt satt inn av en annen prosess.
       // insertMany med ordered:false setter inn alle den kan og kaster feil for duplikatene.
-      const bulkErr = err as { code?: number; insertedDocs?: Array<{ _id: mongoose.Types.ObjectId; text: string; chunkIndex: number }> };
+      const bulkErr = err as {
+        code?: number;
+        insertedDocs?: Array<{ _id: mongoose.Types.ObjectId; text: string; chunkIndex: number }>;
+      };
       if (bulkErr.code === 11000) {
         const successDocs = bulkErr.insertedDocs ?? [];
         logger.info(
@@ -399,7 +421,14 @@ export async function upsertStoredFileContent(options: {
         if (attempt < MAX_UPSERT_RETRIES) {
           const delayMs = 1000 * (attempt + 1);
           logger.warn(
-            { err: error, userId, courseId, fileId, attempt: attempt + 1, maxRetries: MAX_UPSERT_RETRIES },
+            {
+              err: error,
+              userId,
+              courseId,
+              fileId,
+              attempt: attempt + 1,
+              maxRetries: MAX_UPSERT_RETRIES,
+            },
             `Pinecone upsert feilet — prøver igjen om ${delayMs}ms`,
           );
           await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -510,22 +539,22 @@ export async function getStoredChunksForCourses(
   }
 
   if (options?.fileHint) {
-    query.fileName = { $regex: escapeRegex(options.fileHint.replace(/\.pdf$/i, "")), $options: "i" };
+    query.fileName = {
+      $regex: escapeRegex(options.fileHint.replace(/\.pdf$/i, "")),
+      $options: "i",
+    };
   }
 
-  let builder = ContentEmbedding.find(
-    query,
-    {
-      _id: 0,
-      courseId: 1,
-      courseName: 1,
-      moduleTitle: 1,
-      fileName: 1,
-      fileId: 1,
-      text: 1,
-      chunkIndex: 1,
-    },
-  )
+  let builder = ContentEmbedding.find(query, {
+    _id: 0,
+    courseId: 1,
+    courseName: 1,
+    moduleTitle: 1,
+    fileName: 1,
+    fileId: 1,
+    text: 1,
+    chunkIndex: 1,
+  })
     .sort({ courseId: 1, fileId: 1, chunkIndex: 1 })
     .lean();
 
@@ -572,7 +601,16 @@ export async function getStoredChunksForCourses(
 export async function getAllFullDocumentsForCourse(
   userId: string,
   courseId: string,
-): Promise<Array<{ fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number; externalUrl?: string }>> {
+): Promise<
+  Array<{
+    fileId: number;
+    fileName: string;
+    moduleTitle: string;
+    fullText: string;
+    charCount: number;
+    externalUrl?: string;
+  }>
+> {
   const aggregated = await ContentEmbedding.aggregate<{
     _id: number;
     fileName: string;
@@ -603,7 +641,8 @@ export async function getAllFullDocumentsForCourse(
     .map((row) => {
       const fullText = row.parts
         .map((p) => {
-          const text = typeof p.fullText === "string" && p.fullText.length > 0 ? p.fullText : p.text;
+          const text =
+            typeof p.fullText === "string" && p.fullText.length > 0 ? p.fullText : p.text;
           return text ?? "";
         })
         .join("");
@@ -617,7 +656,17 @@ export async function getAllFullDocumentsForCourse(
         ...(row.externalUrl ? { externalUrl: row.externalUrl } : {}),
       };
     })
-    .filter((d): d is { fileId: number; fileName: string; moduleTitle: string; fullText: string; charCount: number } => d !== null);
+    .filter(
+      (
+        d,
+      ): d is {
+        fileId: number;
+        fileName: string;
+        moduleTitle: string;
+        fullText: string;
+        charCount: number;
+      } => d !== null,
+    );
 }
 
 export async function getStoredFullDocumentForFile(
@@ -649,9 +698,10 @@ export async function getStoredFullDocumentForFile(
   // charCount er lagret på part 0 (første rad etter sort). Fall tilbake til
   // faktisk konkatenert lengde hvis feltet mangler (defensiv mot eldre data).
   const firstDoc = docs[0];
-  const charCount = typeof firstDoc.charCount === "number" && firstDoc.charCount > 0
-    ? firstDoc.charCount
-    : fullText.length;
+  const charCount =
+    typeof firstDoc.charCount === "number" && firstDoc.charCount > 0
+      ? firstDoc.charCount
+      : fullText.length;
 
   return {
     fullText,
@@ -813,9 +863,25 @@ export async function backfillMissingFullText(): Promise<FullTextBackfillResult>
     const tasks = missingGroups.map((group) =>
       limiter(async () => {
         const chunks = await ContentEmbedding.find(
-          { userId: group.userId, courseId: group.courseId, fileId: group.fileId, chunkIndex: { $gte: 0 } },
-          { _id: 0, text: 1, chunkIndex: 1, courseName: 1, moduleId: 1, moduleTitle: 1, fileHash: 1, fileName: 1 },
-        ).sort({ chunkIndex: 1 }).lean();
+          {
+            userId: group.userId,
+            courseId: group.courseId,
+            fileId: group.fileId,
+            chunkIndex: { $gte: 0 },
+          },
+          {
+            _id: 0,
+            text: 1,
+            chunkIndex: 1,
+            courseName: 1,
+            moduleId: 1,
+            moduleTitle: 1,
+            fileHash: 1,
+            fileName: 1,
+          },
+        )
+          .sort({ chunkIndex: 1 })
+          .lean();
 
         if (chunks.length === 0) return;
         const fullText = chunks.map((chunk) => chunk.text).join("\n\n");
@@ -893,7 +959,16 @@ export async function vectorSearch(
     if (objectIds.length === 0) return { results: [], degraded: false };
     const docs = await ContentEmbedding.find(
       { _id: { $in: objectIds }, userId },
-      { text: 1, courseId: 1, courseName: 1, moduleTitle: 1, fileName: 1, fileId: 1, chunkIndex: 1, externalUrl: 1 },
+      {
+        text: 1,
+        courseId: 1,
+        courseName: 1,
+        moduleTitle: 1,
+        fileName: 1,
+        fileId: 1,
+        chunkIndex: 1,
+        externalUrl: 1,
+      },
     ).lean();
     const byId = new Map(docs.map((d) => [d._id.toString(), d]));
     const results = matches
@@ -977,10 +1052,7 @@ export async function deleteStoredFileContent(
   return result.deletedCount;
 }
 
-export async function deleteStoredCourseContent(
-  userId: string,
-  courseId: string,
-): Promise<number> {
+export async function deleteStoredCourseContent(userId: string, courseId: string): Promise<number> {
   // GDPR: Slett Pinecone først — hvis det feiler, beholdes MongoDB som konsistent
   await pineconeDeleteByFilter({ userId, courseId });
   const result = await ContentEmbedding.deleteMany({ userId, courseId });
@@ -996,14 +1068,8 @@ export async function deleteStoredUserMongoContent(
   userId: string,
   session?: ClientSession,
 ): Promise<number> {
-  const result = await ContentEmbedding.deleteMany(
-    { userId },
-    session ? { session } : undefined,
-  );
-  await FileExtractionStatus.deleteMany(
-    { userId },
-    session ? { session } : undefined,
-  );
+  const result = await ContentEmbedding.deleteMany({ userId }, session ? { session } : undefined);
+  await FileExtractionStatus.deleteMany({ userId }, session ? { session } : undefined);
   return result.deletedCount;
 }
 

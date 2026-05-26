@@ -16,7 +16,6 @@ interface AttachmentStripProps {
   onFjern: (index: number) => void;
 }
 
-
 // Hjelpere
 
 /** Sjekk om fil er et bilde basert på MIME-type */
@@ -71,13 +70,7 @@ function BildeThumbnail({ fil, onFjern }: { fil: File; onFjern: () => void }) {
     <div className="group relative flex items-center gap-2 h-14 pl-1.5 pr-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0 max-w-48">
       {/* Liten thumbnail */}
       <div className="h-10 w-10 shrink-0 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-700">
-        {url && (
-          <img
-            src={url}
-            alt={fil.name}
-            className="h-full w-full object-cover"
-          />
-        )}
+        {url && <img src={url} alt={fil.name} className="h-full w-full object-cover" />}
       </div>
       {/* Filinfo */}
       <div className="flex flex-col min-w-0">

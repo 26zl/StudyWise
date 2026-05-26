@@ -224,7 +224,6 @@ If the field is unclear, default to a general academic format with examples and 
 | Canvas lookup (deadline/assignment) | Bullet list or table only — no prose needed |
 `;
 
-
 export const STUDYWISE_COMPARISON_PROMPT = `
 
 ## Sammenligningsverktøy (aktivert)

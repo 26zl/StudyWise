@@ -1,8 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
-import {
-  checkForStaleClerkCookies,
-  cleanupStaleClerkCookies,
-} from "@/app/lib/devClerkCookieCheck";
+import { checkForStaleClerkCookies, cleanupStaleClerkCookies } from "@/app/lib/devClerkCookieCheck";
 
 const TEST_COOKIE_NAMES = [
   "__session",

@@ -44,9 +44,7 @@ const ROOT = join(__dirname, "..");
 // Dynamisk import med absolutt URL slik at Node ESM-resolveren finner pakken.
 const mongoosePath = join(ROOT, "backend", "node_modules", "mongoose", "lib", "index.js");
 if (!existsSync(mongoosePath)) {
-  console.error(
-    "FEIL: Fant ikke mongoose i backend/node_modules. Kjør `pnpm install` først.",
-  );
+  console.error("FEIL: Fant ikke mongoose i backend/node_modules. Kjør `pnpm install` først.");
   process.exit(1);
 }
 const mongooseModule = await import(pathToFileURL(mongoosePath).href);
@@ -72,7 +70,7 @@ function loadMongoUri() {
     let value = line.slice(eq + 1).trim();
     // Fjern omkringliggende anførselstegn
     if (
-      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
     ) {
       value = value.slice(1, -1);
@@ -142,9 +140,7 @@ async function main() {
   console.log(
     `  • UNSET User.canvasApiToken/canvasTokenHash/canvasUser/canvasBaseUrl på ${usersWithCanvasToken} brukere`,
   );
-  console.log(
-    `  • UNSET User.notionApiKey/notionDefaultPageId på ${usersWithNotionKey} brukere`,
-  );
+  console.log(`  • UNSET User.notionApiKey/notionDefaultPageId på ${usersWithNotionKey} brukere`);
   console.log("");
 
   if (!isConfirmed) {
@@ -181,10 +177,12 @@ async function main() {
   }
 
   if (usersWithNotionKey > 0) {
-    const result = await db.collection("users").updateMany(
-      { notionApiKey: { $exists: true } },
-      { $unset: { notionApiKey: 1, notionDefaultPageId: 1 } },
-    );
+    const result = await db
+      .collection("users")
+      .updateMany(
+        { notionApiKey: { $exists: true } },
+        { $unset: { notionApiKey: 1, notionDefaultPageId: 1 } },
+      );
     console.log(`  ✓ Nullstilt Notion-felter på ${result.modifiedCount} brukere`);
   }
 

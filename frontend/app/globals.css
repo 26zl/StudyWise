@@ -10,61 +10,118 @@
 
 /* Overstyr highlight.js bakgrunn — CodeBlock styrer egen bakgrunn */
 .hljs {
-    background: transparent !important;
-    color: #1f2937;
+  background: transparent !important;
+  color: #1f2937;
 }
 
 /* Light mode: mørkere farger for bedre lesbarhet */
-.hljs-keyword { color: #a626a4; }
-.hljs-string { color: #50a14f; }
-.hljs-title { color: #4078f2; }
-.hljs-built_in { color: #c18401; }
-.hljs-comment { color: #6a737d; }
-.hljs-number { color: #986801; }
-.hljs-literal { color: #0184bb; }
-.hljs-type { color: #c18401; }
-.hljs-params { color: #383a42; }
-.hljs-attr { color: #986801; }
+.hljs-keyword {
+  color: #a626a4;
+}
+.hljs-string {
+  color: #50a14f;
+}
+.hljs-title {
+  color: #4078f2;
+}
+.hljs-built_in {
+  color: #c18401;
+}
+.hljs-comment {
+  color: #6a737d;
+}
+.hljs-number {
+  color: #986801;
+}
+.hljs-literal {
+  color: #0184bb;
+}
+.hljs-type {
+  color: #c18401;
+}
+.hljs-params {
+  color: #383a42;
+}
+.hljs-attr {
+  color: #986801;
+}
 
 /* Dark mode: bruk github-dark uansett system-preferanse når .dark er aktiv */
 .dark .hljs {
-    color: #e6edf3;
+  color: #e6edf3;
 }
-.dark .hljs-keyword { color: #ff7b72; }
-.dark .hljs-string { color: #a5d6ff; }
-.dark .hljs-title { color: #d2a8ff; }
-.dark .hljs-built_in { color: #ffa657; }
-.dark .hljs-comment { color: #8b949e; }
-.dark .hljs-number { color: #79c0ff; }
-.dark .hljs-literal { color: #79c0ff; }
-.dark .hljs-type { color: #ffa657; }
-.dark .hljs-params { color: #e6edf3; }
-.dark .hljs-attr { color: #79c0ff; }
+.dark .hljs-keyword {
+  color: #ff7b72;
+}
+.dark .hljs-string {
+  color: #a5d6ff;
+}
+.dark .hljs-title {
+  color: #d2a8ff;
+}
+.dark .hljs-built_in {
+  color: #ffa657;
+}
+.dark .hljs-comment {
+  color: #8b949e;
+}
+.dark .hljs-number {
+  color: #79c0ff;
+}
+.dark .hljs-literal {
+  color: #79c0ff;
+}
+.dark .hljs-type {
+  color: #ffa657;
+}
+.dark .hljs-params {
+  color: #e6edf3;
+}
+.dark .hljs-attr {
+  color: #79c0ff;
+}
 
 :root {
-    color-scheme: light;
-    --background: #ffffff;
-    --foreground: #0f172a;
-    --muted: #64748b;
-    /* Clerk – høy kontrast i lys modus */
-    --clerk-color-primary: #2563eb;
-    --clerk-color-foreground: #0f172a;
-    --clerk-color-muted-foreground: #475569;
-    --clerk-color-background: #ffffff;
-    --clerk-color-muted: #f1f5f9;
-    --clerk-color-border: #e2e8f0;
-    --clerk-color-input: #f8fafc;
-    --clerk-color-input-foreground: #0f172a;
-    --clerk-badge-color: #475569;
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  /* Clerk – høy kontrast i lys modus */
+  --clerk-color-primary: #2563eb;
+  --clerk-color-foreground: #0f172a;
+  --clerk-color-muted-foreground: #475569;
+  --clerk-color-background: #ffffff;
+  --clerk-color-muted: #f1f5f9;
+  --clerk-color-border: #e2e8f0;
+  --clerk-color-input: #f8fafc;
+  --clerk-color-input-foreground: #0f172a;
+  --clerk-badge-color: #475569;
 }
 
 /* Mørk modus farger */
 .dark {
-    color-scheme: dark;
+  color-scheme: dark;
+  --background: #0f172a;
+  --foreground: #f1f5f9;
+  --muted: #94a3b8;
+  /* Clerk – høy kontrast i mørk modus (tydelig sekundærtekst og handlingslenker) */
+  --clerk-color-primary: #60a5fa;
+  --clerk-color-foreground: #f1f5f9;
+  --clerk-color-muted-foreground: #cbd5e1;
+  --clerk-color-background: #0f172a;
+  --clerk-color-muted: #1e293b;
+  --clerk-color-border: #334155;
+  --clerk-color-input: #1e293b;
+  --clerk-color-input-foreground: #f1f5f9;
+  --clerk-badge-color: #94a3b8;
+}
+
+/* Automatisk mørk modus basert på systeminnstillinger hos bruker */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
     --background: #0f172a;
     --foreground: #f1f5f9;
     --muted: #94a3b8;
-    /* Clerk – høy kontrast i mørk modus (tydelig sekundærtekst og handlingslenker) */
     --clerk-color-primary: #60a5fa;
     --clerk-color-foreground: #f1f5f9;
     --clerk-color-muted-foreground: #cbd5e1;
@@ -74,275 +131,250 @@
     --clerk-color-input: #1e293b;
     --clerk-color-input-foreground: #f1f5f9;
     --clerk-badge-color: #94a3b8;
+  }
 }
-
-/* Automatisk mørk modus basert på systeminnstillinger hos bruker */
-@media (prefers-color-scheme: dark) {
-    :root:not(.light) {
-        --background: #0f172a;
-        --foreground: #f1f5f9;
-        --muted: #94a3b8;
-        --clerk-color-primary: #60a5fa;
-        --clerk-color-foreground: #f1f5f9;
-        --clerk-color-muted-foreground: #cbd5e1;
-        --clerk-color-background: #0f172a;
-        --clerk-color-muted: #1e293b;
-        --clerk-color-border: #334155;
-        --clerk-color-input: #1e293b;
-        --clerk-color-input-foreground: #f1f5f9;
-        --clerk-badge-color: #94a3b8;
-    }
-}
-
 
 /* Clerk badge-kontrast fikses via ClerkProvider appearance prop i providers.tsx */
 
 *,
 *::before,
 *::after {
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 html {
-    height: 100%;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    overscroll-behavior-y: none;
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
 }
 
 /* PWA standalone: safe areas for iPhone notch/Dynamic Island */
 @supports (padding-top: env(safe-area-inset-top)) {
-    body {
-        padding-bottom: env(safe-area-inset-bottom);
-        padding-left: env(safe-area-inset-left);
-        padding-right: env(safe-area-inset-right);
-    }
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
 }
 
 body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    background: var(--background);
-    color: var(--foreground);
-    font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        Roboto,
-        "Helvetica Neue",
-        Arial,
-        sans-serif,
-        "Apple Color Emoji",
-        "Segoe UI Emoji";
-    line-height: 1.5;
-    overscroll-behavior-y: none;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji";
+  line-height: 1.5;
+  overscroll-behavior-y: none;
 }
 
 /* Fjern default focus styles og erstatt med bedre */
 :focus {
-    outline: none;
+  outline: none;
 }
 
 :focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }
 
 /* Scrollbar styling for bedre utseende */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  width: 8px;
+  height: 8px;
 }
 
 /* Sikre horisontal scrolling på mobil for alle x-scroll-containere */
 .overflow-x-auto,
 .overflow-x-scroll {
-    -webkit-overflow-scrolling: touch;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Chat input: lett skalering for høy pixel ratio uten å påvirke desktop-layout */
 @media (max-width: 767px) and (min-resolution: 2dppx) {
-    .chat-input-shell {
-        padding-top: 0.625rem;
-        padding-bottom: 0.625rem;
-    }
+  .chat-input-shell {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
 
-    .chat-input-icon-btn {
-        width: 2.5rem;
-        height: 2.5rem;
-    }
+  .chat-input-icon-btn {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
 
-    .chat-input-icon {
-        width: 1.25rem;
-        height: 1.25rem;
-    }
+  .chat-input-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
 
-    .chat-input-textarea {
-        font-size: 1rem;
-        line-height: 1.45;
-    }
+  .chat-input-textarea {
+    font-size: 1rem;
+    line-height: 1.45;
+  }
 }
 
 /* Mer kontrast pa hover for chat-handlingsknapper */
 .chat-input-icon-btn:hover {
-    background-color: #e2e8f0;
+  background-color: #e2e8f0;
 }
 
 .chat-input-icon-btn:hover .chat-input-icon {
-    color: #334155;
+  color: #334155;
 }
 
 .dark .chat-input-icon-btn:hover {
-    background-color: #1f2937;
+  background-color: #1f2937;
 }
 
 .dark .chat-input-icon-btn:hover .chat-input-icon {
-    color: #e2e8f0;
+  color: #e2e8f0;
 }
 
 ::-webkit-scrollbar-track {
-    background: transparent;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+  background: #cbd5e1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+  background: #94a3b8;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-    background: #334155;
+  background: #334155;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-    background: #475569;
+  background: #475569;
 }
 
 /* Fjern blå highlight pa mobil tap */
 * {
-    -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Bedre text selection */
 ::selection {
-    background: #3b82f6;
-    color: white;
+  background: #3b82f6;
+  color: white;
 }
 
 /* Prose styling for Canvas-innhold */
 .prose {
-    max-width: none;
+  max-width: none;
 }
 
 .prose p {
-    margin-top: 0.75em;
-    margin-bottom: 0.75em;
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
 }
 
 .prose ul,
 .prose ol {
-    padding-left: 1.25em;
-    margin-top: 0.5em;
-    margin-bottom: 0.5em;
+  padding-left: 1.25em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
 }
 
 .prose li {
-    margin-top: 0.25em;
-    margin-bottom: 0.25em;
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
 }
 
 .prose img {
-    max-width: 100%;
-    height: auto;
-    border-radius: 0.5rem;
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
 }
 
 .prose a {
-    color: #2563eb;
-    text-decoration: none;
+  color: #2563eb;
+  text-decoration: none;
 }
 
 .prose a:hover {
-    text-decoration: underline;
+  text-decoration: underline;
 }
 
 .dark .prose a {
-    color: #60a5fa;
+  color: #60a5fa;
 }
 
 /* Animasjoner */
 @keyframes fade-in {
-    from {
-        opacity: 0;
-        transform: translateY(4px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-fade-in {
-    animation: fade-in 0.2s ease-out;
+  animation: fade-in 0.2s ease-out;
 }
 
 /* Kalender-stiler — mobil-først */
 
 /* Kalender-side: padding (mobil-først) */
 .calendar-page {
-    padding: 1rem;
-    min-height: fit-content;
-    animation: fade-in 0.2s ease-out;
+  padding: 1rem;
+  min-height: fit-content;
+  animation: fade-in 0.2s ease-out;
 }
 
 @media (min-width: 640px) {
-    .calendar-page {
-        padding: 1.5rem;
-    }
+  .calendar-page {
+    padding: 1.5rem;
+  }
 }
 
 /* Kalender-grid: én kolonne på mobil, sidepanel på xl */
 .calendar-layout {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 1rem;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
 }
 
 @media (min-width: 640px) {
-    .calendar-layout {
-        gap: 1.5rem;
-    }
+  .calendar-layout {
+    gap: 1.5rem;
+  }
 }
 
 @media (min-width: 1280px) {
-    .calendar-layout {
-        grid-template-columns: 1fr 320px;
-        align-items: start;
-    }
+  .calendar-layout {
+    grid-template-columns: 1fr 320px;
+    align-items: start;
+  }
 }
 
 @media (min-width: 1536px) {
-    .calendar-layout {
-        grid-template-columns: 1fr 380px;
-    }
+  .calendar-layout {
+    grid-template-columns: 1fr 380px;
+  }
 }
 
 .calendar-footer {
-    margin-top: 1.5rem;
-    text-align: center;
-    font-size: 0.75rem;
-    color: var(--muted);
+  margin-top: 1.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
 }
 
 @media (min-width: 640px) {
-    .calendar-footer {
-        margin-top: 2rem;
-        font-size: 0.875rem;
-    }
+  .calendar-footer {
+    margin-top: 2rem;
+    font-size: 0.875rem;
+  }
 }
 
 /* --- Print / PDF eksport ----------------------------------------------
@@ -353,57 +385,57 @@ body {
  * splittes ikke over to sider.
  */
 @media print {
-    body {
-        font-size: 11pt;
-        background: white !important;
-        color: #111;
-    }
+  body {
+    font-size: 11pt;
+    background: white !important;
+    color: #111;
+  }
 
-    table {
-        width: 100%;
-        table-layout: fixed;
-        border-collapse: collapse;
-        page-break-inside: auto;
-    }
-    th,
-    td {
-        word-break: break-word;
-        overflow-wrap: break-word;
-        padding: 6px 8px;
-        border: 1px solid #ddd;
-        vertical-align: top;
-    }
-    thead {
-        display: table-header-group;
-    }
-    tr {
-        page-break-inside: avoid;
-    }
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    page-break-inside: auto;
+  }
+  th,
+  td {
+    word-break: break-word;
+    overflow-wrap: break-word;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    vertical-align: top;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
 
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-        word-break: keep-all;
-        white-space: normal;
-        break-inside: avoid;
-        page-break-after: avoid;
-    }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    word-break: keep-all;
+    white-space: normal;
+    break-inside: avoid;
+    page-break-after: avoid;
+  }
 
-    .chat-message,
-    .message-bubble {
-        break-inside: avoid;
-        page-break-inside: avoid;
-        box-shadow: none !important;
-        border-radius: 0 !important;
-        background: white !important;
-        border-bottom: 1px solid #eee;
-    }
+  .chat-message,
+  .message-bubble {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    background: white !important;
+    border-bottom: 1px solid #eee;
+  }
 
-    .sources-list {
-        break-inside: avoid;
-        page-break-inside: avoid;
-    }
+  .sources-list {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }

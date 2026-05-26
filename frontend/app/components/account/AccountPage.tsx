@@ -167,8 +167,8 @@ function SlettKontoSeksjon() {
               type="button"
               onClick={() => void handleSlettKonto()}
               disabled={
-                kontoSlettBekreftelse.trim().toUpperCase() !==
-                  slettBekreftelsesord.toUpperCase() || isSlettingKonto
+                kontoSlettBekreftelse.trim().toUpperCase() !== slettBekreftelsesord.toUpperCase() ||
+                isSlettingKonto
               }
               className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -200,7 +200,8 @@ export function AccountPage() {
   const { isLoaded: clerkUserLoaded, user: clerkUser } = useUser();
   const megQuery = useMeg({ enabled: authLoaded && !!userId });
   const meData = megQuery.data;
-  const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } = useOppdaterProfil();
+  const { mutateAsync: oppdaterProfil, isPending: isProfilOppdateringPending } =
+    useOppdaterProfil();
   const sisteSyncForsokRef = useRef<string | null>(null);
 
   useAuthRedirect(megQuery);
@@ -237,36 +238,32 @@ export function AccountPage() {
     if (sisteSyncForsokRef.current === syncNokkel) return;
     sisteSyncForsokRef.current = syncNokkel;
 
-    void oppdaterProfil(profileUpdate).catch(
-      async (error: unknown) => {
-        if (error instanceof UsernameConflictError) {
-          if (clerkUser && localUsername) {
-            try {
-              await clerkUser.update({ username: localUsername });
-            } catch {
-              // Ignorer — Clerk kan avvise hvis brukernavnet er uendret
-            }
+    void oppdaterProfil(profileUpdate).catch(async (error: unknown) => {
+      if (error instanceof UsernameConflictError) {
+        if (clerkUser && localUsername) {
+          try {
+            await clerkUser.update({ username: localUsername });
+          } catch {
+            // Ignorer — Clerk kan avvise hvis brukernavnet er uendret
           }
-          showToast.warning(
-            language === "en"
-              ? `Username "${clerkUsername}" is already taken`
-              : `Brukernavnet «${clerkUsername}» er allerede tatt`,
-            language === "en"
-              ? "Choose a different username in your account settings."
-              : "Velg et annet brukernavn i kontoinnstillingene.",
-          );
-        } else {
-          showToast.warning(
-            language === "en"
-              ? "Profile sync failed"
-              : "Profilsynk feilet",
-            language === "en"
-              ? "Profile was updated in account settings, but could not be synced to StudyWise."
-              : "Profilen ble oppdatert i kontoinnstillinger, men kunne ikke synkes til StudyWise.",
-          );
         }
-      },
-    );
+        showToast.warning(
+          language === "en"
+            ? `Username "${clerkUsername}" is already taken`
+            : `Brukernavnet «${clerkUsername}» er allerede tatt`,
+          language === "en"
+            ? "Choose a different username in your account settings."
+            : "Velg et annet brukernavn i kontoinnstillingene.",
+        );
+      } else {
+        showToast.warning(
+          language === "en" ? "Profile sync failed" : "Profilsynk feilet",
+          language === "en"
+            ? "Profile was updated in account settings, but could not be synced to StudyWise."
+            : "Profilen ble oppdatert i kontoinnstillinger, men kunne ikke synkes til StudyWise.",
+        );
+      }
+    });
   }, [
     clerkUser,
     clerkUser?.firstName,
@@ -280,54 +277,56 @@ export function AccountPage() {
   ]);
 
   return (
-      <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
-        <div className="mx-auto w-full min-w-0 max-w-5xl">
-          <h1 className="text-2xl font-semibold">
-            {t("settings.accountSecurity.title")}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            {t("settings.accountSecurity.connectionHint")}
-          </p>
-          <div className="mt-3 w-full max-w-full overflow-x-hidden [touch-action:pan-y]">
-            <UserProfile
-              key={language}
-              path="/account"
-              routing="path"
-              appearance={{
-                variables: {
-                  colorPrimary: "var(--clerk-color-primary)",
-                  colorBackground: "var(--clerk-color-background)",
-                  colorForeground: "var(--clerk-color-foreground)",
-                  colorMutedForeground: "var(--clerk-color-muted-foreground)",
-                  colorMuted: "var(--clerk-color-muted)",
-                  colorBorder: "var(--clerk-color-border)",
-                  colorInput: "var(--clerk-color-input)",
-                  colorInputForeground: "var(--clerk-color-input-foreground)",
+    <div className="min-h-full px-4 py-6 text-slate-900 dark:text-slate-100 md:px-8">
+      <div className="mx-auto w-full min-w-0 max-w-5xl">
+        <h1 className="text-2xl font-semibold">{t("settings.accountSecurity.title")}</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          {t("settings.accountSecurity.connectionHint")}
+        </p>
+        <div className="mt-3 w-full max-w-full overflow-x-hidden [touch-action:pan-y]">
+          <UserProfile
+            key={language}
+            path="/account"
+            routing="path"
+            appearance={{
+              variables: {
+                colorPrimary: "var(--clerk-color-primary)",
+                colorBackground: "var(--clerk-color-background)",
+                colorForeground: "var(--clerk-color-foreground)",
+                colorMutedForeground: "var(--clerk-color-muted-foreground)",
+                colorMuted: "var(--clerk-color-muted)",
+                colorBorder: "var(--clerk-color-border)",
+                colorInput: "var(--clerk-color-input)",
+                colorInputForeground: "var(--clerk-color-input-foreground)",
+                borderRadius: "0.75rem",
+              },
+              elements: {
+                rootBox: "w-full max-w-full",
+                cardBox: {
+                  boxShadow: "none",
                   borderRadius: "0.75rem",
+                  border: "1px solid var(--clerk-color-border)",
                 },
-                elements: {
-                  rootBox: "w-full max-w-full",
-                  cardBox: { boxShadow: "none", borderRadius: "0.75rem", border: "1px solid var(--clerk-color-border)" },
-                  card: "w-full max-w-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/95",
-                  navbar: "max-sm:w-full",
-                  scrollBox: "max-w-full",
-                  // Skjul Clerk sin innebygde "Delete account" — vi har vår egen
-                  // som håndterer sletting av både Clerk-konto og all StudyWise-data.
-                  profileSection__deleteAccount: { display: "none" },
-                  profileSection__danger: { display: "none" },
-                },
-              }}
+                card: "w-full max-w-full border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800/95",
+                navbar: "max-sm:w-full",
+                scrollBox: "max-w-full",
+                // Skjul Clerk sin innebygde "Delete account" — vi har vår egen
+                // som håndterer sletting av både Clerk-konto og all StudyWise-data.
+                profileSection__deleteAccount: { display: "none" },
+                profileSection__danger: { display: "none" },
+              },
+            }}
+          >
+            <UserProfile.Page
+              label={t("settings.deleteAccount.tabLabel")}
+              labelIcon={<Trash2 className="h-4 w-4" />}
+              url="delete-account"
             >
-              <UserProfile.Page
-                label={t("settings.deleteAccount.tabLabel")}
-                labelIcon={<Trash2 className="h-4 w-4" />}
-                url="delete-account"
-              >
-                <SlettKontoSeksjon />
-              </UserProfile.Page>
-            </UserProfile>
-          </div>
+              <SlettKontoSeksjon />
+            </UserProfile.Page>
+          </UserProfile>
         </div>
       </div>
+    </div>
   );
 }

@@ -19,9 +19,7 @@ export function countTokens(text: string): number {
  * Beregner token-bruk for et sett med meldinger.
  * Returnerer total token-count inkl. overhead per melding (~4 tokens per melding).
  */
-export function countMessageTokens(
-  messages: Array<{ role: string; content: string }>,
-): number {
+export function countMessageTokens(messages: Array<{ role: string; content: string }>): number {
   let total = 0;
   for (const msg of messages) {
     total += countTokens(msg.content) + 4; // ~4 tokens overhead per melding (role, delimiters)

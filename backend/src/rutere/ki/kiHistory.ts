@@ -10,12 +10,7 @@ import { SharedChat } from "../../database/models/SharedChat.js";
 import { encrypt, decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import {
-  apiError,
-  sendZodError,
-  sendUnknownError,
-  requireUserId,
-} from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import {
   ChatPinUpdateSchema,
   ChatPinUpdateResponseSchema,
@@ -38,19 +33,17 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
     const userId = requireUserId(req, res);
     if (!userId) return;
 
-    const queryParsed = z.object({
-      limit: z.coerce.number().int().min(1).max(100).default(20).catch(20),
-      page: z.coerce.number().int().min(1).default(1).catch(1),
-    }).safeParse(req.query);
+    const queryParsed = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(20).catch(20),
+        page: z.coerce.number().int().min(1).default(1).catch(1),
+      })
+      .safeParse(req.query);
     const { limit, page } = queryParsed.success ? queryParsed.data : { limit: 20, page: 1 };
     const skip = (page - 1) * limit;
 
     const [docs, total] = await Promise.all([
-      ChatHistory.find({ user: userId })
-        .sort({ updatedAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean(),
+      ChatHistory.find({ user: userId }).sort({ updatedAt: -1 }).skip(skip).limit(limit).lean(),
       ChatHistory.countDocuments({ user: userId }),
     ]);
 
@@ -90,7 +83,10 @@ kiHistoryRouter.get("/chat/history", async (req, res) => {
       }),
     );
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "GET chat-history", melding: "Kunne ikke laste samtalehistorikk. Prøv igjen." });
+    return sendUnknownError(res, error, {
+      kontekst: "GET chat-history",
+      melding: "Kunne ikke laste samtalehistorikk. Prøv igjen.",
+    });
   }
 });
 
@@ -103,9 +99,8 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     const parsed = ChatSaveSchema.parse(req.body);
     const encryptedMessages = encrypt(JSON.stringify(parsed.messages));
     const title =
-      (parsed.title != null && parsed.title !== ""
-        ? parsed.title.trim().slice(0, 120)
-        : "") || "Samtale";
+      (parsed.title != null && parsed.title !== "" ? parsed.title.trim().slice(0, 120) : "") ||
+      "Samtale";
     const doc = await ChatHistory.create({
       user: userId,
       title,
@@ -130,7 +125,10 @@ kiHistoryRouter.post("/chat/history", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
     }
-    return sendUnknownError(res, error, { kontekst: "POST chat-history", melding: "Kunne ikke lagre samtalen. Prøv igjen." });
+    return sendUnknownError(res, error, {
+      kontekst: "POST chat-history",
+      melding: "Kunne ikke lagre samtalen. Prøv igjen.",
+    });
   }
 });
 
@@ -163,11 +161,9 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     }
     const mongoUpdate: Record<string, unknown> = { $set: setFields };
     if (Object.keys(unsetFields).length > 0) mongoUpdate.$unset = unsetFields;
-    const doc = await ChatHistory.findOneAndUpdate(
-      { _id: id, user: userId },
-      mongoUpdate,
-      { returnDocument: "after" },
-    );
+    const doc = await ChatHistory.findOneAndUpdate({ _id: id, user: userId }, mongoUpdate, {
+      returnDocument: "after",
+    });
     if (!doc) return apiError.notFound(res, "Samtalen");
 
     return res.json(
@@ -186,7 +182,10 @@ kiHistoryRouter.put("/chat/history/:id", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-history");
     }
-    return sendUnknownError(res, error, { kontekst: "PUT chat-history", melding: "Kunne ikke oppdatere samtalen. Prøv igjen." });
+    return sendUnknownError(res, error, {
+      kontekst: "PUT chat-history",
+      melding: "Kunne ikke oppdatere samtalen. Prøv igjen.",
+    });
   }
 });
 
@@ -215,7 +214,10 @@ kiHistoryRouter.patch("/chat/history/:id/pin", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-pin");
     }
-    return sendUnknownError(res, error, { kontekst: "PATCH chat-pin", melding: "Kunne ikke oppdatere pin." });
+    return sendUnknownError(res, error, {
+      kontekst: "PATCH chat-pin",
+      melding: "Kunne ikke oppdatere pin.",
+    });
   }
 });
 
@@ -229,14 +231,12 @@ kiHistoryRouter.patch("/chat/history/:id/topic", async (req, res) => {
     }
     const parsed = ChatTopicUpdateSchema.parse(req.body);
     const topicValue = parsed.topic === null ? null : parsed.topic?.trim();
-    const topicUpdate = topicValue === null
-      ? { $unset: { topic: 1 as const } }
-      : { $set: { topic: topicValue } };
-    const doc = await ChatHistory.findOneAndUpdate(
-      { _id: id, user: userId },
-      topicUpdate,
-      { returnDocument: "after", timestamps: false },
-    ).select("_id topic");
+    const topicUpdate =
+      topicValue === null ? { $unset: { topic: 1 as const } } : { $set: { topic: topicValue } };
+    const doc = await ChatHistory.findOneAndUpdate({ _id: id, user: userId }, topicUpdate, {
+      returnDocument: "after",
+      timestamps: false,
+    }).select("_id topic");
     if (!doc) return apiError.notFound(res, "Samtalen");
     return res.json(
       ChatTopicUpdateResponseSchema.parse({
@@ -248,7 +248,10 @@ kiHistoryRouter.patch("/chat/history/:id/topic", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-topic");
     }
-    return sendUnknownError(res, error, { kontekst: "PATCH chat-topic", melding: "Kunne ikke oppdatere tema." });
+    return sendUnknownError(res, error, {
+      kontekst: "PATCH chat-topic",
+      melding: "Kunne ikke oppdatere tema.",
+    });
   }
 });
 
@@ -278,7 +281,10 @@ kiHistoryRouter.patch("/chat/history/:id/title", async (req, res) => {
     if (error instanceof z.ZodError) {
       return sendZodError(res, error, "chat-title");
     }
-    return sendUnknownError(res, error, { kontekst: "PATCH chat-title", melding: "Kunne ikke oppdatere tittel." });
+    return sendUnknownError(res, error, {
+      kontekst: "PATCH chat-title",
+      melding: "Kunne ikke oppdatere tittel.",
+    });
   }
 });
 
@@ -310,7 +316,10 @@ kiHistoryRouter.delete("/chat/history/:id", async (req, res) => {
 
     return res.status(204).send();
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "DELETE chat-history", melding: "Kunne ikke slette samtalen. Prøv igjen." });
+    return sendUnknownError(res, error, {
+      kontekst: "DELETE chat-history",
+      melding: "Kunne ikke slette samtalen. Prøv igjen.",
+    });
   }
 });
 
@@ -336,6 +345,9 @@ kiHistoryRouter.delete("/chat/history", async (req, res) => {
 
     return res.status(204).send();
   } catch (error) {
-    return sendUnknownError(res, error, { kontekst: "DELETE chat-history", melding: "Kunne ikke slette samtalehistorikken. Prøv igjen." });
+    return sendUnknownError(res, error, {
+      kontekst: "DELETE chat-history",
+      melding: "Kunne ikke slette samtalehistorikken. Prøv igjen.",
+    });
   }
 });

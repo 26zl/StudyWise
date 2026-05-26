@@ -44,8 +44,7 @@ function writeGuestCookie(value: CookieConsentStatus): void {
 // Initialisér synkront fra cookie ved modul-load (ikke via useEffect)
 // slik at consent er tilgjengelig allerede ved første React-render og banneret ikke blinker.
 // Cookie med 30 dagers levetid brukes for gjester, i tråd med personvernteksten.
-let gjesteSamtykke: CookieConsentStatus =
-  typeof window !== "undefined" ? readGuestCookie() : null;
+let gjesteSamtykke: CookieConsentStatus = typeof window !== "undefined" ? readGuestCookie() : null;
 
 function getAuthenticatedConsentStorageKey(userId: string): string {
   return `${COOKIE_CONSENT_STORAGE_PREFIX}:${userId}`;
@@ -101,10 +100,7 @@ function writeGuestConsentToStorage(consent: CookieConsentStatus): void {
   }
 }
 
-function writeAuthenticatedConsentToStorage(
-  userId: string,
-  consent: CookieConsentStatus,
-): void {
+function writeAuthenticatedConsentToStorage(userId: string, consent: CookieConsentStatus): void {
   if (typeof window === "undefined") {
     return;
   }
@@ -152,8 +148,7 @@ export function useCookieConsent() {
   } = useMeg({
     enabled: isLoaded && !!userId,
   });
-  const { mutateAsync: oppdaterUIPreferanser, isPending } =
-    useOppdaterUIPreferanser();
+  const { mutateAsync: oppdaterUIPreferanser, isPending } = useOppdaterUIPreferanser();
   // Les gjeste-samtykke synkront ved første klient-render via useRef.
   // useRef-initializer kjører synkront under render (ikke som useEffect etter paint),
   // slik at consent er tilgjengelig allerede i første frame — ingen flash.
@@ -162,8 +157,7 @@ export function useCookieConsent() {
     guestInitRef.current = true;
     gjesteSamtykke = readGuestConsentFromStorage();
   }
-  const [guestConsent, setGuestConsent] =
-    useState<CookieConsentStatus>(gjesteSamtykke);
+  const [guestConsent, setGuestConsent] = useState<CookieConsentStatus>(gjesteSamtykke);
   const [cachedAuthenticatedConsent, setCachedAuthenticatedConsent] =
     useState<CookieConsentStatus>(null);
 
@@ -187,10 +181,7 @@ export function useCookieConsent() {
           setGuestConsent(nextConsent);
           return;
         }
-        if (
-          detail?.scope === "authenticated" &&
-          detail.userId === userId
-        ) {
+        if (detail?.scope === "authenticated" && detail.userId === userId) {
           setCachedAuthenticatedConsent(parseCookieConsent(detail.consent));
           return;
         }
@@ -200,10 +191,7 @@ export function useCookieConsent() {
       setGuestConsent(gjesteSamtykke);
     };
 
-    window.addEventListener(
-      COOKIE_CONSENT_CHANGED_EVENT,
-      handleConsentChange as EventListener,
-    );
+    window.addEventListener(COOKIE_CONSENT_CHANGED_EVENT, handleConsentChange as EventListener);
     return () => {
       window.removeEventListener(
         COOKIE_CONSENT_CHANGED_EVENT,
@@ -245,9 +233,7 @@ export function useCookieConsent() {
   }, [userId]);
 
   const isAuthenticated = !!userId;
-  const backendConsent = parseCookieConsent(
-    me?.user?.uiPreferences?.cookieConsent,
-  );
+  const backendConsent = parseCookieConsent(me?.user?.uiPreferences?.cookieConsent);
 
   // Re-les gjeste-samtykke fra cookie når bruker logger ut,
   // fordi modulvariabelen gjesteSamtykke kan være null etter promotering.
@@ -264,9 +250,7 @@ export function useCookieConsent() {
   // Hvis ingen verdi finnes, vises banneret på nytt (consent === null).
   // Ingen optimistisk state: banneret forsvinner først når backend har kvittert
   // (cachedAuthenticatedConsent settes etter vellykket PUT /preferences).
-  const consent = isAuthenticated
-    ? (backendConsent ?? cachedAuthenticatedConsent)
-    : guestConsent;
+  const consent = isAuthenticated ? (backendConsent ?? cachedAuthenticatedConsent) : guestConsent;
   const harConsentFraCache = cachedAuthenticatedConsent !== null;
   const isReady =
     isLoaded &&

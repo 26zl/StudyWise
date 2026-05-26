@@ -10,9 +10,7 @@ import type { UserRole } from "common/auth";
 function harVerifisertSecondFactor(req: Request): boolean {
   const secondFactorAge = req.clerkFactorVerificationAge?.[1];
   return (
-    typeof secondFactorAge === "number" &&
-    Number.isFinite(secondFactorAge) &&
-    secondFactorAge >= 0
+    typeof secondFactorAge === "number" && Number.isFinite(secondFactorAge) && secondFactorAge >= 0
   );
 }
 
@@ -75,7 +73,8 @@ export function requireRole(...allowedRoles: UserRole[]) {
       res.status(403).json({
         error: "mfa_required",
         kode: "mfa_required",
-        melding: "Admin-tilgang krever en sesjon med verifisert tofaktorautentisering. Logg inn på nytt og fullfør MFA.",
+        melding:
+          "Admin-tilgang krever en sesjon med verifisert tofaktorautentisering. Logg inn på nytt og fullfør MFA.",
       });
       return;
     }

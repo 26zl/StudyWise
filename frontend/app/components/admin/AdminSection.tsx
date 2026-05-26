@@ -666,7 +666,10 @@ function MaintenanceFane() {
     { id: "crawler" as const, labelKey: "admin.maintenance.subtabs.crawler" as const },
     { id: "retrieval" as const, labelKey: "admin.maintenance.subtabs.retrieval" as const },
     { id: "extraction" as const, labelKey: "admin.maintenance.subtabs.extraction" as const },
-    { id: "extractionFailures" as const, labelKey: "admin.maintenance.subtabs.extractionFailures" as const },
+    {
+      id: "extractionFailures" as const,
+      labelKey: "admin.maintenance.subtabs.extractionFailures" as const,
+    },
     { id: "kbHealth" as const, labelKey: "admin.maintenance.subtabs.kbHealth" as const },
   ];
   type MaintenanceSubFane = (typeof SUB_FANER)[number]["id"];
@@ -715,282 +718,282 @@ function MaintenanceFane() {
 
       {aktivSub === "ops" && (
         <>
-      {/* Operasjons-kort */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <VedlikeholdKort
-          ikon={Zap}
-          tittel={t("admin.maintenance.backfill.cardTitle")}
-          beskrivelse={t("admin.maintenance.backfill.cardDescription")}
-          merknad={t("admin.maintenance.backfill.note")}
-          handlingTekst={t("admin.maintenance.backfill.action")}
-          onHandling={handleBackfill}
-          isPending={isRunning("backfill-fulltext", backfillMutation.isPending)}
-        />
-        <VedlikeholdKort
-          ikon={Trash2}
-          tittel={t("admin.maintenance.cleanupOrphaned.cardTitle")}
-          beskrivelse={t("admin.maintenance.cleanupOrphaned.cardDescription")}
-          merknad={t("admin.maintenance.cleanupOrphaned.note")}
-          handlingTekst={t("admin.maintenance.cleanupOrphaned.action")}
-          onHandling={handleCleanupOrphaned}
-          isPending={isRunning("cleanup-orphaned", cleanupOrphanedMutation.isPending)}
-          variant="danger"
-        />
-        <VedlikeholdKort
-          ikon={Database}
-          tittel={t("admin.maintenance.rebuildEmbeddings.cardTitle")}
-          beskrivelse={t("admin.maintenance.rebuildEmbeddings.cardDescription")}
-          merknad={t("admin.maintenance.rebuildEmbeddings.note")}
-          handlingTekst={t("admin.maintenance.rebuildEmbeddings.action")}
-          onHandling={handleRebuildEmbeddings}
-          isPending={isRunning("rebuild-embeddings", rebuildEmbeddingsMutation.isPending)}
-        />
-        <VedlikeholdKort
-          ikon={RefreshCcw}
-          tittel={t("admin.maintenance.forceCanvasResync.cardTitle")}
-          beskrivelse={t("admin.maintenance.forceCanvasResync.cardDescription")}
-          merknad={t("admin.maintenance.forceCanvasResync.note")}
-          handlingTekst={t("admin.maintenance.forceCanvasResync.action")}
-          onHandling={handleForceCanvasResync}
-          isPending={isRunning("force-canvas-resync", forceCanvasResyncMutation.isPending)}
-        />
-        <VedlikeholdKort
-          ikon={Link}
-          tittel={t("admin.maintenance.cleanExpiredShares.cardTitle")}
-          beskrivelse={t("admin.maintenance.cleanExpiredShares.cardDescription")}
-          merknad={t("admin.maintenance.cleanExpiredShares.note")}
-          handlingTekst={t("admin.maintenance.cleanExpiredShares.action")}
-          onHandling={handleCleanExpiredShares}
-          isPending={isRunning("clean-expired-shares", cleanExpiredSharesMutation.isPending)}
-        />
-        <VedlikeholdKort
-          ikon={Clock3}
-          tittel={t("admin.maintenance.cleanOldChats.cardTitle")}
-          beskrivelse={t("admin.maintenance.cleanOldChats.cardDescription")}
-          merknad={t("admin.maintenance.cleanOldChats.note")}
-          handlingTekst={t("admin.maintenance.cleanOldChats.action")}
-          onHandling={handleCleanOldChats}
-          isPending={isRunning("clean-old-chats", cleanOldChatsMutation.isPending)}
-          variant="danger"
-        >
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              {t("admin.maintenance.cleanOldChats.daysLabel")}:
-            </label>
-            <input
-              type="number"
-              min={30}
-              max={3650}
-              value={chatDager}
-              onChange={(e) =>
-                setChatDager(Math.max(30, Math.min(3650, Number(e.target.value) || 30)))
-              }
-              className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+          {/* Operasjons-kort */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <VedlikeholdKort
+              ikon={Zap}
+              tittel={t("admin.maintenance.backfill.cardTitle")}
+              beskrivelse={t("admin.maintenance.backfill.cardDescription")}
+              merknad={t("admin.maintenance.backfill.note")}
+              handlingTekst={t("admin.maintenance.backfill.action")}
+              onHandling={handleBackfill}
+              isPending={isRunning("backfill-fulltext", backfillMutation.isPending)}
             />
-          </div>
-        </VedlikeholdKort>
-      </div>
-
-      {/* Krypteringsstatus */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                <Shield size={16} />
-              </div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                {t("admin.maintenance.encryption.title")}
-              </h3>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              {t("admin.maintenance.encryption.description")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleReencrypt}
-            disabled={isRunning("reencrypt-tokens", reencryptMutation.isPending)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
-          >
-            <RefreshCcw
-              size={12}
-              className={
-                isRunning("reencrypt-tokens", reencryptMutation.isPending) ? "animate-spin" : ""
-              }
+            <VedlikeholdKort
+              ikon={Trash2}
+              tittel={t("admin.maintenance.cleanupOrphaned.cardTitle")}
+              beskrivelse={t("admin.maintenance.cleanupOrphaned.cardDescription")}
+              merknad={t("admin.maintenance.cleanupOrphaned.note")}
+              handlingTekst={t("admin.maintenance.cleanupOrphaned.action")}
+              onHandling={handleCleanupOrphaned}
+              isPending={isRunning("cleanup-orphaned", cleanupOrphanedMutation.isPending)}
+              variant="danger"
             />
-            {t("admin.maintenance.encryption.reencryptAction")}
-          </button>
-        </div>
-        {encryptionStatus && (
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t("admin.maintenance.encryption.previousKeyConfigured")}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                {encryptionStatus.previousKeyConfigured
-                  ? t("admin.maintenance.encryption.yes")
-                  : t("admin.maintenance.encryption.no")}
-              </p>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t("admin.maintenance.encryption.usersWithToken")}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                {formaterTall(encryptionStatus.usersWithToken, language)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t("admin.maintenance.encryption.currentFormat")}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                {formaterTall(encryptionStatus.currentKeyOk, language)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t("admin.maintenance.encryption.legacyFormat")}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-amber-600 dark:text-amber-400">
-                {formaterTall(encryptionStatus.legacyFormat, language)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {t("admin.maintenance.encryption.undecryptable")}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
-                {formaterTall(encryptionStatus.undecryptable, language)}
-              </p>
-            </div>
+            <VedlikeholdKort
+              ikon={Database}
+              tittel={t("admin.maintenance.rebuildEmbeddings.cardTitle")}
+              beskrivelse={t("admin.maintenance.rebuildEmbeddings.cardDescription")}
+              merknad={t("admin.maintenance.rebuildEmbeddings.note")}
+              handlingTekst={t("admin.maintenance.rebuildEmbeddings.action")}
+              onHandling={handleRebuildEmbeddings}
+              isPending={isRunning("rebuild-embeddings", rebuildEmbeddingsMutation.isPending)}
+            />
+            <VedlikeholdKort
+              ikon={RefreshCcw}
+              tittel={t("admin.maintenance.forceCanvasResync.cardTitle")}
+              beskrivelse={t("admin.maintenance.forceCanvasResync.cardDescription")}
+              merknad={t("admin.maintenance.forceCanvasResync.note")}
+              handlingTekst={t("admin.maintenance.forceCanvasResync.action")}
+              onHandling={handleForceCanvasResync}
+              isPending={isRunning("force-canvas-resync", forceCanvasResyncMutation.isPending)}
+            />
+            <VedlikeholdKort
+              ikon={Link}
+              tittel={t("admin.maintenance.cleanExpiredShares.cardTitle")}
+              beskrivelse={t("admin.maintenance.cleanExpiredShares.cardDescription")}
+              merknad={t("admin.maintenance.cleanExpiredShares.note")}
+              handlingTekst={t("admin.maintenance.cleanExpiredShares.action")}
+              onHandling={handleCleanExpiredShares}
+              isPending={isRunning("clean-expired-shares", cleanExpiredSharesMutation.isPending)}
+            />
+            <VedlikeholdKort
+              ikon={Clock3}
+              tittel={t("admin.maintenance.cleanOldChats.cardTitle")}
+              beskrivelse={t("admin.maintenance.cleanOldChats.cardDescription")}
+              merknad={t("admin.maintenance.cleanOldChats.note")}
+              handlingTekst={t("admin.maintenance.cleanOldChats.action")}
+              onHandling={handleCleanOldChats}
+              isPending={isRunning("clean-old-chats", cleanOldChatsMutation.isPending)}
+              variant="danger"
+            >
+              <div className="flex items-center gap-2">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                  {t("admin.maintenance.cleanOldChats.daysLabel")}:
+                </label>
+                <input
+                  type="number"
+                  min={30}
+                  max={3650}
+                  value={chatDager}
+                  onChange={(e) =>
+                    setChatDager(Math.max(30, Math.min(3650, Number(e.target.value) || 30)))
+                  }
+                  className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                />
+              </div>
+            </VedlikeholdKort>
           </div>
-        )}
-      </div>
 
-      {/* Databasehelse */}
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                <Server size={16} />
+          {/* Krypteringsstatus */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    <Shield size={16} />
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {t("admin.maintenance.encryption.title")}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  {t("admin.maintenance.encryption.description")}
+                </p>
               </div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                {t("admin.maintenance.database.title")}
-              </h3>
+              <button
+                type="button"
+                onClick={handleReencrypt}
+                disabled={isRunning("reencrypt-tokens", reencryptMutation.isPending)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+              >
+                <RefreshCcw
+                  size={12}
+                  className={
+                    isRunning("reencrypt-tokens", reencryptMutation.isPending) ? "animate-spin" : ""
+                  }
+                />
+                {t("admin.maintenance.encryption.reencryptAction")}
+              </button>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300">
-              {t("admin.maintenance.database.description")}
-            </p>
+            {encryptionStatus && (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t("admin.maintenance.encryption.previousKeyConfigured")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                    {encryptionStatus.previousKeyConfigured
+                      ? t("admin.maintenance.encryption.yes")
+                      : t("admin.maintenance.encryption.no")}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t("admin.maintenance.encryption.usersWithToken")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                    {formaterTall(encryptionStatus.usersWithToken, language)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t("admin.maintenance.encryption.currentFormat")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                    {formaterTall(encryptionStatus.currentKeyOk, language)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t("admin.maintenance.encryption.legacyFormat")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-amber-600 dark:text-amber-400">
+                    {formaterTall(encryptionStatus.legacyFormat, language)}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t("admin.maintenance.encryption.undecryptable")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-red-600 dark:text-red-400">
+                    {formaterTall(encryptionStatus.undecryptable, language)}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={() => void refetchDbHealth()}
-            disabled={dbHealthFetching}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
-          >
-            <RefreshCcw size={12} className={dbHealthFetching ? "animate-spin" : ""} />
-            {t("admin.maintenance.database.refresh")}
-          </button>
-        </div>
-        {dbHealth && (
-          <>
-            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t("admin.maintenance.database.totalCollections")}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  {formaterTall(dbHealth.collections.length, language)}
-                </p>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t("admin.maintenance.database.totalDocuments")}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  {formaterTall(dbHealth.totalDocuments, language)}
-                </p>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t("admin.maintenance.database.totalSize")}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  {formaterBytes(dbHealth.totalSizeBytes)}
-                </p>
-              </div>
-              <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {t("admin.maintenance.database.totalIndexSize")}
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
-                  {formaterBytes(dbHealth.totalIndexSizeBytes)}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">
-                      {t("admin.maintenance.database.collectionName")}
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
-                      {t("admin.maintenance.database.documents")}
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
-                      {t("admin.maintenance.database.size")}
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
-                      {t("admin.maintenance.database.indexes")}
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
-                      {t("admin.maintenance.database.indexSize")}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dbHealth.collections.map((coll) => (
-                    <tr
-                      key={coll.name}
-                      className="border-b border-slate-100 dark:border-slate-700/50"
-                    >
-                      <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">
-                        {coll.name}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
-                        {formaterTall(coll.documentCount, language)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
-                        {formaterBytes(coll.sizeBytes)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
-                        {coll.indexCount}
-                      </td>
-                      <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
-                        {formaterBytes(coll.indexSizeBytes)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </>
-        )}
-      </div>
 
-      {/* Siste resultat */}
-      {sisteResultat && (
-        <StatSeksjon
-          title={`${t("admin.maintenance.lastResult")} — ${sisteResultat.tittel}`}
-          language={language}
-          stats={sisteResultat.stats}
-        />
-      )}
+          {/* Databasehelse */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                    <Server size={16} />
+                  </div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {t("admin.maintenance.database.title")}
+                  </h3>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  {t("admin.maintenance.database.description")}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void refetchDbHealth()}
+                disabled={dbHealthFetching}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+              >
+                <RefreshCcw size={12} className={dbHealthFetching ? "animate-spin" : ""} />
+                {t("admin.maintenance.database.refresh")}
+              </button>
+            </div>
+            {dbHealth && (
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.totalCollections")}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                      {formaterTall(dbHealth.collections.length, language)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.totalDocuments")}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                      {formaterTall(dbHealth.totalDocuments, language)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.totalSize")}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                      {formaterBytes(dbHealth.totalSizeBytes)}
+                    </p>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-900/40">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {t("admin.maintenance.database.totalIndexSize")}
+                    </p>
+                    <p className="mt-1 text-sm font-semibold text-slate-900 dark:text-white">
+                      {formaterBytes(dbHealth.totalIndexSizeBytes)}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="px-3 py-2 text-left font-medium text-slate-500 dark:text-slate-400">
+                          {t("admin.maintenance.database.collectionName")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                          {t("admin.maintenance.database.documents")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                          {t("admin.maintenance.database.size")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                          {t("admin.maintenance.database.indexes")}
+                        </th>
+                        <th className="px-3 py-2 text-right font-medium text-slate-500 dark:text-slate-400">
+                          {t("admin.maintenance.database.indexSize")}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dbHealth.collections.map((coll) => (
+                        <tr
+                          key={coll.name}
+                          className="border-b border-slate-100 dark:border-slate-700/50"
+                        >
+                          <td className="px-3 py-2 font-mono text-slate-700 dark:text-slate-300">
+                            {coll.name}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                            {formaterTall(coll.documentCount, language)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                            {formaterBytes(coll.sizeBytes)}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                            {coll.indexCount}
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600 dark:text-slate-400">
+                            {formaterBytes(coll.indexSizeBytes)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Siste resultat */}
+          {sisteResultat && (
+            <StatSeksjon
+              title={`${t("admin.maintenance.lastResult")} — ${sisteResultat.tittel}`}
+              language={language}
+              stats={sisteResultat.stats}
+            />
+          )}
         </>
       )}
     </section>
@@ -1033,9 +1036,7 @@ function ServiceStatusPanel() {
   const overallStatus = (() => {
     if (!data) return "unknown" as const;
     const deps = data.dependencies;
-    const criticalDown = services.some(
-      (s) => deps[s].critical && deps[s].status === "down",
-    );
+    const criticalDown = services.some((s) => deps[s].critical && deps[s].status === "down");
     if (criticalDown) return "down" as const;
     const anyDown = services.some((s) => deps[s].status === "down");
     if (anyDown) return "degraded" as const;
@@ -1191,10 +1192,7 @@ function AnnouncementPanel() {
   // Minst ett visningsmål må være valgt — ellers er meldingen meningsløs.
   const harVisningsmaal = showInBanner || showOnStatusPage;
   const canSubmit =
-    trimmed.length > 0 &&
-    trimmed.length <= 500 &&
-    harVisningsmaal &&
-    !publish.isPending;
+    trimmed.length > 0 && trimmed.length <= 500 && harVisningsmaal && !publish.isPending;
 
   const handlePublish = () => {
     publish.mutate(
@@ -2656,9 +2654,7 @@ function BrukereFane() {
             }
           },
           onError: (err) =>
-            showToast.error(
-              err instanceof Error ? err.message : t("admin.users.resetMfaFailed"),
-            ),
+            showToast.error(err instanceof Error ? err.message : t("admin.users.resetMfaFailed")),
         });
       },
     });
@@ -3517,9 +3513,7 @@ function FeedbackFane() {
                       <td className="py-2 pr-4 font-mono text-slate-500 dark:text-slate-400">
                         {g.upCount}
                       </td>
-                      <td className={`py-2 pr-4 font-mono font-semibold ${rateClass}`}>
-                        {rate}%
-                      </td>
+                      <td className={`py-2 pr-4 font-mono font-semibold ${rateClass}`}>{rate}%</td>
                       <td className="py-2 text-slate-500 dark:text-slate-400">
                         {g.lastAt ? formaterDatoOgTid(g.lastAt, language) : "—"}
                       </td>
@@ -5244,16 +5238,15 @@ function RetrievalDebugFane() {
             <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnFile")}</th>
             <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnModule")}</th>
             <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnChunk")}</th>
-            <th className="px-3 py-2 text-left font-medium">{t("admin.retrieval.columnPreview")}</th>
+            <th className="px-3 py-2 text-left font-medium">
+              {t("admin.retrieval.columnPreview")}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
           {rows.length === 0 ? (
             <tr>
-              <td
-                colSpan={6}
-                className="px-3 py-4 text-center text-slate-500 dark:text-slate-400"
-              >
+              <td colSpan={6} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400">
                 {t("admin.retrieval.noResults")}
               </td>
             </tr>
@@ -5349,9 +5342,7 @@ function RetrievalDebugFane() {
         </div>
       </form>
 
-      {mutation.error && (
-        <FeilMelding melding={t("admin.retrieval.error")} />
-      )}
+      {mutation.error && <FeilMelding melding={t("admin.retrieval.error")} />}
 
       {data && (
         <>
@@ -5403,8 +5394,7 @@ function RetrievalDebugFane() {
               >
                 <div className="border-b border-slate-200 dark:border-slate-700 px-5 py-3">
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                    {section.title}{" "}
-                    <span className="text-slate-400">({section.rows.length})</span>
+                    {section.title} <span className="text-slate-400">({section.rows.length})</span>
                   </h3>
                 </div>
                 {renderTable(section.rows)}
@@ -5703,8 +5693,7 @@ function ExtractionFailuresFane() {
   const rescanMutation = useRescanExtractionFailures();
 
   if (isLoading) return <LoadingSpinner />;
-  if (error || !data)
-    return <FeilMelding melding={t("admin.extractionFailures.error")} />;
+  if (error || !data) return <FeilMelding melding={t("admin.extractionFailures.error")} />;
 
   const handleDelete = (id: string, fileName: string) => {
     visBekreftelsesToast({
@@ -5713,8 +5702,7 @@ function ExtractionFailuresFane() {
       handlingstekst: t("admin.extractionFailures.deleteAction"),
       onBekreft: () => {
         deleteMutation.mutate(id, {
-          onSuccess: () =>
-            showToast.success(t("admin.extractionFailures.deleteSuccess")),
+          onSuccess: () => showToast.success(t("admin.extractionFailures.deleteSuccess")),
           onError: (e) =>
             showToast.error(
               t("admin.extractionFailures.deleteFailed"),
@@ -5993,9 +5981,7 @@ function KbHealthFane() {
                         : "";
                   return (
                     <tr key={item.id} className={rowClass}>
-                      <td className="px-5 py-3 text-slate-700 dark:text-slate-300">
-                        {item.navn}
-                      </td>
+                      <td className="px-5 py-3 text-slate-700 dark:text-slate-300">{item.navn}</td>
                       <td className="px-5 py-3 text-slate-500 dark:text-slate-400">
                         {item.ownerEmail ?? "—"}
                       </td>

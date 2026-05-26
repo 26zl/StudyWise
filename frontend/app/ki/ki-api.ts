@@ -699,7 +699,6 @@ export function useKIModels() {
   });
 }
 
-
 const TASK_BREAKDOWN_QUERY_KEY = ["ki", "task-breakdown"] as const;
 
 export function useTaskBreakdown(assignmentId?: string) {
@@ -901,13 +900,19 @@ async function submitAndPollJob<T>(
   });
 
   if (submitRes.status === 401 || submitRes.status === 403) {
-    throw new ForbiddenError(await parseApiError(submitRes, "Du har ikke tilgang til denne handlingen."));
+    throw new ForbiddenError(
+      await parseApiError(submitRes, "Du har ikke tilgang til denne handlingen."),
+    );
   }
   if (submitRes.status === 429) {
-    throw new Error(await parseApiError(submitRes, "For mange forespørsler. Vent litt og prøv igjen."));
+    throw new Error(
+      await parseApiError(submitRes, "For mange forespørsler. Vent litt og prøv igjen."),
+    );
   }
   if (!submitRes.ok) {
-    throw new Error(await parseApiError(submitRes, "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk."));
+    throw new Error(
+      await parseApiError(submitRes, "Noe gikk galt med genereringen. Prøv igjen om et øyeblikk."),
+    );
   }
 
   const submitJson = await submitRes.json().catch(() => null);
@@ -934,7 +939,11 @@ async function submitAndPollJob<T>(
     const statusRes = await fetchApi(`${statusPathPrefix}/${jobId}`, { signal });
     if (!statusRes.ok) continue;
 
-    const jobState = (await statusRes.json()) as { status: string; result?: unknown; error?: string };
+    const jobState = (await statusRes.json()) as {
+      status: string;
+      result?: unknown;
+      error?: string;
+    };
 
     if (jobState.status === "completed") {
       return resultSchema.parse(jobState.result);
@@ -943,7 +952,6 @@ async function submitAndPollJob<T>(
     if (jobState.status === "failed") {
       throw new Error(jobState.error ?? "Genereringen feilet. Prøv igjen.");
     }
-
   }
 
   throw new Error("Genereringen tok for lang tid. Prøv igjen.");

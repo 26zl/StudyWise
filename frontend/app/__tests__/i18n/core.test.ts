@@ -78,9 +78,9 @@ describe("getPreferredLanguageFromAcceptLanguage", () => {
   });
 
   it("prioriterer norsk i kompleks Accept-Language-header med både nb og en", () => {
-    expect(
-      getPreferredLanguageFromAcceptLanguage("nb-NO,nb;q=0.9,en-US;q=0.8,en;q=0.7"),
-    ).toBe("nb");
+    expect(getPreferredLanguageFromAcceptLanguage("nb-NO,nb;q=0.9,en-US;q=0.8,en;q=0.7")).toBe(
+      "nb",
+    );
   });
 
   it("returnerer 'en' for andre språk enn norsk", () => {

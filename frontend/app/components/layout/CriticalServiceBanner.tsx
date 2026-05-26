@@ -135,8 +135,7 @@ export function CriticalServiceBanner() {
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p className="flex-1 leading-snug">
-        <span className="font-medium">{headline}.</span>{" "}
-        Vi jobber med saken — prøv igjen om litt.
+        <span className="font-medium">{headline}.</span> Vi jobber med saken — prøv igjen om litt.
       </p>
       <button
         type="button"

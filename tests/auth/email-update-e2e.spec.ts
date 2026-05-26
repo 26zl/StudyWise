@@ -112,7 +112,12 @@ async function signOut(page: Page): Promise<void> {
   }
 }
 
-async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
+async function fillSignupForm(
+  page: Page,
+  email: string,
+  username: string,
+  password: string,
+): Promise<void> {
   const firstNameInput = page.locator("#signup-firstname");
   await firstNameInput.waitFor({ state: "visible", timeout: 30_000 });
   await firstNameInput.fill("Test");
@@ -180,8 +185,12 @@ test.describe("Group H: Email Update/Conflict", () => {
 
     if (hasProfilePage) {
       // Sjekk om vi kan se gjeldende e-post
-      const emailVisible = profileContent.includes(email2.split("@")[0]) ||
-                          await page.locator(`text=${email2}`).isVisible().catch(() => false);
+      const emailVisible =
+        profileContent.includes(email2.split("@")[0]) ||
+        (await page
+          .locator(`text=${email2}`)
+          .isVisible()
+          .catch(() => false));
 
       evidence.meStatusBefore = emailVisible ? 200 : 0;
 
@@ -195,7 +204,10 @@ test.describe("Group H: Email Update/Conflict", () => {
     saveEvidence(evidence);
 
     // Hopp over hvis profilsiden ikke er tilgjengelig (signup fullførte ikke)
-    test.skip(evidence.classification === "PROFILE_PAGE_NOT_ACCESSIBLE", "Signup fullførte ikke — Clerk testing token-begrensning");
+    test.skip(
+      evidence.classification === "PROFILE_PAGE_NOT_ACCESSIBLE",
+      "Signup fullførte ikke — Clerk testing token-begrensning",
+    );
     expect(hasProfilePage).toBeTruthy();
   });
 
@@ -211,9 +223,10 @@ test.describe("Group H: Email Update/Conflict", () => {
 
     // Hent initial backend-tilstand
     const meBefore = await callMeEndpoint(page);
-    const userBefore = meBefore.status === 200 && typeof meBefore.body === "object" && meBefore.body !== null
-      ? (meBefore.body as { user?: { email?: string; brukernavn?: string } }).user
-      : null;
+    const userBefore =
+      meBefore.status === 200 && typeof meBefore.body === "object" && meBefore.body !== null
+        ? (meBefore.body as { user?: { email?: string; brukernavn?: string } }).user
+        : null;
 
     const emailBefore = userBefore?.email;
     const usernameBefore = userBefore?.brukernavn;
@@ -234,9 +247,10 @@ test.describe("Group H: Email Update/Conflict", () => {
     await page.waitForTimeout(2000);
 
     const meAfterNav = await callMeEndpoint(page);
-    const userAfterNav = meAfterNav.status === 200 && typeof meAfterNav.body === "object" && meAfterNav.body !== null
-      ? (meAfterNav.body as { user?: { email?: string; brukernavn?: string } }).user
-      : null;
+    const userAfterNav =
+      meAfterNav.status === 200 && typeof meAfterNav.body === "object" && meAfterNav.body !== null
+        ? (meAfterNav.body as { user?: { email?: string; brukernavn?: string } }).user
+        : null;
 
     // Skal fortsatt være samme bruker med samme data
     expect(userAfterNav?.email).toBe(emailBefore);
@@ -275,12 +289,14 @@ test.describe("Group H: Email Update/Conflict", () => {
       return;
     }
 
-    const user1 = typeof meResult1.body === "object" && meResult1.body !== null
-      ? (meResult1.body as { user?: { id?: string } }).user
-      : null;
-    const user2 = typeof meResult2.body === "object" && meResult2.body !== null
-      ? (meResult2.body as { user?: { id?: string } }).user
-      : null;
+    const user1 =
+      typeof meResult1.body === "object" && meResult1.body !== null
+        ? (meResult1.body as { user?: { id?: string } }).user
+        : null;
+    const user2 =
+      typeof meResult2.body === "object" && meResult2.body !== null
+        ? (meResult2.body as { user?: { id?: string } }).user
+        : null;
 
     expect(user1?.id).toBe(user2?.id);
 
@@ -315,12 +331,14 @@ test.describe("Group H: Email Update/Conflict", () => {
     // Hopp over hvis sesjonen utløp
     test.skip(meResult2.status !== 200, "Sesjonen utløp under navigasjon");
 
-    const user1 = typeof meResult1.body === "object" && meResult1.body !== null
-      ? (meResult1.body as { user?: { id?: string; brukernavn?: string } }).user
-      : null;
-    const user2 = typeof meResult2.body === "object" && meResult2.body !== null
-      ? (meResult2.body as { user?: { id?: string; brukernavn?: string } }).user
-      : null;
+    const user1 =
+      typeof meResult1.body === "object" && meResult1.body !== null
+        ? (meResult1.body as { user?: { id?: string; brukernavn?: string } }).user
+        : null;
+    const user2 =
+      typeof meResult2.body === "object" && meResult2.body !== null
+        ? (meResult2.body as { user?: { id?: string; brukernavn?: string } }).user
+        : null;
 
     // Data skal være konsistent
     expect(user1?.id).toBe(user2?.id);
@@ -344,9 +362,10 @@ test.describe("Group H: Email Update/Conflict", () => {
     // Hopp over hvis sesjonen utløp
     test.skip(meResult3.status !== 200, "Sesjonen utløp etter cache-invalidering");
 
-    const user3 = typeof meResult3.body === "object" && meResult3.body !== null
-      ? (meResult3.body as { user?: { id?: string } }).user
-      : null;
+    const user3 =
+      typeof meResult3.body === "object" && meResult3.body !== null
+        ? (meResult3.body as { user?: { id?: string } }).user
+        : null;
 
     // Fortsatt samme bruker
     expect(user1?.id).toBe(user3?.id);

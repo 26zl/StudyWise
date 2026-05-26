@@ -1,4 +1,3 @@
-# Deaktivert midlertidig: Prettier reformaterer hele filer, noe som gir store
-# diffser når filene ikke er pre-formatert. Aktiver igjen etter at teamet har
-# kjørt `pnpm format` samlet på main.
-# pnpm lint-staged
+# Kjører Prettier (via lint-staged) på staged filer før commit.
+# Reaktivert etter at hele kodebasen ble formatert samlet med `pnpm format`.
+pnpm lint-staged

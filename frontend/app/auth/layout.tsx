@@ -8,11 +8,7 @@ import Link from "next/link";
 import { Footer } from "@/app/components/layout/footer";
 import { useLanguage } from "@/app/i18n";
 
-export default function AuthLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { language } = useLanguage();
   const backLabel = language === "en" ? "Back to home" : "Tilbake til forsiden";
 

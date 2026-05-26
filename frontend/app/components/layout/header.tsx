@@ -15,10 +15,7 @@ import { useLoggUtWithRedirect } from "@/app/auth/auth-api";
 import { useLanguage } from "@/app/i18n";
 import type { Language } from "@/app/i18n";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
-import {
-  MOBILE_MEDIA_QUERY,
-  useMediaQuery,
-} from "@/app/hooks/useMediaQuery";
+import { MOBILE_MEDIA_QUERY, useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { buildPostAuthRedirect } from "@/app/auth/redirects";
 
 type NavigationItem = {
@@ -36,9 +33,7 @@ function getHeaderLabels(language: Language) {
   if (language === "en") {
     return {
       commonNavigation: [{ href: "/", label: "Home" }] satisfies NavigationItem[],
-      signedInNavigation: [
-        { href: "/dashboard", label: "Dashboard" },
-      ] satisfies NavigationItem[],
+      signedInNavigation: [{ href: "/dashboard", label: "Dashboard" }] satisfies NavigationItem[],
       authActions: [
         { kind: "sign-in", label: "Sign in" },
         { kind: "sign-up", label: "Sign up" },
@@ -56,9 +51,7 @@ function getHeaderLabels(language: Language) {
 
   return {
     commonNavigation: [{ href: "/", label: "Hjem" }] satisfies NavigationItem[],
-    signedInNavigation: [
-      { href: "/dashboard", label: "Dashboard" },
-    ] satisfies NavigationItem[],
+    signedInNavigation: [{ href: "/dashboard", label: "Dashboard" }] satisfies NavigationItem[],
     authActions: [
       { kind: "sign-in", label: "Logg inn" },
       { kind: "sign-up", label: "Registrer deg" },
@@ -166,11 +159,20 @@ function ThemeToggleButton({
     >
       {mounted ? (
         <>
-          <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" suppressHydrationWarning />
-          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" suppressHydrationWarning />
+          <Sun
+            className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0"
+            suppressHydrationWarning
+          />
+          <Moon
+            className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100"
+            suppressHydrationWarning
+          />
         </>
       ) : (
-        <span className="h-5 w-5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse" aria-hidden />
+        <span
+          className="h-5 w-5 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
+          aria-hidden
+        />
       )}
     </button>
   );
@@ -181,7 +183,10 @@ export function Header() {
   const searchParams = useSearchParams();
   const { toggleVenstreMeny, isVenstreMenyOpen } = useUIStore();
   const harSidebar =
-    pathname.startsWith("/dashboard") || pathname === "/oversikt" || pathname === "/ai-breakdown" || pathname.startsWith("/account");
+    pathname.startsWith("/dashboard") ||
+    pathname === "/oversikt" ||
+    pathname === "/ai-breakdown" ||
+    pathname.startsWith("/account");
   const [mobilMenyOpen, setMobilMenyOpen] = useState(false);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -222,75 +227,77 @@ export function Header() {
   return (
     <header className="shrink-0 px-4 md:px-6 pt-[env(safe-area-inset-top)] border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 sticky top-0 z-30">
       <div className="h-14 flex justify-between items-center">
-      <div className="flex items-center gap-3">
-        {harSidebar && (
-          <button
-            type="button"
-            onClick={toggleVenstreMeny}
-            className={`min-w-11 min-h-11 -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation ${
-              erMobil && isVenstreMenyOpen ? "hidden" : ""
-            }`}
-            aria-label={isVenstreMenyOpen ? labels.closeSidebar : labels.openSidebar}
-            aria-expanded={erMobil ? isVenstreMenyOpen : undefined}
-            aria-controls={erMobil ? "dashboard-sidebar" : undefined}
-          >
-            {isVenstreMenyOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        )}
-        <div className="font-semibold text-lg text-slate-900 dark:text-white min-h-11 flex items-center">
-          <Link href="/" prefetch={false} className="py-2">StudyWise</Link>
-        </div>
-      </div>
-
-      <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-        {labels.commonNavigation.map((item) => (
-          <NavigationLink key={item.href} {...item} />
-        ))}
-        {!authLoaded ? (
-          // Unngå FOUC: vis skeleton mens Clerk avklarer auth-state, slik at
-          // "Logg inn / Registrer deg" ikke flasher for innloggede brukere ved refresh.
-          <div
-            className="h-5 w-40 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
-            aria-hidden="true"
-          />
-        ) : isSignedIn ? (
-          <>
-            {labels.signedInNavigation.map((item) => (
-              <NavigationLink key={item.href} {...item} />
-            ))}
+        <div className="flex items-center gap-3">
+          {harSidebar && (
             <button
               type="button"
-              onClick={handleLoggUt}
-              className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              onClick={toggleVenstreMeny}
+              className={`min-w-11 min-h-11 -ml-1 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation ${
+                erMobil && isVenstreMenyOpen ? "hidden" : ""
+              }`}
+              aria-label={isVenstreMenyOpen ? labels.closeSidebar : labels.openSidebar}
+              aria-expanded={erMobil ? isVenstreMenyOpen : undefined}
+              aria-controls={erMobil ? "dashboard-sidebar" : undefined}
             >
-              <LogOut className="h-4 w-4" />
-              <span>{labels.signOut}</span>
+              {isVenstreMenyOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-          </>
-        ) : (
-          labels.authActions.map((action) => (
-            <AuthActionButton key={action.kind} action={action} redirectUrl={redirectUrl} />
-          ))
-        )}
-        <ThemeToggleButton
-          mounted={mounted}
-          isDarkMode={isDarkMode}
-          onToggle={() => setTheme(isDarkMode ? "light" : "dark")}
-          labels={labels}
-        />
-      </nav>
+          )}
+          <div className="font-semibold text-lg text-slate-900 dark:text-white min-h-11 flex items-center">
+            <Link href="/" prefetch={false} className="py-2">
+              StudyWise
+            </Link>
+          </div>
+        </div>
 
-      <button
-        type="button"
-        onClick={() => setMobilMenyOpen(!mobilMenyOpen)}
-        className="md:hidden min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
-        aria-label={mobilMenyOpen ? labels.closeMenu : labels.openMenu}
-        aria-expanded={mobilMenyOpen}
-        aria-controls={mobilMenuId}
-        aria-haspopup="dialog"
-      >
-        <MoreVertical size={24} />
-      </button>
+        <nav className="hidden md:flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
+          {labels.commonNavigation.map((item) => (
+            <NavigationLink key={item.href} {...item} />
+          ))}
+          {!authLoaded ? (
+            // Unngå FOUC: vis skeleton mens Clerk avklarer auth-state, slik at
+            // "Logg inn / Registrer deg" ikke flasher for innloggede brukere ved refresh.
+            <div
+              className="h-5 w-40 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
+              aria-hidden="true"
+            />
+          ) : isSignedIn ? (
+            <>
+              {labels.signedInNavigation.map((item) => (
+                <NavigationLink key={item.href} {...item} />
+              ))}
+              <button
+                type="button"
+                onClick={handleLoggUt}
+                className="inline-flex items-center gap-1.5 hover:text-red-600 dark:hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>{labels.signOut}</span>
+              </button>
+            </>
+          ) : (
+            labels.authActions.map((action) => (
+              <AuthActionButton key={action.kind} action={action} redirectUrl={redirectUrl} />
+            ))
+          )}
+          <ThemeToggleButton
+            mounted={mounted}
+            isDarkMode={isDarkMode}
+            onToggle={() => setTheme(isDarkMode ? "light" : "dark")}
+            labels={labels}
+          />
+        </nav>
+
+        <button
+          type="button"
+          onClick={() => setMobilMenyOpen(!mobilMenyOpen)}
+          className="md:hidden min-w-11 min-h-11 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg touch-manipulation"
+          aria-label={mobilMenyOpen ? labels.closeMenu : labels.openMenu}
+          aria-expanded={mobilMenyOpen}
+          aria-controls={mobilMenuId}
+          aria-haspopup="dialog"
+        >
+          <MoreVertical size={24} />
+        </button>
       </div>
       {mobilMenyOpen && (
         <>
@@ -310,70 +317,72 @@ export function Header() {
             tabIndex={-1}
             className="md:hidden absolute top-full left-0 right-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-lg z-40"
           >
-          <div className="flex flex-col p-4 gap-2 text-sm text-slate-600 dark:text-slate-400">
-            <div className="mb-1 flex items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
-              <h2 id={mobilMenuHeadingId} className="text-sm font-semibold text-slate-900 dark:text-white">
-                {labels.openMenu}
-              </h2>
-              <button
-                ref={mobilCloseButtonRef}
-                type="button"
-                onClick={() => setMobilMenyOpen(false)}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
-                aria-label={labels.closeMenu}
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            {labels.commonNavigation.map((item) => (
-              <NavigationLink
-                key={item.href}
-                {...item}
-                mobile
-                onClick={handleMobilNavigation}
-              />
-            ))}
-            {!authLoaded ? (
-              <div
-                className="h-5 w-40 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
-                aria-hidden="true"
-              />
-            ) : isSignedIn ? (
-              <>
-                {labels.signedInNavigation.map((item) => (
-                  <NavigationLink
-                    key={item.href}
-                    {...item}
-                    mobile
-                    onClick={handleMobilNavigation}
-                  />
-                ))}
-                <button
-                  type="button"
-                  onClick={handleMobilLogout}
-                  className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-3 min-h-11 w-full touch-manipulation"
+            <div className="flex flex-col p-4 gap-2 text-sm text-slate-600 dark:text-slate-400">
+              <div className="mb-1 flex items-center justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-800">
+                <h2
+                  id={mobilMenuHeadingId}
+                  className="text-sm font-semibold text-slate-900 dark:text-white"
                 >
-                  <LogOut className="h-5 w-5" />
-                  <span>{labels.signOut}</span>
+                  {labels.openMenu}
+                </h2>
+                <button
+                  ref={mobilCloseButtonRef}
+                  type="button"
+                  onClick={() => setMobilMenyOpen(false)}
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-white"
+                  aria-label={labels.closeMenu}
+                >
+                  <X className="h-5 w-5" />
                 </button>
-              </>
-            ) : (
-              labels.authActions.map((action) => (
-                <AuthActionButton key={action.kind} action={action} mobile redirectUrl={redirectUrl} />
-              ))
-            )}
-            <ThemeToggleButton
-              mobile
-              mounted={mounted}
-              isDarkMode={isDarkMode}
-              onToggle={() => setTheme(isDarkMode ? "light" : "dark")}
-              labels={labels}
-            />
-          </div>
+              </div>
+              {labels.commonNavigation.map((item) => (
+                <NavigationLink key={item.href} {...item} mobile onClick={handleMobilNavigation} />
+              ))}
+              {!authLoaded ? (
+                <div
+                  className="h-5 w-40 rounded bg-slate-200 dark:bg-slate-700 animate-pulse"
+                  aria-hidden="true"
+                />
+              ) : isSignedIn ? (
+                <>
+                  {labels.signedInNavigation.map((item) => (
+                    <NavigationLink
+                      key={item.href}
+                      {...item}
+                      mobile
+                      onClick={handleMobilNavigation}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={handleMobilLogout}
+                    className="inline-flex items-center gap-2 text-left hover:text-red-600 dark:hover:text-red-400 transition-colors py-3 min-h-11 w-full touch-manipulation"
+                  >
+                    <LogOut className="h-5 w-5" />
+                    <span>{labels.signOut}</span>
+                  </button>
+                </>
+              ) : (
+                labels.authActions.map((action) => (
+                  <AuthActionButton
+                    key={action.kind}
+                    action={action}
+                    mobile
+                    redirectUrl={redirectUrl}
+                  />
+                ))
+              )}
+              <ThemeToggleButton
+                mobile
+                mounted={mounted}
+                isDarkMode={isDarkMode}
+                onToggle={() => setTheme(isDarkMode ? "light" : "dark")}
+                labels={labels}
+              />
+            </div>
           </div>
         </>
       )}
     </header>
   );
 }
-

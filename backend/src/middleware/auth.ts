@@ -29,7 +29,10 @@ import {
 } from "../rutere/auth/clerkAuth.js";
 import { enqueueClerkDeletionRetry } from "../queues/clerkDeletion.queue.js";
 import { AUTH_TURNSTILE_COOKIE_NAME } from "common/auth";
-import { clearAuthTurnstileCookie, isValidAuthTurnstileCookieValue } from "../utils/authTurnstileCookie.js";
+import {
+  clearAuthTurnstileCookie,
+  isValidAuthTurnstileCookieValue,
+} from "../utils/authTurnstileCookie.js";
 import { isProd } from "../utils/env.js";
 import { audit, AUDIT_ACTIONS } from "../utils/auditLog.js";
 import { checkSecurityThresholds } from "../utils/securityAlert.js";
@@ -52,7 +55,6 @@ function getCookieValue(req: Request, name: string): string | undefined {
   const match = raw.split(";").find((c) => c.trim().startsWith(`${name}=`));
   return match ? decodeURIComponent(match.split("=").slice(1).join("=").trim()) : undefined;
 }
-
 
 type AuthResolution =
   | { status: "authenticated"; clerkUserId: string; clearTurnstileCookie?: boolean }
@@ -224,7 +226,9 @@ export interface CanvasTilkobling {
 export async function hentCanvasTilkoblingForBruker(
   userId: string,
 ): Promise<CanvasTilkobling | null> {
-  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+canvasApiToken");
+  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select(
+    "+canvasApiToken",
+  );
   if (!user) {
     return null;
   }
@@ -233,8 +237,7 @@ export async function hentCanvasTilkoblingForBruker(
     ? normalizeCanvasBaseUrl(user.canvasBaseUrl)
     : undefined;
   const validatedBaseUrl =
-    normalizedBaseUrl &&
-    StoredCanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
+    normalizedBaseUrl && StoredCanvasBaseUrlSchema.safeParse(normalizedBaseUrl).success
       ? normalizedBaseUrl
       : undefined;
 
@@ -271,11 +274,7 @@ export async function hentCanvasTilkoblingForBruker(
  * Verifiserer token, finner eller oppretter bruker via clerkId, setter req.user og req.actorRole.
  * Ved feil: loggfører token_verification_failure og returnerer 401.
  */
-export async function requireAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-): Promise<void> {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (req.method === "OPTIONS") {
     next();
     return;
@@ -387,8 +386,7 @@ export async function requireAuth(
         );
       }
 
-      const providerName =
-        result.provider === "google" ? "Google" : "Microsoft";
+      const providerName = result.provider === "google" ? "Google" : "Microsoft";
       res.status(409).json({
         error: "oauth_account_conflict",
         kode: "oauth_account_conflict",
@@ -453,10 +451,7 @@ export async function requireAuth(
     }
 
     if (result.status === "user_deleted") {
-      logger.info(
-        { clerkUserId: result.clerkUserId },
-        "Slettet bruker forsøkte å logge inn",
-      );
+      logger.info({ clerkUserId: result.clerkUserId }, "Slettet bruker forsøkte å logge inn");
       await audit({
         actorUserId: result.clerkUserId,
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
@@ -468,17 +463,13 @@ export async function requireAuth(
       res.status(403).json({
         error: "user_deleted",
         kode: "user_deleted",
-        melding:
-          "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
+        melding: "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
       });
       return;
     }
 
     if (result.status === "user_locked") {
-      logger.info(
-        { clerkUserId: result.clerkUserId },
-        "Låst bruker forsøkte å logge inn",
-      );
+      logger.info({ clerkUserId: result.clerkUserId }, "Låst bruker forsøkte å logge inn");
       await audit({
         actorUserId: result.clerkUserId,
         action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
@@ -512,10 +503,7 @@ export async function requireAuth(
       return;
     }
   } catch (err) {
-    logger.warn(
-      { err, requestId: (req as Request & { id?: string }).id },
-      "requireAuth error",
-    );
+    logger.warn({ err, requestId: (req as Request & { id?: string }).id }, "requireAuth error");
     await audit({
       actorUserId: "anonymous",
       action: AUDIT_ACTIONS.TOKEN_VERIFICATION_FAILURE,
@@ -551,63 +539,70 @@ export async function tryAuthenticateRequest(req: Request): Promise<boolean> {
 
 // Middleware for å knytte Canvas API-token til request
 export const knyttCanvasToken = async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user?.id) {
-        return apiError.unauthorized(res);
+  if (!req.user?.id) {
+    return apiError.unauthorized(res);
+  }
+  try {
+    const canvasTilkobling = await hentCanvasTilkoblingForBruker(req.user.id);
+    if (!canvasTilkobling) {
+      return apiError.unauthorized(res, "Ugyldig bruker");
     }
-    try {
-        const canvasTilkobling = await hentCanvasTilkoblingForBruker(req.user.id);
-        if (!canvasTilkobling) {
-            return apiError.unauthorized(res, "Ugyldig bruker");
-        }
 
-        if (!canvasTilkobling.canvasToken) {
-            if (canvasTilkobling.decryptFailed) {
-                res.status(401).json({
-                    error: "canvas_token_invalid",
-                    kode: "canvas_token_invalid",
-                    melding:
-                        "Canvas-tokenet ditt kunne ikke leses (sannsynligvis fordi krypteringsnøkkelen er endret). " +
-                        "Gå til Innstillinger og lagre tokenet på nytt.",
-                });
-                return;
-            }
-            return apiError.unauthorized(res, "Brukeren har ikke tilknyttet et Canvas-token.");
-        }
-
-        req.canvasToken = canvasTilkobling.canvasToken;
-        req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
-    } catch (error) {
-        logger.error({ err: error, userId: req.user.id }, "Feil ved henting av Canvas token for bruker");
-        return next(error);
+    if (!canvasTilkobling.canvasToken) {
+      if (canvasTilkobling.decryptFailed) {
+        res.status(401).json({
+          error: "canvas_token_invalid",
+          kode: "canvas_token_invalid",
+          melding:
+            "Canvas-tokenet ditt kunne ikke leses (sannsynligvis fordi krypteringsnøkkelen er endret). " +
+            "Gå til Innstillinger og lagre tokenet på nytt.",
+        });
+        return;
+      }
+      return apiError.unauthorized(res, "Brukeren har ikke tilknyttet et Canvas-token.");
     }
-    next();
+
+    req.canvasToken = canvasTilkobling.canvasToken;
+    req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
+  } catch (error) {
+    logger.error(
+      { err: error, userId: req.user.id },
+      "Feil ved henting av Canvas token for bruker",
+    );
+    return next(error);
+  }
+  next();
 };
 
 // Valgfri variant for ruter som kan bruke Canvas-kontekst, men skal fungere uten token.
-export const knyttCanvasTokenValgfritt = async (req: Request, res: Response, next: NextFunction) => {
-    if (!req.user?.id) {
-        return apiError.unauthorized(res);
+export const knyttCanvasTokenValgfritt = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  if (!req.user?.id) {
+    return apiError.unauthorized(res);
+  }
+
+  req.canvasToken = undefined;
+  req.canvasBaseUrl = undefined;
+
+  try {
+    const canvasTilkobling = await hentCanvasTilkoblingForBruker(req.user.id);
+    if (!canvasTilkobling) {
+      return apiError.unauthorized(res, "Ugyldig bruker");
     }
 
-    req.canvasToken = undefined;
-    req.canvasBaseUrl = undefined;
+    req.canvasToken = canvasTilkobling.canvasToken;
+    req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
+  } catch (error) {
+    logger.warn(
+      { err: error, userId: req.user.id },
+      "Kunne ikke hente Canvas token for valgfri KI-kontekst - fortsetter uten Canvas-data",
+    );
+  }
 
-    try {
-        const canvasTilkobling = await hentCanvasTilkoblingForBruker(req.user.id);
-        if (!canvasTilkobling) {
-            return apiError.unauthorized(res, "Ugyldig bruker");
-        }
-
-        req.canvasToken = canvasTilkobling.canvasToken;
-        req.canvasBaseUrl = canvasTilkobling.canvasBaseUrl;
-    } catch (error) {
-        logger.warn(
-            { err: error, userId: req.user.id },
-            "Kunne ikke hente Canvas token for valgfri KI-kontekst - fortsetter uten Canvas-data",
-        );
-    }
-
-    next();
+  next();
 };
 
 /**
@@ -615,7 +610,11 @@ export const knyttCanvasTokenValgfritt = async (req: Request, res: Response, nex
  * Brukes for irreversible operasjoner (kontosletting) som step-up-sikkerhet.
  * Må monteres ETTER requireAuth.
  */
-export async function requireRecentAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function requireRecentAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
   const token = hentBearerToken(req);
   if (!token) {
     apiError.forbidden(res, "Sesjonen er ugyldig. Logg inn på nytt.");

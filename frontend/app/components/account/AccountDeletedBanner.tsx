@@ -67,9 +67,7 @@ export function AccountDeletedBanner() {
           aria-hidden="true"
         />
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-            {tittel}
-          </p>
+          <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{tittel}</p>
           <p className="text-sm leading-6 text-emerald-800/90 dark:text-emerald-200/90">
             {beskrivelse}
           </p>

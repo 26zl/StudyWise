@@ -67,24 +67,22 @@ router.get("/crawler/stats", async (req, res) => {
           totalExternalUrls++;
 
           const hasCrawl = Boolean(item.crawledHash);
-          const crawledAtMs = item.crawledAt
-            ? new Date(item.crawledAt).getTime()
-            : null;
+          const crawledAtMs = item.crawledAt ? new Date(item.crawledAt).getTime() : null;
           const pdfCount = item.crawledPdfs?.length ?? 0;
           const subpageCount = item.crawledSubpages?.length ?? 0;
           // Matcher canvas-sync sitt "crawledEmpty"-kriterium: lyktes-flagget
           // er satt, men hverken PDFer eller undersider ble plukket opp, og
           // siste forsøk er gammelt nok til at retry er aktuelt.
           const isEmptyCrawl =
-            hasCrawl
-            && pdfCount === 0
-            && subpageCount === 0
-            && (crawledAtMs === null || now - crawledAtMs > EMPTY_CRAWL_RETRY_MS);
+            hasCrawl &&
+            pdfCount === 0 &&
+            subpageCount === 0 &&
+            (crawledAtMs === null || now - crawledAtMs > EMPTY_CRAWL_RETRY_MS);
           const isStale =
-            hasCrawl
-            && !isEmptyCrawl
-            && crawledAtMs !== null
-            && now - crawledAtMs > STALE_THRESHOLD_MS;
+            hasCrawl &&
+            !isEmptyCrawl &&
+            crawledAtMs !== null &&
+            now - crawledAtMs > STALE_THRESHOLD_MS;
 
           if (hasCrawl) {
             crawledCount++;

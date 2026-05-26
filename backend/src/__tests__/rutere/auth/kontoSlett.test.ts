@@ -56,7 +56,9 @@ vi.mock("../../../database/models/TaskBreakdown.js", () => ({
   TaskBreakdown: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
 }));
 vi.mock("../../../database/models/CanvasStructure.js", () => ({
-  CanvasStructureModel: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
+  CanvasStructureModel: {
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }),
+  },
 }));
 vi.mock("../../../database/models/CanvasUser.js", () => ({
   CanvasUser: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
@@ -65,7 +67,9 @@ vi.mock("../../../database/models/arbeidsplan.js", () => ({
   Arbeidsplan: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
 }));
 vi.mock("../../../database/models/WebPushSubscription.js", () => ({
-  WebPushSubscriptionModel: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
+  WebPushSubscriptionModel: {
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }),
+  },
 }));
 vi.mock("../../../database/models/StudyContext.js", () => ({
   StudyContext: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
@@ -80,7 +84,9 @@ vi.mock("../../../database/models/Kunnskapsbase.js", () => ({
   },
 }));
 vi.mock("../../../database/models/KBContentChunk.js", () => ({
-  KBContentChunk: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
+  KBContentChunk: {
+    deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }),
+  },
 }));
 vi.mock("../../../database/models/ActivityLog.js", () => ({
   ActivityLog: { deleteMany: vi.fn().mockResolvedValue({ deletedCount: 0, acknowledged: true }) },
@@ -194,7 +200,9 @@ describe("deleteAccountData", () => {
       (User.findById as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
         select: vi.fn().mockResolvedValue(null),
       });
-      (DeletedUserTombstone.exists as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+      (DeletedUserTombstone.exists as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        null,
+      );
 
       const result = await deleteAccountData(TEST_USER_ID);
 
@@ -247,10 +255,7 @@ describe("deleteAccountData", () => {
       // ikke direkte fra kontoSlett. Vi verifiserer kun at den delegerte
       // funksjonen blir kalt; selve deleteMany-mocken er ikke lenger relevant
       // for ansvarsfordelingen i transaksjonen.
-      expect(deleteStoredUserMongoContent).toHaveBeenCalledWith(
-        TEST_USER_ID,
-        expect.anything(),
-      );
+      expect(deleteStoredUserMongoContent).toHaveBeenCalledWith(TEST_USER_ID, expect.anything());
     });
 
     it("oppretter DeletedUserTombstone", async () => {
@@ -288,9 +293,15 @@ describe("deleteAccountData", () => {
       (User.findById as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
         select: vi.fn().mockResolvedValue(makeFakeUser()),
       });
-      (ChatHistory.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mkDeleteResult(5));
-      (TaskBreakdown.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mkDeleteResult(2));
-      (Arbeidsplan.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(mkDeleteResult(1));
+      (ChatHistory.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mkDeleteResult(5),
+      );
+      (TaskBreakdown.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mkDeleteResult(2),
+      );
+      (Arbeidsplan.deleteMany as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+        mkDeleteResult(1),
+      );
 
       const result = await deleteAccountData(TEST_USER_ID);
 

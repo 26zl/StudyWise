@@ -8,10 +8,7 @@
  * I dev: same-origin requests tillates for lokal testing (f.eks. Swagger UI).
  */
 import type { NextFunction, Request, Response } from "express";
-import {
-  AUTH_CSRF_HEADER_NAME,
-  AUTH_CSRF_HEADER_VALUE,
-} from "common/auth";
+import { AUTH_CSRF_HEADER_NAME, AUTH_CSRF_HEADER_VALUE } from "common/auth";
 import { sendError } from "../utils/apiError.js";
 import { isProd } from "../utils/env.js";
 import { getConfiguredWebOriginSet, normalizeWebOrigin } from "../utils/webOrigins.js";
@@ -58,11 +55,7 @@ function rejectCsrf(req: Request, res: Response, melding: string): void {
  *
  * Kombinerer "custom header" (x-studywise-csrf: 1) med origin/referer-validering mot WEB_ORIGINS.
  */
-export function beskytteMotCsrf(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) {
+export function beskytteMotCsrf(req: Request, res: Response, next: NextFunction) {
   if (!UNSAFE_METHODS.has(req.method)) {
     return next();
   }

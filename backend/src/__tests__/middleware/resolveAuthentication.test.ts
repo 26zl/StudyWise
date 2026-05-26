@@ -36,8 +36,7 @@ vi.mock("../../rutere/auth/clerkAuth.js", () => ({
     r !== null && typeof r === "object" && "__oauthMetadataMissing" in r,
   isUserDeleted: (r: unknown): boolean =>
     r !== null && typeof r === "object" && "__userDeleted" in r,
-  isUserLocked: (r: unknown): boolean =>
-    r !== null && typeof r === "object" && "__userLocked" in r,
+  isUserLocked: (r: unknown): boolean => r !== null && typeof r === "object" && "__userLocked" in r,
   isUsernameConflict: (r: unknown): boolean =>
     r !== null && typeof r === "object" && "__usernameConflict" in r,
   deleteClerkUserById: vi.fn(),
@@ -77,8 +76,9 @@ import {
 
 const mockedFindOrCreate = findOrCreateUserByClerkId as ReturnType<typeof vi.fn>;
 const mockedGetClerkUserId = getClerkUserIdFromToken as ReturnType<typeof vi.fn>;
-const mockedGetFactorVerificationAge =
-  getFactorVerificationAgeFromTokenCache as ReturnType<typeof vi.fn>;
+const mockedGetFactorVerificationAge = getFactorVerificationAgeFromTokenCache as ReturnType<
+  typeof vi.fn
+>;
 
 function buildRequest(overrides: Partial<Record<string, unknown>> = {}): Request {
   const req = {
@@ -272,9 +272,6 @@ describe("resolveAuthentication", () => {
     const result = await resolveAuthentication(req);
     expect(result.status).toBe("authenticated");
     // Verifiser at findOrCreate ble kalt med Clerk-token-resultatet, IKKE med spoofed userId
-    expect(mockedFindOrCreate).toHaveBeenCalledWith(
-      "user_clerk123",
-      expect.any(Object),
-    );
+    expect(mockedFindOrCreate).toHaveBeenCalledWith("user_clerk123", expect.any(Object));
   });
 });

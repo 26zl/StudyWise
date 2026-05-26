@@ -53,10 +53,7 @@ const migrations: Migration[] = [
       });
       if (count === 0) return;
 
-      logger.info(
-        { count },
-        "Migrerer ContentEmbedding-dokumenter (legger til nye felt)",
-      );
+      logger.info({ count }, "Migrerer ContentEmbedding-dokumenter (legger til nye felt)");
 
       const cursor = col.find({ contentHash: { $exists: false } });
       let updated = 0;
@@ -67,10 +64,7 @@ const migrations: Migration[] = [
       try {
         for await (const doc of cursor) {
           const text = (doc.text as string) ?? "";
-          const contentHash = crypto
-            .createHash("sha256")
-            .update(text, "utf8")
-            .digest("hex");
+          const contentHash = crypto.createHash("sha256").update(text, "utf8").digest("hex");
           // Grovt token-estimat uten å laste tiktoken under migrering
           const tokenCount = Math.ceil(text.length / 4);
 
@@ -110,16 +104,12 @@ const migrations: Migration[] = [
         { $or: [{ role: { $exists: false } }, { role: null }] },
         { $set: { role: "user" } },
       );
-      logger.info(
-        { modifiedCount: result.modifiedCount },
-        "Migrasjon: brukere oppdatert med role",
-      );
+      logger.info({ modifiedCount: result.modifiedCount }, "Migrasjon: brukere oppdatert med role");
     },
   },
   {
     id: "2026-03-12-remove-support-role",
-    description:
-      "Fjern support-rollen: sett brukere med role 'support' til 'user'",
+    description: "Fjern support-rollen: sett brukere med role 'support' til 'user'",
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
@@ -134,8 +124,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-12-remove-legacy-refresh-token-fields",
-    description:
-      "Fjern gamle refresh-token-felt etter overgang til Clerk-only auth",
+    description: "Fjern gamle refresh-token-felt etter overgang til Clerk-only auth",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const result = await col.updateMany(
@@ -160,8 +149,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-remove-legacy-password-hashes",
-    description:
-      "Fjern gamle passwordHash-felt etter overgang til Clerk-only auth",
+    description: "Fjern gamle passwordHash-felt etter overgang til Clerk-only auth",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const result = await col.updateMany(
@@ -180,8 +168,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-revoke-legacy-chat-share-links",
-    description:
-      "Trekk tilbake gamle chat-delingslenker og rydd legacy share-felt",
+    description: "Trekk tilbake gamle chat-delingslenker og rydd legacy share-felt",
     up: async () => {
       const { ChatHistory } = await import("./models/ChatHistory.js");
       const result = await ChatHistory.updateMany(
@@ -210,8 +197,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-auditlog-drop-requestid-index",
-    description:
-      "Dropp gammel requestId_1-indeks på AuditLog for å erstatte med sparse variant",
+    description: "Dropp gammel requestId_1-indeks på AuditLog for å erstatte med sparse variant",
     up: async () => {
       const col = mongoose.connection.collection("auditlogs");
       const indexes = await col.indexes();
@@ -225,8 +211,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-13-rename-student-role-to-user",
-    description:
-      "Bytt RBAC-rolle fra 'student' til 'user' for eksisterende brukere",
+    description: "Bytt RBAC-rolle fra 'student' til 'user' for eksisterende brukere",
     up: async () => {
       const { User } = await import("./models/User.js");
       const result = await User.updateMany(
@@ -241,8 +226,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-27-normalize-usernames-and-remove-duplicates",
-    description:
-      "Normaliser brukernavn, fjern duplikater og forbered unik indeks",
+    description: "Normaliser brukernavn, fjern duplikater og forbered unik indeks",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const cursor = col
@@ -273,10 +257,7 @@ const migrations: Migration[] = [
           );
 
           if (!sanitized) {
-            if (
-              doc.username !== undefined ||
-              doc.usernameNormalized !== undefined
-            ) {
+            if (doc.username !== undefined || doc.usernameNormalized !== undefined) {
               batch.push({
                 updateOne: {
                   filter: { _id: doc._id },
@@ -346,8 +327,7 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-03-28-enforce-canvas-user-one-to-one-and-shared-chat-uniqueness",
-    description:
-      "Rydd CanvasUser 1:1-koblinger og deaktiver dupliserte aktive delingslenker",
+    description: "Rydd CanvasUser 1:1-koblinger og deaktiver dupliserte aktive delingslenker",
     up: async () => {
       const { User } = await import("./models/User.js");
       const { CanvasUser } = await import("./models/CanvasUser.js");
@@ -367,11 +347,7 @@ const migrations: Migration[] = [
         },
       ).lean();
 
-      const getDocTimestamp = (doc: {
-        updatedAt?: Date;
-        createdAt?: Date;
-        _id: unknown;
-      }) => {
+      const getDocTimestamp = (doc: { updatedAt?: Date; createdAt?: Date; _id: unknown }) => {
         return doc.updatedAt?.getTime() ?? doc.createdAt?.getTime() ?? 0;
       };
 
@@ -395,10 +371,7 @@ const migrations: Migration[] = [
           continue;
         }
 
-        if (
-          keptCanvasUserByOwner.has(ownerId) ||
-          keptCanvasUserByIdentity.has(identityKey)
-        ) {
+        if (keptCanvasUserByOwner.has(ownerId) || keptCanvasUserByIdentity.has(identityKey)) {
           canvasUserDeleteIds.push(canvasUserId);
           continue;
         }
@@ -419,8 +392,7 @@ const migrations: Migration[] = [
       for (const user of users) {
         const ownerId = String(user._id);
         const expectedCanvasUserId = keptCanvasUserByOwner.get(ownerId);
-        const currentCanvasUserId =
-          user.canvasUser != null ? String(user.canvasUser) : null;
+        const currentCanvasUserId = user.canvasUser != null ? String(user.canvasUser) : null;
 
         if (expectedCanvasUserId) {
           if (currentCanvasUserId !== expectedCanvasUserId) {
@@ -453,10 +425,7 @@ const migrations: Migration[] = [
       }
 
       if (usersToUnsetCanvas.length > 0) {
-        await User.updateMany(
-          { _id: { $in: usersToUnsetCanvas } },
-          { $unset: { canvasUser: 1 } },
-        );
+        await User.updateMany({ _id: { $in: usersToUnsetCanvas } }, { $unset: { canvasUser: 1 } });
       }
 
       const activeSharedChats = await SharedChat.find(
@@ -552,13 +521,10 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-06-06-hard-delete-soft-deleted-users",
-    description:
-      "Flytt legacy soft-deleted users til tombstones og slett dem fra users-samlingen",
+    description: "Flytt legacy soft-deleted users til tombstones og slett dem fra users-samlingen",
     up: async () => {
       const usersCol = mongoose.connection.collection("users");
-      const tombstonesCol = mongoose.connection.collection(
-        "deleteduserTombstones",
-      );
+      const tombstonesCol = mongoose.connection.collection("deleteduserTombstones");
 
       const deletedUsers = await usersCol
         .find(
@@ -593,10 +559,7 @@ const migrations: Migration[] = [
           setDoc.oauthAccounts = doc.oauthAccounts;
         }
 
-        if (
-          typeof doc.usernameNormalized === "string" &&
-          doc.usernameNormalized.length > 0
-        ) {
+        if (typeof doc.usernameNormalized === "string" && doc.usernameNormalized.length > 0) {
           setDoc.usernameNormalized = doc.usernameNormalized;
         }
 
@@ -628,16 +591,11 @@ const migrations: Migration[] = [
   },
   {
     id: "2026-04-05-block-orphaned-users-without-clerkid",
-    description:
-      "Slett orphaned brukere uten clerkId for å forhindre auto-linking-overtakelse",
+    description: "Slett orphaned brukere uten clerkId for å forhindre auto-linking-overtakelse",
     up: async () => {
       const col = mongoose.connection.collection("users");
       const result = await col.deleteMany({
-        $or: [
-          { clerkId: { $exists: false } },
-          { clerkId: null },
-          { clerkId: "" },
-        ],
+        $or: [{ clerkId: { $exists: false } }, { clerkId: null }, { clerkId: "" }],
       });
       logger.info(
         { deletedCount: result.deletedCount },
@@ -662,10 +620,7 @@ const migrations: Migration[] = [
         return;
       }
 
-      logger.info(
-        { count },
-        "Migrerer authProvider (streng) → authProviders (array)",
-      );
+      logger.info({ count }, "Migrerer authProvider (streng) → authProviders (array)");
 
       // Konverter: authProvider: "google" → authProviders: ["google"], fjern gammelt felt
       const cursor = col.find({
@@ -702,10 +657,7 @@ const migrations: Migration[] = [
           updated += batch.length;
         }
 
-        logger.info(
-          { updated },
-          "Migrasjon fullført: authProvider → authProviders",
-        );
+        logger.info({ updated }, "Migrasjon fullført: authProvider → authProviders");
       } finally {
         await cursor.close().catch(() => {});
       }
@@ -716,10 +668,7 @@ const migrations: Migration[] = [
     description:
       "Dropper pendingclerkdeletions og pendingvectordeletions (erstattet av BullMQ-køer)",
     up: async () => {
-      const collectionsToDrop = [
-        "pendingclerkdeletions",
-        "pendingvectordeletions",
-      ];
+      const collectionsToDrop = ["pendingclerkdeletions", "pendingvectordeletions"];
       const db = mongoose.connection.db;
       if (!db) return;
 
@@ -762,46 +711,46 @@ const migrations: Migration[] = [
  * Kalles fra `connectToDatabase()` etter tilkobling.
  */
 export async function runMigrations(): Promise<void> {
-    if (migrations.length === 0) return;
+  if (migrations.length === 0) return;
 
-    const applied = await MigrationRecord.find({}).lean();
-    const appliedIds = new Set(applied.map((m) => m.migrationId));
+  const applied = await MigrationRecord.find({}).lean();
+  const appliedIds = new Set(applied.map((m) => m.migrationId));
 
-    const pending = migrations.filter((m) => !appliedIds.has(m.id));
+  const pending = migrations.filter((m) => !appliedIds.has(m.id));
 
-    if (pending.length === 0) {
-        logger.info("Ingen ventende migrasjoner");
-        return;
-    }
+  if (pending.length === 0) {
+    logger.info("Ingen ventende migrasjoner");
+    return;
+  }
 
-    logger.info({ count: pending.length }, "Kjører ventende migrasjoner");
+  logger.info({ count: pending.length }, "Kjører ventende migrasjoner");
 
-    for (const migration of pending) {
-        try {
-            logger.info({ id: migration.id }, `Migrasjon: ${migration.description}`);
-            const result = await migration.up();
-            if (result && result.applied === false) {
-                if (result.skipFutureRuns) {
-                    await MigrationRecord.create({ migrationId: migration.id });
-                    logger.info(
-                        { id: migration.id, reason: result.reason },
-                        "Migrasjon registrert (hoppet over i dette miljøet — ikke prøv igjen)",
-                    );
-                } else {
-                    logger.info(
-                        { id: migration.id, reason: result.reason },
-                        "Migrasjon hoppet over — vil prøves igjen senere",
-                    );
-                }
-                continue;
-            }
-            await MigrationRecord.create({ migrationId: migration.id });
-            logger.info({ id: migration.id }, "Migrasjon fullført");
-        } catch (error) {
-            logger.error({ err: error, id: migration.id }, "Migrasjon feilet — avbryter");
-            throw error;
+  for (const migration of pending) {
+    try {
+      logger.info({ id: migration.id }, `Migrasjon: ${migration.description}`);
+      const result = await migration.up();
+      if (result && result.applied === false) {
+        if (result.skipFutureRuns) {
+          await MigrationRecord.create({ migrationId: migration.id });
+          logger.info(
+            { id: migration.id, reason: result.reason },
+            "Migrasjon registrert (hoppet over i dette miljøet — ikke prøv igjen)",
+          );
+        } else {
+          logger.info(
+            { id: migration.id, reason: result.reason },
+            "Migrasjon hoppet over — vil prøves igjen senere",
+          );
         }
+        continue;
+      }
+      await MigrationRecord.create({ migrationId: migration.id });
+      logger.info({ id: migration.id }, "Migrasjon fullført");
+    } catch (error) {
+      logger.error({ err: error, id: migration.id }, "Migrasjon feilet — avbryter");
+      throw error;
     }
+  }
 
-    logger.info({ count: pending.length }, "Alle migrasjoner fullført");
+  logger.info({ count: pending.length }, "Alle migrasjoner fullført");
 }

@@ -105,7 +105,12 @@ async function signOut(page: Page): Promise<void> {
   }
 }
 
-async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
+async function fillSignupForm(
+  page: Page,
+  email: string,
+  username: string,
+  password: string,
+): Promise<void> {
   // Fyll ut fornavn og etternavn (påkrevde felt i egendefinert skjema)
   const firstNameInput = page.locator("#signup-firstname");
   await firstNameInput.waitFor({ state: "visible", timeout: 30_000 });
@@ -168,9 +173,12 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     const clerkUserIdAfterSignup = await getClerkUserId(page);
     const meAfterSignup = await callMeEndpoint(page);
-    const localUserIdAfterSignup = meAfterSignup.status === 200 && typeof meAfterSignup.body === "object" && meAfterSignup.body !== null
-      ? ((meAfterSignup.body as { user?: { id?: string } }).user?.id ?? null)
-      : null;
+    const localUserIdAfterSignup =
+      meAfterSignup.status === 200 &&
+      typeof meAfterSignup.body === "object" &&
+      meAfterSignup.body !== null
+        ? ((meAfterSignup.body as { user?: { id?: string } }).user?.id ?? null)
+        : null;
 
     evidence.steps.push({
       step: "signup",
@@ -202,9 +210,12 @@ test.describe("Group B: Login vs Signup Confusion", () => {
     const afterSigninUrl = page.url();
     const clerkUserIdAfterSignin = await getClerkUserId(page);
     const meAfterSignin = await callMeEndpoint(page);
-    const localUserIdAfterSignin = meAfterSignin.status === 200 && typeof meAfterSignin.body === "object" && meAfterSignin.body !== null
-      ? ((meAfterSignin.body as { user?: { id?: string } }).user?.id ?? null)
-      : null;
+    const localUserIdAfterSignin =
+      meAfterSignin.status === 200 &&
+      typeof meAfterSignin.body === "object" &&
+      meAfterSignin.body !== null
+        ? ((meAfterSignin.body as { user?: { id?: string } }).user?.id ?? null)
+        : null;
 
     evidence.steps.push({
       step: "signin",
@@ -217,8 +228,14 @@ test.describe("Group B: Login vs Signup Confusion", () => {
     });
 
     // Klassifisering
-    const sameClerkUser = clerkUserIdAfterSignup && clerkUserIdAfterSignin && clerkUserIdAfterSignup === clerkUserIdAfterSignin;
-    const sameLocalUser = localUserIdAfterSignup && localUserIdAfterSignin && localUserIdAfterSignup === localUserIdAfterSignin;
+    const sameClerkUser =
+      clerkUserIdAfterSignup &&
+      clerkUserIdAfterSignin &&
+      clerkUserIdAfterSignup === clerkUserIdAfterSignin;
+    const sameLocalUser =
+      localUserIdAfterSignup &&
+      localUserIdAfterSignin &&
+      localUserIdAfterSignup === localUserIdAfterSignin;
 
     if (sameClerkUser && sameLocalUser) {
       evidence.classification = "LOGIN_SUCCESS_SAME_USER";
@@ -281,7 +298,8 @@ test.describe("Group B: Login vs Signup Confusion", () => {
     await page.waitForTimeout(3000);
 
     // Sjekk for feilmeldinger
-    const errorTexts = await page.locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
+    const errorTexts = await page
+      .locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
       .allTextContents()
       .catch(() => []);
 
@@ -329,7 +347,8 @@ test.describe("Group B: Login vs Signup Confusion", () => {
     await page.waitForTimeout(3000);
 
     // Sjekk for tydelig feilmelding eller omdirigering
-    const errorVisible = await page.locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
+    const errorVisible = await page
+      .locator('[data-clerk-field-error], .cl-formFieldErrorText, [role="alert"]')
       .first()
       .waitFor({ state: "visible", timeout: 10_000 })
       .then(() => true)
@@ -355,9 +374,10 @@ test.describe("Group B: Login vs Signup Confusion", () => {
 
     const firstClerkId = await getClerkUserId(page);
     const firstMe = await callMeEndpoint(page);
-    const firstLocalId = firstMe.status === 200 && typeof firstMe.body === "object" && firstMe.body !== null
-      ? ((firstMe.body as { user?: { id?: string } }).user?.id ?? null)
-      : null;
+    const firstLocalId =
+      firstMe.status === 200 && typeof firstMe.body === "object" && firstMe.body !== null
+        ? ((firstMe.body as { user?: { id?: string } }).user?.id ?? null)
+        : null;
 
     await signOut(page);
 
@@ -369,10 +389,12 @@ test.describe("Group B: Login vs Signup Confusion", () => {
     const secondClerkId = await getClerkUserId(page);
 
     // Hvis vi ble stille logget inn som samme bruker uten tydelig indikasjon, er det et problem
-    const silentReuse = secondClerkId && secondClerkId === firstClerkId && page.url().includes("dashboard");
+    const silentReuse =
+      secondClerkId && secondClerkId === firstClerkId && page.url().includes("dashboard");
 
     // Sjekk om det finnes noen indikasjon til bruker om eksisterende konto
-    const hasAccountExistsWarning = await page.locator('text=/already|existing|exist|bruk|allerede/i')
+    const hasAccountExistsWarning = await page
+      .locator("text=/already|existing|exist|bruk|allerede/i")
       .first()
       .waitFor({ state: "visible", timeout: 5_000 })
       .then(() => true)

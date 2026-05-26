@@ -28,12 +28,7 @@
  */
 
 /** Navn på Clerk-cookies vi vet om. Brukes til match/cleanup. */
-const CLERK_COOKIE_PREFIXES = [
-  "__session",
-  "__clerk_db_jwt",
-  "__client_uat",
-  "__refresh",
-] as const;
+const CLERK_COOKIE_PREFIXES = ["__session", "__clerk_db_jwt", "__client_uat", "__refresh"] as const;
 
 type ClerkCookiePrefix = (typeof CLERK_COOKIE_PREFIXES)[number];
 type CookieEntry = { name: string; value: string };
@@ -130,9 +125,7 @@ function analyzeClerkCookies(clerkCookies: ParsedCookieEntry[]): ClerkCookieAnal
   }
 
   const hasSingleMirroredSuffixState =
-    hasDualCookieState &&
-    suffixes.size === 1 &&
-    conflictingPrefixes.size === 0;
+    hasDualCookieState && suffixes.size === 1 && conflictingPrefixes.size === 0;
 
   return {
     cleanupPrefixes,
@@ -236,16 +229,15 @@ export function installDevClerkResetHelper(): void {
   if (!isDevMode()) return;
   if (typeof window === "undefined") return;
 
-  (window as Window & { __studywiseResetClerk?: () => void }).__studywiseResetClerk =
-    () => {
-      const clerkCookies = getClerkCookies();
-      for (const cookie of clerkCookies) {
-        deleteCookie(cookie.name);
-      }
-      console.info(
-        `%c[StudyWise Dev] Slettet ${clerkCookies.length} Clerk-cookie(s). Reloader siden...`,
-        "color: #10b981; font-weight: bold;",
-      );
-      window.location.reload();
-    };
+  (window as Window & { __studywiseResetClerk?: () => void }).__studywiseResetClerk = () => {
+    const clerkCookies = getClerkCookies();
+    for (const cookie of clerkCookies) {
+      deleteCookie(cookie.name);
+    }
+    console.info(
+      `%c[StudyWise Dev] Slettet ${clerkCookies.length} Clerk-cookie(s). Reloader siden...`,
+      "color: #10b981; font-weight: bold;",
+    );
+    window.location.reload();
+  };
 }

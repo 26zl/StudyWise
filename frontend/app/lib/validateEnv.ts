@@ -19,8 +19,7 @@
  * sørg for at NEXT_PUBLIC_TURNSTILE_SITE_KEY, NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY
  * og AUTH_TURNSTILE_GATE_SECRET er satt. Backend må også få TURNSTILE_ENABLED=true.
  */
-export const turnstileEnabled =
-  process.env.NEXT_PUBLIC_TURNSTILE_ENABLED?.toLowerCase() === "true";
+export const turnstileEnabled = process.env.NEXT_PUBLIC_TURNSTILE_ENABLED?.toLowerCase() === "true";
 
 // CLERK_SECRET_KEY brukes server-side av Clerk Next.js middleware (clerkMiddleware i proxy.ts)
 // og er aldri eksponert til klienten.
@@ -29,7 +28,7 @@ const ALWAYS_REQUIRED_FRONTEND_ENV_VARS = [
   "NEXT_PUBLIC_CLERK_SIGN_IN_URL",
   "NEXT_PUBLIC_CLERK_SIGN_UP_URL",
   "NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL",
-  "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL"
+  "NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL",
 ] as const;
 
 // Påkrevd kun når Turnstile er aktivert. AUTH_TURNSTILE_GATE_SECRET brukes i auth-turnstile-server.ts.
@@ -68,8 +67,7 @@ export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): v
   }
 
   const requireInternalApiUrl =
-    options.requireInternalApiUrl === true ||
-    process.env.NODE_ENV === "production";
+    options.requireInternalApiUrl === true || process.env.NODE_ENV === "production";
   const baseRequired = requireInternalApiUrl
     ? ([...ALWAYS_REQUIRED_FRONTEND_ENV_VARS, "INTERNAL_API_URL"] as const)
     : ALWAYS_REQUIRED_FRONTEND_ENV_VARS;
@@ -79,14 +77,11 @@ export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): v
   const manglende: string[] = [];
 
   if (!getFrontendClerkPublishableKey()) {
-    manglende.push(
-      "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (eller CLERK_PUBLISHABLE_KEY)",
-    );
+    manglende.push("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY (eller CLERK_PUBLISHABLE_KEY)");
   }
 
   for (const key of requiredFrontendEnvVars) {
-    const value =
-      typeof process.env[key] !== "undefined" ? process.env[key] : "";
+    const value = typeof process.env[key] !== "undefined" ? process.env[key] : "";
     if (!value || String(value).trim() === "") {
       manglende.push(key);
     }
@@ -97,9 +92,7 @@ export function validateFrontendEnv(options: ValidateFrontendEnvOptions = {}): v
     try {
       new URL(internalApiUrl);
     } catch {
-      manglende.push(
-        `INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`,
-      );
+      manglende.push(`INTERNAL_API_URL (må være en gyldig URL, fikk: ${internalApiUrl})`);
     }
   }
 

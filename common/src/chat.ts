@@ -18,15 +18,25 @@ function normalizeOptionalText(value: unknown): unknown {
   return trimmed === "" ? null : trimmed;
 }
 
-const OptionalNullableChatTitleSchema = z.preprocess(
-  normalizeOptionalText,
-  z.string().max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`).nullable(),
-).optional();
+const OptionalNullableChatTitleSchema = z
+  .preprocess(
+    normalizeOptionalText,
+    z
+      .string()
+      .max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`)
+      .nullable(),
+  )
+  .optional();
 
-const OptionalNullableChatTopicSchema = z.preprocess(
-  normalizeOptionalText,
-  z.string().max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`).nullable(),
-).optional();
+const OptionalNullableChatTopicSchema = z
+  .preprocess(
+    normalizeOptionalText,
+    z
+      .string()
+      .max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`)
+      .nullable(),
+  )
+  .optional();
 
 export const CHAT_SHARE_ACCESS_TYPES = ["public", "private"] as const;
 export const ChatShareAccessTypeSchema = z.enum(CHAT_SHARE_ACCESS_TYPES);
@@ -36,7 +46,10 @@ export const ChatMessageSchema = z.object({
   rolle: z.enum(["user", "assistant"]),
   innhold: z
     .string()
-    .max(KI_MAX_MESSAGE_LENGTH_BACKEND, `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`)
+    .max(
+      KI_MAX_MESSAGE_LENGTH_BACKEND,
+      `Meldingen kan være maks ${KI_MAX_MESSAGE_LENGTH_BACKEND} tegn`,
+    )
     .refine((value) => value.trim().length > 0, "Meldingen kan ikke være tom"),
   kilder: z.array(KIChatSourceSchema).optional(),
   /**
@@ -117,17 +130,19 @@ export const SharedChatDeleteAllResponseSchema = z.object({
   deletedCount: z.number().int().nonnegative(),
 });
 
-export const SharedChatUpdateSchema = z.object({
-  isActive: z.boolean().optional(),
-  accessType: ChatShareAccessTypeSchema.optional(),
-  expiresAt: z.coerce.date().nullable().optional(),
-}).refine(
-  (value) =>
-    value.isActive !== undefined ||
-    value.accessType !== undefined ||
-    value.expiresAt !== undefined,
-  { message: "Minst ett felt må oppdateres" },
-);
+export const SharedChatUpdateSchema = z
+  .object({
+    isActive: z.boolean().optional(),
+    accessType: ChatShareAccessTypeSchema.optional(),
+    expiresAt: z.coerce.date().nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      value.isActive !== undefined ||
+      value.accessType !== undefined ||
+      value.expiresAt !== undefined,
+    { message: "Minst ett felt må oppdateres" },
+  );
 
 export const SharedChatUpdateResponseSchema = z.object({
   ok: z.literal(true),
@@ -144,7 +159,10 @@ export const SharedChatPublicResponseSchema = z.object({
 export const ChatTopicUpdateSchema = z.object({
   topic: z.preprocess(
     normalizeOptionalText,
-    z.string().max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`).nullable(),
+    z
+      .string()
+      .max(CHAT_TOPIC_MAX_LENGTH, `Tema må være maks ${CHAT_TOPIC_MAX_LENGTH} tegn`)
+      .nullable(),
   ),
 });
 
@@ -153,7 +171,11 @@ export const ChatPinUpdateSchema = z.object({
 });
 
 export const ChatTitleUpdateSchema = z.object({
-  title: z.string().trim().min(1, "Tittel må fylles ut").max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`),
+  title: z
+    .string()
+    .trim()
+    .min(1, "Tittel må fylles ut")
+    .max(CHAT_TITLE_MAX_LENGTH, `Tittel må være maks ${CHAT_TITLE_MAX_LENGTH} tegn`),
 });
 
 export const ChatTopicUpdateResponseSchema = z.object({

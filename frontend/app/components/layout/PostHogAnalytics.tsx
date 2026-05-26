@@ -261,7 +261,10 @@ async function pseudonymizeForPostHog(rawId: string): Promise<string> {
   const data = new TextEncoder().encode(`${POSTHOG_PSEUDONYM_SALT}${rawId}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
   const bytes = Array.from(new Uint8Array(digest));
-  return `anon_${bytes.slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+  return `anon_${bytes
+    .slice(0, 16)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("")}`;
 }
 
 /**
@@ -300,9 +303,7 @@ export function identifyPostHogUser(
 }
 
 /** Hash eventuelle ID-felter i properties for å unngå re-introduksjon av PII. */
-function sanitizeProperties(
-  properties: Record<string, unknown>,
-): Record<string, unknown> {
+function sanitizeProperties(properties: Record<string, unknown>): Record<string, unknown> {
   const ID_FIELDS = new Set(["studywiseUserId", "userId", "clerkId", "clerkUserId", "email"]);
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(properties)) {

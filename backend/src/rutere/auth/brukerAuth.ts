@@ -11,7 +11,13 @@ import { decrypt, encrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
 import { ZodError } from "zod";
 import { hashSha256, timingSafeHexEqual } from "../../utils/cryptoUtils.js";
-import { apiError, requireUserId, sendError, sendZodError, sendUnknownError } from "../../utils/apiError.js";
+import {
+  apiError,
+  requireUserId,
+  sendError,
+  sendZodError,
+  sendUnknownError,
+} from "../../utils/apiError.js";
 import { warmCanvasCache, fetchUserProfile } from "../canvas/canvasService.js";
 import { invalidateCacheByPattern } from "../../cache/redis.js";
 import {
@@ -43,11 +49,7 @@ import {
   normalizeVarslerState,
   normalizeHiddenCourseIds,
 } from "common/auth";
-import {
-  TERMS_VERSION,
-  AcceptTermsRequestSchema,
-  AcceptTermsResponseSchema,
-} from "common/system";
+import { TERMS_VERSION, AcceptTermsRequestSchema, AcceptTermsResponseSchema } from "common/system";
 import { sanitizeUsername } from "../../database/models/User.js";
 import {
   createDefaultBrowserPushPreferences,
@@ -81,10 +83,7 @@ import {
 } from "../../utils/auditLog.js";
 import { deleteAccountData } from "./kontoSlett.js";
 import type { CanvasApiError } from "../canvas/canvasErrors.js";
-import {
-  buildCanvasUserPayload,
-  isMongoDuplicateKeyError,
-} from "../../utils/canvasUserSync.js";
+import { buildCanvasUserPayload, isMongoDuplicateKeyError } from "../../utils/canvasUserSync.js";
 import {
   isWebPushConfigured,
   getWebPushClientConfig,
@@ -192,10 +191,7 @@ function handleCanvasVerificationError(res: Response, error: unknown) {
   );
 }
 
-function sendCanvasConflictResponse(
-  res: Response,
-  conflictType: CanvasTokenConflictType,
-) {
+function sendCanvasConflictResponse(res: Response, conflictType: CanvasTokenConflictType) {
   const error = new CanvasTokenConflictError(conflictType);
   return res.status(409).json(
     CanvasTokenResponseSchema.parse({
@@ -207,17 +203,11 @@ function sendCanvasConflictResponse(
 }
 
 /** Invalider Redis Canvas-cache for et (kryptert) token. Brukes ved token-sletting eller -bytte. */
-async function invalidateCanvasCacheForToken(
-  encryptedToken: string | undefined,
-): Promise<void> {
+async function invalidateCanvasCacheForToken(encryptedToken: string | undefined): Promise<void> {
   if (!encryptedToken) return;
   try {
     const gammeltToken = decrypt(encryptedToken);
-    const prefix = crypto
-      .createHash("sha256")
-      .update(gammeltToken)
-      .digest("hex")
-      .slice(0, 12);
+    const prefix = crypto.createHash("sha256").update(gammeltToken).digest("hex").slice(0, 12);
     await invalidateCacheByPattern(`canvas:*:${prefix}:*`).catch((err) => {
       logger.debug({ err }, "Cache-invalidering feilet (ikke-kritisk)");
     });
@@ -230,9 +220,7 @@ async function invalidateStoredCanvasDataForUser(
   userId: string,
   encryptedToken?: string,
 ): Promise<void> {
-  const invalidations: Array<Promise<unknown>> = [
-    invalidateUserCanvasCache(userId),
-  ];
+  const invalidations: Array<Promise<unknown>> = [invalidateUserCanvasCache(userId)];
   if (encryptedToken) {
     invalidations.push(invalidateCanvasCacheForToken(encryptedToken));
   }
@@ -264,9 +252,7 @@ function serializeAuthBruker(bruker: IUser) {
     canvasBaseUrl: bruker.canvasBaseUrl ?? null,
     canvasContextPreferences:
       bruker.canvasContextPreferences || createDefaultCanvasContextPreferences(),
-    varslerState: normalizeVarslerState(
-      bruker.varslerState || createDefaultVarslerState(),
-    ),
+    varslerState: normalizeVarslerState(bruker.varslerState || createDefaultVarslerState()),
     manuellInnleveringState: normalizeManuellInnleveringState(
       bruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
     ),
@@ -282,9 +268,7 @@ function serializeAuthBruker(bruker: IUser) {
     mfaEnabled: bruker.mfaEnabled ?? false,
     backupCodesEnabled: bruker.backupCodesEnabled ?? false,
     syncConflicts:
-      bruker.syncConflicts && bruker.syncConflicts.length > 0
-        ? bruker.syncConflicts
-        : undefined,
+      bruker.syncConflicts && bruker.syncConflicts.length > 0 ? bruker.syncConflicts : undefined,
     termsVersionAccepted: bruker.termsVersionAccepted ?? undefined,
     termsAcceptedAt: bruker.termsAcceptedAt?.toISOString() ?? undefined,
   });
@@ -428,11 +412,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
     if (!canvasBaseUrl) {
       return apiError.badRequest(res, "Canvas-institusjon mangler");
     }
-    const bruker = await hentAutentisertBruker(
-      userId,
-      res,
-      "+canvasApiToken +canvasTokenHash",
-    );
+    const bruker = await hentAutentisertBruker(userId, res, "+canvasApiToken +canvasTokenHash");
     if (!bruker) return;
     const nyTokenHash = hashToken(cleanToken);
     // Sjekk om tokenet er i bruk av en ANNEN bruker (samme token-hash = samme Canvas-konto)
@@ -462,7 +442,9 @@ router.post("/token", rateLimitToken, async (req, res) => {
       let lagretTokenLeselig = false;
       try {
         const decrypted = bruker.canvasApiToken ? decrypt(bruker.canvasApiToken) : null;
-        lagretTokenLeselig = decrypted != null && decrypted.length === cleanToken.length &&
+        lagretTokenLeselig =
+          decrypted != null &&
+          decrypted.length === cleanToken.length &&
           crypto.timingSafeEqual(Buffer.from(decrypted), Buffer.from(cleanToken));
       } catch {
         lagretTokenLeselig = false;
@@ -501,9 +483,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
       }
     }
     // Verifiser Canvas-konto eierskap FØR lagring
-    let canvasProfile:
-      | Awaited<ReturnType<typeof fetchUserProfile>>["data"]
-      | null = null;
+    let canvasProfile: Awaited<ReturnType<typeof fetchUserProfile>>["data"] | null = null;
     try {
       const { data } = await fetchUserProfile(cleanToken, canvasBaseUrl);
       canvasProfile = data;
@@ -514,10 +494,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
         canvasBaseUrl: canvasBaseUrl,
       });
 
-      if (
-        eksisterendeKobling &&
-        eksisterendeKobling.localUser.toString() !== userId.toString()
-      ) {
+      if (eksisterendeKobling && eksisterendeKobling.localUser.toString() !== userId.toString()) {
         if (forceRelink) {
           logger.info(
             {
@@ -543,10 +520,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
         }
       }
     } catch (canvasError) {
-      logger.warn(
-        { err: canvasError, userId },
-        "Kunne ikke verifisere Canvas-token",
-      );
+      logger.warn({ err: canvasError, userId }, "Kunne ikke verifisere Canvas-token");
       return handleCanvasVerificationError(res, canvasError);
     }
     const kryptertToken = encrypt(cleanToken);
@@ -569,10 +543,7 @@ router.post("/token", rateLimitToken, async (req, res) => {
         const disconnectedUserIds = new Set<string>();
 
         const disconnectCanvasForUser = async (targetUserId: string) => {
-          if (
-            targetUserId === brukerTxId ||
-            disconnectedUserIds.has(targetUserId)
-          ) {
+          if (targetUserId === brukerTxId || disconnectedUserIds.has(targetUserId)) {
             return;
           }
           disconnectedUserIds.add(targetUserId);
@@ -663,23 +634,15 @@ router.post("/token", rateLimitToken, async (req, res) => {
     });
 
     // Invalider cache ETTER lagring — slik at nytt token allerede er persistert
-    await invalidateStoredCanvasDataForUser(
-      userId.toString(),
-      gammeltKryptertToken,
-    );
+    await invalidateStoredCanvasDataForUser(userId.toString(), gammeltKryptertToken);
 
     usersToInvalidate.delete(userId.toString());
     await Promise.allSettled(
-      [...usersToInvalidate].map((targetUserId) =>
-        invalidateStoredCanvasDataForUser(targetUserId),
-      ),
+      [...usersToInvalidate].map((targetUserId) => invalidateStoredCanvasDataForUser(targetUserId)),
     );
 
     warmCanvasCache(cleanToken, canvasBaseUrl).catch((err) => {
-      logger.warn(
-        { err, userId },
-        "Cache warming feilet etter token-lagring (ikke kritisk)",
-      );
+      logger.warn({ err, userId }, "Cache warming feilet etter token-lagring (ikke kritisk)");
     });
 
     // Kjør full bakgrunns-sync for å (re-)fylle MongoDB permanent.
@@ -724,10 +687,7 @@ router.delete("/token", rateLimitToken, async (req, res) => {
     const session = await mongoose.startSession();
     try {
       await session.withTransaction(async () => {
-        const canvasRes = await CanvasUser.deleteMany(
-          { localUser: bruker._id },
-          { session },
-        );
+        const canvasRes = await CanvasUser.deleteMany({ localUser: bruker._id }, { session });
         deletedCanvasUsers = canvasRes.deletedCount;
         // $unset fjerner Canvas-feltene atomisk — unngår setter-krasj på canvasBaseUrl (normalizeCanvasBaseUrl)
         // allow-deleted-users: bruker er allerede validert via User.findOne med deletedAt-filter ovenfor
@@ -752,10 +712,7 @@ router.delete("/token", rateLimitToken, async (req, res) => {
       "Slettet CanvasUser-dokumenter fra database",
     );
 
-    logger.info(
-      { userId },
-      "Canvas token slettet og bruker frakoblet fullstendig",
-    );
+    logger.info({ userId }, "Canvas token slettet og bruker frakoblet fullstendig");
     await audit({
       actorUserId: userId,
       action: AUDIT_ACTIONS.CANVAS_TOKEN_DELETED,
@@ -766,8 +723,7 @@ router.delete("/token", rateLimitToken, async (req, res) => {
     });
     return res.json(
       CanvasTokenResponseSchema.parse({
-        melding:
-          "Canvas-koblingen er slettet. Du må koble til på nytt for å hente data.",
+        melding: "Canvas-koblingen er slettet. Du må koble til på nytt for å hente data.",
         success: true,
       }),
     );
@@ -788,11 +744,9 @@ router.get("/me", rateLimitMe, async (req, res) => {
       typeof req.headers["x-debug-flow-id"] === "string"
         ? req.headers["x-debug-flow-id"].slice(0, 64)
         : undefined;
-    const authenticatedUser = (req as Request & { authenticatedUser?: IUser })
-      .authenticatedUser;
+    const authenticatedUser = (req as Request & { authenticatedUser?: IUser }).authenticatedUser;
     const bruker =
-      authenticatedUser ??
-      (await hentAutentisertBruker(userId, res, "+canvasApiToken"));
+      authenticatedUser ?? (await hentAutentisertBruker(userId, res, "+canvasApiToken"));
     if (!bruker) return;
 
     if (flowId) {
@@ -812,9 +766,7 @@ router.get("/me", rateLimitMe, async (req, res) => {
         "Bruker har Canvas-token uten canvasBaseUrl (gammel konto – må velge institusjon ved neste token-oppdatering)",
       );
     }
-    return res.json(
-      MeResponseSchema.parse({ user: serializeAuthBruker(bruker) }),
-    );
+    return res.json(MeResponseSchema.parse({ user: serializeAuthBruker(bruker) }));
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "henting av brukerprofil",
@@ -909,7 +861,11 @@ router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
     }
 
     const { type } = req.body ?? {};
-    if (!type || typeof type !== "string" || !(SYNC_CONFLICT_TYPES as readonly string[]).includes(type)) {
+    if (
+      !type ||
+      typeof type !== "string" ||
+      !(SYNC_CONFLICT_TYPES as readonly string[]).includes(type)
+    ) {
       return apiError.badRequest(res, "Ugyldig eller manglende konflikttype");
     }
 
@@ -918,10 +874,7 @@ router.post("/sync-conflicts/dismiss", rateLimitMe, async (req, res) => {
       { $pull: { syncConflicts: { type } } },
     );
 
-    logger.info(
-      { userId, conflictType: type },
-      "Synkroniseringskonflikt avvist av bruker",
-    );
+    logger.info({ userId, conflictType: type }, "Synkroniseringskonflikt avvist av bruker");
     return res.json(SyncConflictRemovedResponseSchema.parse({ melding: "Konflikt fjernet" }));
   } catch (error) {
     return sendUnknownError(res, error, {
@@ -985,19 +938,13 @@ router.put("/profile", rateLimitMe, async (req, res) => {
         lastName?: string;
         username?: string;
       } = {};
-      if (parsed.firstName !== undefined)
-        clerkUpdates.firstName = parsed.firstName ?? "";
-      if (parsed.lastName !== undefined)
-        clerkUpdates.lastName = parsed.lastName ?? "";
-      if (parsed.username !== undefined)
-        clerkUpdates.username = parsed.username ?? "";
+      if (parsed.firstName !== undefined) clerkUpdates.firstName = parsed.firstName ?? "";
+      if (parsed.lastName !== undefined) clerkUpdates.lastName = parsed.lastName ?? "";
+      if (parsed.username !== undefined) clerkUpdates.username = parsed.username ?? "";
 
       if (Object.keys(clerkUpdates).length > 0) {
         const { updateClerkUserProfile } = await import("./clerkAuth.js");
-        const clerkSuccess = await updateClerkUserProfile(
-          bruker.clerkId,
-          clerkUpdates,
-        );
+        const clerkSuccess = await updateClerkUserProfile(bruker.clerkId, clerkUpdates);
         if (!clerkSuccess) {
           logger.warn(
             { userId },
@@ -1093,14 +1040,11 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
       updateFields.varslerState = normalizeVarslerState(varslerState);
     }
     if (manuellInnleveringState !== undefined) {
-      updateFields.manuellInnleveringState = normalizeManuellInnleveringState(
-        manuellInnleveringState,
-      );
+      updateFields.manuellInnleveringState =
+        normalizeManuellInnleveringState(manuellInnleveringState);
     }
     if (browserPushPreferences !== undefined) {
-      updateFields.browserPushPreferences = normalizeBrowserPushPreferences(
-        browserPushPreferences,
-      );
+      updateFields.browserPushPreferences = normalizeBrowserPushPreferences(browserPushPreferences);
     }
     if (uiPreferences !== undefined) {
       UIPreferencesSchema.parse({
@@ -1163,18 +1107,15 @@ router.put("/preferences", rateLimitMe, async (req, res) => {
       PreferencesResponseSchema.parse({
         melding: "Preferanser oppdatert",
         canvasContextPreferences:
-          oppdatertBruker.canvasContextPreferences ||
-          createDefaultCanvasContextPreferences(),
+          oppdatertBruker.canvasContextPreferences || createDefaultCanvasContextPreferences(),
         varslerState: normalizeVarslerState(
           oppdatertBruker.varslerState || createDefaultVarslerState(),
         ),
         manuellInnleveringState: normalizeManuellInnleveringState(
-          oppdatertBruker.manuellInnleveringState ||
-            createDefaultManuellInnleveringState(),
+          oppdatertBruker.manuellInnleveringState || createDefaultManuellInnleveringState(),
         ),
         browserPushPreferences: normalizeBrowserPushPreferences(
-          oppdatertBruker.browserPushPreferences ??
-            createDefaultBrowserPushPreferences(),
+          oppdatertBruker.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
         ),
         uiPreferences: oppdatertBruker.uiPreferences ?? undefined,
         hiddenCourseIds: oppdatertBruker.hiddenCourseIds
@@ -1230,9 +1171,7 @@ router.post("/push-subscriptions", rateLimitMe, async (req, res) => {
 });
 
 router.get("/push-client-config", rateLimitMe, async (_req, res) => {
-  const payload = WebPushClientConfigResponseSchema.parse(
-    getWebPushClientConfig(),
-  );
+  const payload = WebPushClientConfigResponseSchema.parse(getWebPushClientConfig());
   return res.json(payload);
 });
 
@@ -1303,7 +1242,8 @@ router.post("/logout", rateLimitMe, async (req, res) => {
       const authenticatedUser = (req as Request & { authenticatedUser?: IUser }).authenticatedUser;
       const clerkId = authenticatedUser?.clerkId;
       if (clerkId) {
-        const { invalidateTokenCacheBySession, getSessionIdFromTokenCache } = await import("./clerkAuth.js");
+        const { invalidateTokenCacheBySession, getSessionIdFromTokenCache } =
+          await import("./clerkAuth.js");
         const token = req.headers.authorization?.replace(/^Bearer\s+/i, "");
         const sessionId = token ? getSessionIdFromTokenCache(token) : undefined;
         invalidateTokenCacheBySession(clerkId, sessionId);
@@ -1356,15 +1296,18 @@ router.delete("/account", requireRecentAuth, rateLimitAccountDeletion, async (re
         "Klarte ikke å anonymisere revisjonsspor etter kontosletting",
       );
     }
-    return res.json(AccountDeletionResponseSchema.parse({
-      melding: deletionResult.providerAccountDeleted && deletionResult.vectorCleanupSucceeded
-        ? "Konto og tilknyttet data er slettet"
-        : "StudyWise-kontoen er slettet, men ekstern opprydding kunne ikke fullfores automatisk.",
-      deleted: deletionResult.deleted,
-      providerAccountDeleted: deletionResult.providerAccountDeleted,
-      vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
-      hadCanvasToken: deletionResult.hadCanvasToken,
-    }));
+    return res.json(
+      AccountDeletionResponseSchema.parse({
+        melding:
+          deletionResult.providerAccountDeleted && deletionResult.vectorCleanupSucceeded
+            ? "Konto og tilknyttet data er slettet"
+            : "StudyWise-kontoen er slettet, men ekstern opprydding kunne ikke fullfores automatisk.",
+        deleted: deletionResult.deleted,
+        providerAccountDeleted: deletionResult.providerAccountDeleted,
+        vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
+        hadCanvasToken: deletionResult.hadCanvasToken,
+      }),
+    );
   } catch (err) {
     // Refunder rate-limit-tokenet siden selve sletteoperasjonen feilet —
     // brukeren skal ikke låses ute i 24 timer for en transient feil de ikke forårsaket.
@@ -1473,7 +1416,14 @@ router.get("/study-stats/today", rateLimitMe, async (req: Request, res: Response
     const todayStart = startOfTodayInOslo(now);
 
     // Kjør alle queries parallelt for best ytelse
-    const [chatCount, chatActivityTimestamps, taskResult, studyContextResult, arbeidsplan, activityIntervals] = await Promise.all([
+    const [
+      chatCount,
+      chatActivityTimestamps,
+      taskResult,
+      studyContextResult,
+      arbeidsplan,
+      activityIntervals,
+    ] = await Promise.all([
       // Antall KI-samtaler opprettet eller oppdatert i dag
       ChatHistory.countDocuments({
         user: new mongoose.Types.ObjectId(userId),

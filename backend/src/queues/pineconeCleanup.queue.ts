@@ -13,11 +13,7 @@ import { getUnifiedQueue } from "./connection.js";
 import { deleteStoredUserVectors } from "../services/embedding.service.js";
 import { deleteAllKBContentForUser } from "../services/kunnskapsbase-indeksering.service.js";
 import { logger } from "../utils/logger.js";
-import {
-  audit,
-  AUDIT_ACTIONS,
-  getDeletedAuditActorId,
-} from "../utils/auditLog.js";
+import { audit, AUDIT_ACTIONS, getDeletedAuditActorId } from "../utils/auditLog.js";
 
 export const PINECONE_CLEANUP_JOB_NAME = "pinecone-cleanup";
 const MAX_ATTEMPTS = 20;
@@ -43,9 +39,7 @@ export async function enqueueVectorDeletionRetry(input: {
   const q = getUnifiedQueue();
   const normalizedKbBaseIds = Array.from(
     new Set(
-      (input.kbBaseIds ?? [])
-        .map((value) => value.trim())
-        .filter((value) => value.length > 0),
+      (input.kbBaseIds ?? []).map((value) => value.trim()).filter((value) => value.length > 0),
     ),
   );
   const jobId = `pinecone_${input.userId}`;
@@ -89,7 +83,10 @@ export async function processPineconeCleanupJob(job: Job<PineconeCleanupJobData>
   });
 }
 
-export function handlePineconeCleanupFailure(job: Job<PineconeCleanupJobData> | undefined, err: Error): void {
+export function handlePineconeCleanupFailure(
+  job: Job<PineconeCleanupJobData> | undefined,
+  err: Error,
+): void {
   if (!job) return;
   logger.warn(
     {

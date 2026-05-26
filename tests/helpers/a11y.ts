@@ -1,7 +1,9 @@
 import { expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 
-function formatViolations(violations: Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"]): string {
+function formatViolations(
+  violations: Awaited<ReturnType<AxeBuilder["analyze"]>>["violations"],
+): string {
   return violations
     .map((violation) => {
       const nodes = violation.nodes

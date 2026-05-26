@@ -50,10 +50,7 @@ import {
   AdminSuccessResponseSchema,
   AdminRedisFlushResultSchema,
 } from "common/admin";
-import {
-  AdminAnnouncementStateSchema,
-  DependenciesHealthSchema,
-} from "common/system";
+import { AdminAnnouncementStateSchema, DependenciesHealthSchema } from "common/system";
 import type {
   AdminAuditCategory,
   AdminAuditItem,
@@ -109,16 +106,11 @@ import type {
 import { fetchApi } from "../lib/apiClient";
 import { createApiError, parseApiErrorBody } from "../lib/errorUtils";
 
-async function throwAdminApiError(
-  res: Response,
-  fallback: string,
-): Promise<never> {
+async function throwAdminApiError(res: Response, fallback: string): Promise<never> {
   const { errorCode, errorMessage, payload } = await parseApiErrorBody(res, fallback);
-  throw createApiError(
-    payload ?? { melding: errorMessage, kode: errorCode },
-    errorMessage,
-    { apiErrorCode: errorCode },
-  );
+  throw createApiError(payload ?? { melding: errorMessage, kode: errorCode }, errorMessage, {
+    apiErrorCode: errorCode,
+  });
 }
 
 // Polling-hjelper for asynkrone vedlikeholdsoperasjoner
@@ -212,9 +204,7 @@ export function useAdminCrawlerStats() {
 
 export function useAdminRetrievalDebug() {
   return useMutation({
-    mutationFn: async (
-      input: AdminRetrievalDebugRequest,
-    ): Promise<AdminRetrievalDebugResponse> => {
+    mutationFn: async (input: AdminRetrievalDebugRequest): Promise<AdminRetrievalDebugResponse> => {
       const res = await fetchApi("/api/admin/debug/retrieval", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -254,9 +244,7 @@ export function useAdminExtractionFailures(params?: {
   return useQuery({
     queryKey: ["admin", "extraction", "failures", params ?? {}],
     queryFn: async (): Promise<AdminExtractionFailuresResponse> => {
-      const res = await fetchApi(
-        `/api/admin/extraction-failures${qs.length > 0 ? `?${qs}` : ""}`,
-      );
+      const res = await fetchApi(`/api/admin/extraction-failures${qs.length > 0 ? `?${qs}` : ""}`);
       if (!res.ok) throw new Error("Kunne ikke hente ekstraksjons-feil");
       return AdminExtractionFailuresResponseSchema.parse(await res.json());
     },
@@ -440,7 +428,11 @@ export function useAdminAudit(
 ) {
   const { limit = 50, offset = 0, category, outcome, targetUserId, actorUserId, from, to } = params;
   return useQuery({
-    queryKey: ["admin", "audit", { limit, offset, category, outcome, targetUserId, actorUserId, from, to }],
+    queryKey: [
+      "admin",
+      "audit",
+      { limit, offset, category, outcome, targetUserId, actorUserId, from, to },
+    ],
     queryFn: async (): Promise<AdminAuditResponse> => {
       const sp = new URLSearchParams();
       sp.set("limit", String(limit));
@@ -462,7 +454,13 @@ export function useAdminAudit(
 export function useEndreRolle() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ brukerId, rolle }: { brukerId: string; rolle: AdminEndreRollePayload["rolle"] }) => {
+    mutationFn: async ({
+      brukerId,
+      rolle,
+    }: {
+      brukerId: string;
+      rolle: AdminEndreRollePayload["rolle"];
+    }) => {
       const payload = AdminEndreRolleSchema.parse({ rolle });
       const res = await fetchApi(`/api/admin/brukere/${brukerId}/rolle`, {
         method: "PATCH",
@@ -652,10 +650,9 @@ export function usePauseQueue() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (queueName: string): Promise<AdminQueueStateResponse> => {
-      const res = await fetchApi(
-        `/api/admin/queues/${encodeURIComponent(queueName)}/pause`,
-        { method: "POST" },
-      );
+      const res = await fetchApi(`/api/admin/queues/${encodeURIComponent(queueName)}/pause`, {
+        method: "POST",
+      });
       if (!res.ok) {
         await throwAdminApiError(res, "Kunne ikke pause kø");
       }
@@ -671,10 +668,9 @@ export function useResumeQueue() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (queueName: string): Promise<AdminQueueStateResponse> => {
-      const res = await fetchApi(
-        `/api/admin/queues/${encodeURIComponent(queueName)}/resume`,
-        { method: "POST" },
-      );
+      const res = await fetchApi(`/api/admin/queues/${encodeURIComponent(queueName)}/resume`, {
+        method: "POST",
+      });
       if (!res.ok) {
         await throwAdminApiError(res, "Kunne ikke starte køen igjen");
       }
@@ -770,10 +766,9 @@ export function useClearRedisRelinkState() {
     mutationFn: async (userId: string) => {
       // Bruker adminBrukere-endepunktet som verifiserer at brukeren finnes
       // og har konsistent audit-logging.
-      const res = await fetchApi(
-        `/api/admin/brukere/${encodeURIComponent(userId)}/relink-guard`,
-        { method: "DELETE" },
-      );
+      const res = await fetchApi(`/api/admin/brukere/${encodeURIComponent(userId)}/relink-guard`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         await throwAdminApiError(res, "Kunne ikke tømme relink-state");
       }
@@ -1011,7 +1006,9 @@ export function useCleanOldChats() {
 export function useMaintenanceStatus() {
   return useQuery({
     queryKey: ["admin", "maintenance", "status"],
-    queryFn: async (): Promise<{ ops: Record<string, { running: boolean; cooldownUntil: string | null }> }> => {
+    queryFn: async (): Promise<{
+      ops: Record<string, { running: boolean; cooldownUntil: string | null }>;
+    }> => {
       const res = await fetchApi("/api/admin/maintenance/status");
       if (!res.ok) throw new Error("Kunne ikke hente vedlikeholdsstatus");
       return res.json();
@@ -1050,7 +1047,9 @@ export function useReencryptTokens() {
         AdminMaintenanceReencryptResponseSchema,
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "maintenance", "encryption-status"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "maintenance", "encryption-status"],
+      });
     },
   });
 }
@@ -1155,9 +1154,7 @@ export function useClearAnnouncement() {
       const json = await res.json().catch(() => ({}));
       const parsed = AdminAnnouncementStateSchema.safeParse(json);
       return {
-        cacheInvalidated: parsed.success
-          ? (parsed.data.cacheInvalidated ?? true)
-          : true,
+        cacheInvalidated: parsed.success ? (parsed.data.cacheInvalidated ?? true) : true,
       };
     },
     onSuccess: () => {

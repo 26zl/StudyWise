@@ -24,11 +24,7 @@ import {
   pineconeDeleteByFilter,
   pineconeQuery,
 } from "./pinecone.service.js";
-import {
-  cohereRerank,
-  isCohereConfigured,
-  type RerankDocument,
-} from "./cohere-rerank.service.js";
+import { cohereRerank, isCohereConfigured, type RerankDocument } from "./cohere-rerank.service.js";
 
 /** Overhent-faktor før Cohere-rerank — speiler hybrid-retrievalens overhent (15/8 ≈ 1.9×). */
 const KB_RERANK_OVERFETCH = 2;
@@ -520,10 +516,7 @@ export async function searchKBContent(
               rerankedCount = rebuilt.length;
             }
           } catch (err) {
-            logger.warn(
-              { err, baseId },
-              "Cohere-rerank feilet for KB — bruker Pinecone-rangering",
-            );
+            logger.warn({ err, baseId }, "Cohere-rerank feilet for KB — bruker Pinecone-rangering");
           }
         }
 
@@ -661,7 +654,12 @@ export async function loadFullKBContext(
   baseId: string,
   baseName: string,
   maxTokens = 60000,
-): Promise<{ context: string; sources: KBSearchResult[]; truncated: boolean; hasContent: boolean }> {
+): Promise<{
+  context: string;
+  sources: KBSearchResult[];
+  truncated: boolean;
+  hasContent: boolean;
+}> {
   const ownsBase = await KnowledgeBase.exists({ _id: baseId, userId });
   if (!ownsBase) {
     logger.warn({ userId, baseId }, "KB full-doc last avvist: base tilhører ikke bruker");

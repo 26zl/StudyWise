@@ -184,16 +184,13 @@ export function getDependenciesHealth() {
 export async function refreshExternalDependencyHealth(): Promise<CachedExternalDependencyHealth> {
   const now = Date.now();
   const shouldProbeCohere =
-    lastCohereCheckMs === null ||
-    now - lastCohereCheckMs >= COHERE_HEALTH_REFRESH_MS;
+    lastCohereCheckMs === null || now - lastCohereCheckMs >= COHERE_HEALTH_REFRESH_MS;
 
   const [clerkOk, pineconeOk, anthropicOk, cohereOk] = await Promise.all([
     isClerkHealthy(),
     ensurePineconeIndex(),
     isAnthropicHealthy(),
-    shouldProbeCohere
-      ? isCohereHealthy()
-      : Promise.resolve(cachedExternalDependencyHealth.cohere),
+    shouldProbeCohere ? isCohereHealthy() : Promise.resolve(cachedExternalDependencyHealth.cohere),
   ]);
 
   if (shouldProbeCohere) {

@@ -88,10 +88,8 @@ export function usePreferencesSync() {
     if (syncedUserId.current !== (userId ?? null)) return;
 
     const prev = prevValues.current;
-    const harGyldigTema =
-      theme === "light" || theme === "dark" || theme === "system";
-    const harEndringer =
-      language !== prev.language || (harGyldigTema && theme !== prev.theme);
+    const harGyldigTema = theme === "light" || theme === "dark" || theme === "system";
+    const harEndringer = language !== prev.language || (harGyldigTema && theme !== prev.theme);
 
     if (!harEndringer) return;
 

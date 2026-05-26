@@ -1,7 +1,7 @@
 /*
-* Rutere for KI-relaterte endepunkter
-* Bruker Claude (Anthropic) som AI-leverandør
-*/
+ * Rutere for KI-relaterte endepunkter
+ * Bruker Claude (Anthropic) som AI-leverandør
+ */
 
 import { Router } from "express";
 import { createHash } from "crypto";
@@ -13,11 +13,11 @@ import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { getCache, setCache, deleteCacheKeys } from "../../cache/redis.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import {
-    KIChatRequestSchema,
-    KIChatResponseSchema,
-    KIModelsResponseSchema,
-    KI_MAX_MESSAGE_LENGTH_BACKEND,
-    type ExplanationLevel,
+  KIChatRequestSchema,
+  KIChatResponseSchema,
+  KIModelsResponseSchema,
+  KI_MAX_MESSAGE_LENGTH_BACKEND,
+  type ExplanationLevel,
 } from "common/ki";
 import { kiHistoryRouter } from "./kiHistory.js";
 import { kiAnalyseRouter } from "./kiAnalyse.js";
@@ -67,7 +67,10 @@ import {
 } from "common/kunnskapsbase";
 import { setupSSE, writeSSE } from "../../utils/sseUtils.js";
 import { createLinkedAbortController } from "../../utils/abort.js";
-import { loadStudyContextForUser, updateStudyContext } from "../../services/studyContext.service.js";
+import {
+  loadStudyContextForUser,
+  updateStudyContext,
+} from "../../services/studyContext.service.js";
 import { escapeRegex } from "../../utils/regexUtils.js";
 import { stripHtml } from "../../utils/htmlUtils.js";
 import { parseDocument } from "../../services/document.js";
@@ -137,9 +140,7 @@ function mapKBResultsToChatSources(
   return sources.slice(0, 100);
 }
 
-function mergeChatSources(
-  ...groups: Array<ChatSource[] | undefined>
-): ChatSource[] | undefined {
+function mergeChatSources(...groups: Array<ChatSource[] | undefined>): ChatSource[] | undefined {
   const merged: ChatSource[] = [];
   const seen = new Set<string>();
   for (const group of groups) {
@@ -181,36 +182,93 @@ function parseSyncStatus(raw: string | null): string | null {
 /** Nøkkelord som krever full kontekst (moduler, PDFer, sideinnhold) */
 const CANVAS_FULL_KEYWORDS = [
   // Handlingsverb (inkl. konjugasjoner)
-  "oppsummer", "oppsummere", "oppsummering",
-  "forklar", "forklare", "forklaring",
-  "beskriv", "beskrive", "beskrivelse",
-  "hva handler", "hva er", "hva betyr", "hva menes",
-  "fortell om", "gi meg", "lag en", "vis meg", "vise meg",
+  "oppsummer",
+  "oppsummere",
+  "oppsummering",
+  "forklar",
+  "forklare",
+  "forklaring",
+  "beskriv",
+  "beskrive",
+  "beskrivelse",
+  "hva handler",
+  "hva er",
+  "hva betyr",
+  "hva menes",
+  "fortell om",
+  "gi meg",
+  "lag en",
+  "vis meg",
+  "vise meg",
   // Innholdstyper
-  "pdf", "fil", "last ned", "leksjon",
-  "modul", "kompendium", "forelesning", "pensum", "kapittel",
-  "slide", "dokument", "sideinnhold",
+  "pdf",
+  "fil",
+  "last ned",
+  "leksjon",
+  "modul",
+  "kompendium",
+  "forelesning",
+  "pensum",
+  "kapittel",
+  "slide",
+  "dokument",
+  "sideinnhold",
   // Faglige spørsmål — indikerer at brukeren spør om innhold, ikke struktur
-  "hvordan fungerer", "hvordan virker", "hva skjer med",
-  "definer", "definisjon", "konsept", "teori",
-  "forskjell mellom", "forskjellen",
+  "hvordan fungerer",
+  "hvordan virker",
+  "hva skjer med",
+  "definer",
+  "definisjon",
+  "konsept",
+  "teori",
+  "forskjell mellom",
+  "forskjellen",
   // Sammenligninger — krever fullt innhold fra flere kilder
-  "sammenlign", "sammenligne", "sammenligning",
-  "ulikhet mellom", "ulikheter mellom",
-  "fordeler og ulemper", "likheter og forskjeller",
+  "sammenlign",
+  "sammenligne",
+  "sammenligning",
+  "ulikhet mellom",
+  "ulikheter mellom",
+  "fordeler og ulemper",
+  "likheter og forskjeller",
   // Engelske handlingsverb og innholdsord
-  "summarize", "summarise", "summary",
-  "explain", "explanation", "describe", "description",
-  "what is", "what does", "what means", "tell me about",
-  "give me", "show me", "create a",
-  "how does", "how works", "what happens",
-  "define", "definition", "concept", "theory",
-  "difference between", "differences",
-  "compare", "comparison",
-  "pros and cons", "similarities and differences",
+  "summarize",
+  "summarise",
+  "summary",
+  "explain",
+  "explanation",
+  "describe",
+  "description",
+  "what is",
+  "what does",
+  "what means",
+  "tell me about",
+  "give me",
+  "show me",
+  "create a",
+  "how does",
+  "how works",
+  "what happens",
+  "define",
+  "definition",
+  "concept",
+  "theory",
+  "difference between",
+  "differences",
+  "compare",
+  "comparison",
+  "pros and cons",
+  "similarities and differences",
   // Engelske innholdstyper
-  "file", "download", "lesson", "module", "lecture", "syllabus", "chapter",
-  "document", "page content",
+  "file",
+  "download",
+  "lesson",
+  "module",
+  "lecture",
+  "syllabus",
+  "chapter",
+  "document",
+  "page content",
 ];
 
 // TOPIC_KEYWORDS fjernet bevisst — hardkoding av IT/CS-fagbegreper ("dijkstra",
@@ -227,20 +285,36 @@ const CANVAS_FULL_KEYWORDS = [
 /** Nøkkelord som indikerer at brukeren ber om en sammenligning */
 const COMPARISON_KEYWORDS = [
   // Norsk
-  "sammenlign", "sammenligne", "sammenligning",
-  "forskjell mellom", "forskjellen mellom", "forskjeller mellom",
-  "ulikhet mellom", "ulikheter mellom",
-  "vs", "versus", "kontra", "mot",
-  "hva skiller", "hva er forskjellen",
+  "sammenlign",
+  "sammenligne",
+  "sammenligning",
+  "forskjell mellom",
+  "forskjellen mellom",
+  "forskjeller mellom",
+  "ulikhet mellom",
+  "ulikheter mellom",
+  "vs",
+  "versus",
+  "kontra",
+  "mot",
+  "hva skiller",
+  "hva er forskjellen",
   "fordeler og ulemper",
-  "når bør jeg bruke", "når velger man",
+  "når bør jeg bruke",
+  "når velger man",
   "likheter og forskjeller",
   // Engelsk
-  "compare", "comparison", "comparing",
-  "difference between", "differences between",
-  "pros and cons", "advantages and disadvantages",
-  "what distinguishes", "what is the difference",
-  "when should i use", "when to use",
+  "compare",
+  "comparison",
+  "comparing",
+  "difference between",
+  "differences between",
+  "pros and cons",
+  "advantages and disadvantages",
+  "what distinguishes",
+  "what is the difference",
+  "when should i use",
+  "when to use",
   "similarities and differences",
 ];
 
@@ -255,18 +329,38 @@ function isComparisonQuery(message: string): boolean {
 /** Nøkkelord som kun trenger lett kontekst (emner + frister) */
 const CANVAS_LIGHT_KEYWORDS = [
   // Frister og innleveringer
-  "frist", "deadline", "oblig",
-  "innlevering", "eksamen",
+  "frist",
+  "deadline",
+  "oblig",
+  "innlevering",
+  "eksamen",
   "karakter",
   // Strukturelle spørsmål
-  "emne", "emnekode", "kurs",
-  "oppgave", "canvas",
+  "emne",
+  "emnekode",
+  "kurs",
+  "oppgave",
+  "canvas",
   // Tidsspørsmål
-  "hva har jeg", "neste frist", "denne uken", "denne uka",
-  "hva skjer", "kommende", "kalender", "timeplan", "når er",
+  "hva har jeg",
+  "neste frist",
+  "denne uken",
+  "denne uka",
+  "hva skjer",
+  "kommende",
+  "kalender",
+  "timeplan",
+  "når er",
   // Engelske nøkkelord
-  "course", "courses", "enrolled", "assignment", "assignments",
-  "submission", "schedule", "announcement", "upcoming",
+  "course",
+  "courses",
+  "enrolled",
+  "assignment",
+  "assignments",
+  "submission",
+  "schedule",
+  "announcement",
+  "upcoming",
 ];
 
 /**
@@ -290,41 +384,41 @@ const CANVAS_LIGHT_KEYWORDS = [
  */
 const SKRIVEFEIL_MAP: Record<string, string> = {
   // Canvas UI-termer
-  "kungjøring": "kunngjøring",
-  "kungjøringer": "kunngjøringer",
-  "kungjøringene": "kunngjøringene",
-  "kunngjøringane": "kunngjøringene",
+  kungjøring: "kunngjøring",
+  kungjøringer: "kunngjøringer",
+  kungjøringene: "kunngjøringene",
+  kunngjøringane: "kunngjøringene",
   // Universelle akademiske substantiver som brukes i alle studier
-  "sikkerhe": "sikkerhet",
-  "matmatikk": "matematikk",
-  "statistik": "statistikk",
-  "bachelro": "bacheloroppgave",
-  "bacheloropp": "bacheloroppgave",
+  sikkerhe: "sikkerhet",
+  matmatikk: "matematikk",
+  statistik: "statistikk",
+  bachelro: "bacheloroppgave",
+  bacheloropp: "bacheloroppgave",
   // Vanlige skrivefeil for "forklar"
-  "forkalre": "forklar",
-  "forklra": "forklar",
-  "forklrae": "forklar",
-  "forkaler": "forklar",
+  forkalre: "forklar",
+  forklra: "forklar",
+  forklrae: "forklar",
+  forkaler: "forklar",
   // Vanlige skrivefeil for "forelesning" — bruker hopper ofte over en "e" eller "n",
   // eller skriver nynorsk-form "forelesing". Normaliseres til bokmål for konsistent
   // ordinal-, modul- og chunkHint-matching nedstrøms.
-  "forlesning": "forelesning",
-  "forlesninger": "forelesninger",
-  "forlesningen": "forelesningen",
-  "forelsning": "forelesning",
-  "forelesing": "forelesning",
-  "forelesinga": "forelesningen",
-  "forelesingar": "forelesninger",
-  "førelesning": "forelesning",
-  "førelesing": "forelesning",
-  "førelesinga": "forelesningen",
-  "førelesingar": "forelesninger",
-  "forlesing": "forelesning",
+  forlesning: "forelesning",
+  forlesninger: "forelesninger",
+  forlesningen: "forelesningen",
+  forelsning: "forelesning",
+  forelesing: "forelesning",
+  forelesinga: "forelesningen",
+  forelesingar: "forelesninger",
+  førelesning: "forelesning",
+  førelesing: "forelesning",
+  førelesinga: "forelesningen",
+  førelesingar: "forelesninger",
+  forlesing: "forelesning",
   // Vanlige skrivefeil for "kapittel"
-  "kapitel": "kapittel",
-  "kapitell": "kapittel",
-  "kaptel": "kapittel",
-  "kaptiel": "kapittel",
+  kapitel: "kapittel",
+  kapitell: "kapittel",
+  kaptel: "kapittel",
+  kaptiel: "kapittel",
   // Modul-keywords (kritisk for cache-key: uten normalisering mister vi
   // moduleHint → buildChatResponseCacheKey returnerer null → ingen caching.
   // Observert "eksjon 6" → null moduleHint selv når svaret var korrekt.
@@ -332,52 +426,52 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
   // forhindrer at innslagene korrumperer riktig-stavede ord som "seksjon".
   //
   // Leksjon-varianter
-  "eksjon": "leksjon",
-  "eksjonen": "leksjonen",
-  "eksjoner": "leksjoner",
-  "lesjon": "leksjon",
-  "lesjonen": "leksjonen",
-  "leksjn": "leksjon",
+  eksjon: "leksjon",
+  eksjonen: "leksjonen",
+  eksjoner: "leksjoner",
+  lesjon: "leksjon",
+  lesjonen: "leksjonen",
+  leksjn: "leksjon",
   // Modul-varianter
-  "mdul": "modul",
-  "moudl": "modul",
-  "modl": "modul",
-  "mdulen": "modulen",
-  "moudlen": "modulen",
+  mdul: "modul",
+  moudl: "modul",
+  modl: "modul",
+  mdulen: "modulen",
+  moudlen: "modulen",
   // Tema-varianter
-  "teema": "tema",
-  "teemaet": "temaet",
-  "temet": "temaet",
+  teema: "tema",
+  teemaet: "temaet",
+  temet: "temaet",
   // Seksjon-varianter (reelt modul-nivå, skiller seg fra "section" engelsk)
-  "seksion": "seksjon",
-  "seksjn": "seksjon",
-  "seksjonn": "seksjon",
-  "seksionen": "seksjonen",
+  seksion: "seksjon",
+  seksjn: "seksjon",
+  seksjonn: "seksjon",
+  seksionen: "seksjonen",
   // Sesjon-varianter
-  "sesjn": "sesjon",
-  "sesion": "sesjon",
-  "sesjonn": "sesjon",
+  sesjn: "sesjon",
+  sesion: "sesjon",
+  sesjonn: "sesjon",
 
   // Trigger-ord for full-dokument-mode (uten match → chunk-mode → lengre
   // svartid ved første gang og ingen cache-skriving for leksjon-gjennomgang).
   //
   // Oppsummer / oppsummere
-  "oppsumer": "oppsummer",
-  "oppsumere": "oppsummere",
-  "ppsummer": "oppsummer",
-  "opsummer": "oppsummer",
-  "ossummer": "oppsummer",
-  "oppsummerr": "oppsummer",
+  oppsumer: "oppsummer",
+  oppsumere: "oppsummere",
+  ppsummer: "oppsummer",
+  opsummer: "oppsummer",
+  ossummer: "oppsummer",
+  oppsummerr: "oppsummer",
   // Sammendrag
-  "samendrag": "sammendrag",
-  "sammendrg": "sammendrag",
-  "samendrg": "sammendrag",
+  samendrag: "sammendrag",
+  sammendrg: "sammendrag",
+  samendrg: "sammendrag",
   // Utdyp / utdype
-  "udyp": "utdyp",
-  "utdp": "utdyp",
-  "utdpe": "utdype",
-  "udype": "utdype",
-  "utydp": "utdyp",
+  udyp: "utdyp",
+  utdp: "utdyp",
+  utdpe: "utdype",
+  udype: "utdype",
+  utydp: "utdyp",
 
   // Universelle akademiske substantiver (ikke domene-spesifikke) — gjelder
   // på tvers av alle norske studier. Domene-substantiver (organisasjon,
@@ -386,41 +480,41 @@ const SKRIVEFEIL_MAP: Record<string, string> = {
   // enkelte fagfelt ville gjøre assistenten skjev mot visse studieretninger.
   //
   // Oppgave / oppgaven / oppgaver (universell studieterm)
-  "oppave": "oppgave",
-  "oppgve": "oppgave",
-  "opgave": "oppgave",
-  "oppaven": "oppgaven",
-  "oppaver": "oppgaver",
+  oppave: "oppgave",
+  oppgve: "oppgave",
+  opgave: "oppgave",
+  oppaven: "oppgaven",
+  oppaver: "oppgaver",
   // Prosjekt / prosjektet (universell — bacheloroppgave, semesteroppgave mm.)
-  "prosekt": "prosjekt",
-  "prosjket": "prosjekt",
-  "prsjekt": "prosjekt",
-  "prosektet": "prosjektet",
+  prosekt: "prosjekt",
+  prosjket: "prosjekt",
+  prsjekt: "prosjekt",
+  prosektet: "prosjektet",
   // Analyse / analyser (universell — brukes i alle fagfelt)
-  "anaylse": "analyse",
-  "analse": "analyse",
-  "anaylser": "analyser",
+  anaylse: "analyse",
+  analse: "analyse",
+  anaylser: "analyser",
   // Pensum (universell studieterm)
-  "pensm": "pensum",
-  "pesum": "pensum",
+  pensm: "pensum",
+  pesum: "pensum",
   // Eksamen (universell)
-  "eksmen": "eksamen",
-  "eksaman": "eksamen",
-  "exsamen": "eksamen",
+  eksmen: "eksamen",
+  eksaman: "eksamen",
+  exsamen: "eksamen",
   // Teori / teorier (universell akademisk)
-  "teroi": "teori",
-  "teroier": "teorier",
+  teroi: "teori",
+  teroier: "teorier",
   // Definisjon (universell akademisk)
-  "definsjon": "definisjon",
-  "definisjn": "definisjon",
-  "defnisjon": "definisjon",
+  definsjon: "definisjon",
+  definisjn: "definisjon",
+  defnisjon: "definisjon",
   // Eksempel / eksempler (universell)
-  "eksmpel": "eksempel",
-  "ekspel": "eksempel",
-  "eksmpler": "eksempler",
+  eksmpel: "eksempel",
+  ekspel: "eksempel",
+  eksmpler: "eksempler",
   // Begrep / begreper (universell akademisk)
-  "begrp": "begrep",
-  "bgrep": "begrep",
+  begrp: "begrep",
+  bgrep: "begrep",
 };
 
 // Pre-kompilerte regex-patterns for skrivefeil (unngår re-kompilering per kall)
@@ -452,15 +546,9 @@ function normaliserSkrivefeil(text: string): string {
  * Hashing hindrer problemer med mellomrom/spesialtegn i nøkler.
  */
 function buildCourseHintCacheSegment(courseHint: string): string {
-  const normalized = normaliserSkrivefeil(courseHint)
-    .normalize("NFKC")
-    .replace(/\s+/g, " ")
-    .trim();
+  const normalized = normaliserSkrivefeil(courseHint).normalize("NFKC").replace(/\s+/g, " ").trim();
 
-  return createHash("sha256")
-    .update(normalized)
-    .digest("hex")
-    .slice(0, 12);
+  return createHash("sha256").update(normalized).digest("hex").slice(0, 12);
 }
 
 /**
@@ -475,14 +563,11 @@ function sanitizeCourseHintValue(courseHint: string): string {
     .trim()
     .toUpperCase()
     .normalize("NFKC")
-    .replace(/\s+/g, "")  // Fjern alle mellomrom
-    .replace(/[^A-Z0-9\-:]/g, "");  // Behold kun alfanumeriske, kolon og bindestrek
+    .replace(/\s+/g, "") // Fjern alle mellomrom
+    .replace(/[^A-Z0-9\-:]/g, ""); // Behold kun alfanumeriske, kolon og bindestrek
 
   if (original !== sanitized) {
-    logger.warn(
-      { original, sanitized },
-      "courseHint-verdi sanitert før Redis-lagring",
-    );
+    logger.warn({ original, sanitized }, "courseHint-verdi sanitert før Redis-lagring");
   }
   return sanitized;
 }
@@ -490,21 +575,50 @@ function sanitizeCourseHintValue(courseHint: string): string {
 // Norske ordinaler → sifferform. Brukes av extractModuleHint til å oversette
 // "første forelesning" → "forelesning 1" før modulmatching kjører.
 const NORWEGIAN_ORDINAL_TO_DIGIT: Record<string, string> = {
-  første: "1", forste: "1", "1ste": "1", "1.": "1",
-  andre: "2", annen: "2", "2dre": "2", "2.": "2",
-  tredje: "3", "3dje": "3", "3.": "3",
-  fjerde: "4", "4de": "4", "4.": "4",
-  femte: "5", "5te": "5", "5.": "5",
-  sjette: "6", "6te": "6", "6.": "6",
-  sjuende: "7", syvende: "7", "7de": "7", "7.": "7",
-  åttende: "8", attende: "8", "8de": "8", "8.": "8",
-  niende: "9", "9de": "9", "9.": "9",
-  tiende: "10", "10de": "10", "10.": "10",
-  ellevte: "11", "11te": "11", "11.": "11",
-  tolvte: "12", "12te": "12", "12.": "12",
+  første: "1",
+  forste: "1",
+  "1ste": "1",
+  "1.": "1",
+  andre: "2",
+  annen: "2",
+  "2dre": "2",
+  "2.": "2",
+  tredje: "3",
+  "3dje": "3",
+  "3.": "3",
+  fjerde: "4",
+  "4de": "4",
+  "4.": "4",
+  femte: "5",
+  "5te": "5",
+  "5.": "5",
+  sjette: "6",
+  "6te": "6",
+  "6.": "6",
+  sjuende: "7",
+  syvende: "7",
+  "7de": "7",
+  "7.": "7",
+  åttende: "8",
+  attende: "8",
+  "8de": "8",
+  "8.": "8",
+  niende: "9",
+  "9de": "9",
+  "9.": "9",
+  tiende: "10",
+  "10de": "10",
+  "10.": "10",
+  ellevte: "11",
+  "11te": "11",
+  "11.": "11",
+  tolvte: "12",
+  "12te": "12",
+  "12.": "12",
 };
 
-const MODULE_KEYWORDS_RE = "forelesning|forelesningen|forelesninga|forelesningar|lecture|modul|modulen|leksjon|lesson|kapittel|kapitlet|kap|chapter|uke|uka|week|tema|temaet|sesjon|session|time|timen|økt|økta|del|delen|seksjon|section";
+const MODULE_KEYWORDS_RE =
+  "forelesning|forelesningen|forelesninga|forelesningar|lecture|modul|modulen|leksjon|lesson|kapittel|kapitlet|kap|chapter|uke|uka|week|tema|temaet|sesjon|session|time|timen|økt|økta|del|delen|seksjon|section";
 
 /**
  * Konverterer "første forelesning", "1. forelesning", "forelesning nr 1" og
@@ -521,8 +635,8 @@ function normaliserOrdinaler(text: string): string {
   );
   result = result.replace(ordinalBefore, (_, ord, kw) => {
     const key = ord.toLowerCase();
-    const digit = NORWEGIAN_ORDINAL_TO_DIGIT[key]
-      ?? (/^\d{1,2}\.?$/.test(key) ? key.replace(/\.$/, "") : null);
+    const digit =
+      NORWEGIAN_ORDINAL_TO_DIGIT[key] ?? (/^\d{1,2}\.?$/.test(key) ? key.replace(/\.$/, "") : null);
     return digit ? `${kw} ${digit}` : `${ord} ${kw}`;
   });
 
@@ -543,9 +657,7 @@ function extractModuleHint(message: string): string | null {
   const chapterPrefixMatch = lower.match(/\bkap(?:ittel)?\.?\s*([^\s,;:!?]+)/i);
   const rawChapterToken = chapterPrefixMatch?.[1];
   if (rawChapterToken) {
-    const normalizedToken = rawChapterToken
-      .toLowerCase()
-      .replace(/[^0-9a-z.\-–]/g, "");
+    const normalizedToken = rawChapterToken.toLowerCase().replace(/[^0-9a-z.\-–]/g, "");
 
     // eslint-disable-next-line security/detect-unsafe-regex -- avgrenset validering av kapittel-token (maks 2x 1-2 sifre + valgfri bokstav)
     const chapterTokenMatch = normalizedToken.match(/^(\d{1,2})(?:[.\-–](\d{1,2}))?([a-z])?$/i);
@@ -570,10 +682,7 @@ function extractModuleHint(message: string): string | null {
     /(?<![a-zæøå0-9])(?:modul|modulen|leksjon|lesson|module|forelesning|forelesningen|forelesninga|uke|uka|week|kapittel|kapitlet|kap|chapter|chapters|ch|tema|temaet|enhet|sesjon|session|time|timen|økt|økta|del|delen|seksjon|section|side|page|oppgave|oppgaven|foredrag|note|notat|slide|lysark)\.?\s+(\d{1,3}(?:\s*(?:[.\-,]|\s+og\s+|\s+and\s+)\s*\d{1,3})*[a-z]?)\b/i,
   );
   if (numberedMatch) {
-    return numberedMatch[0]
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
+    return numberedMatch[0].toLowerCase().replace(/\s+/g, " ").trim();
   }
 
   const quotedMatch = lower.match(
@@ -595,12 +704,13 @@ function detectIntent(messages: Array<{ role: string; content: string }>): Inten
 
   const hasCanvasSpecificSignals = (msg: string): boolean => {
     const hasCourseOrFileHints =
-      /\b(?:canvas|emne|kurs|modul|forelesning|leksjon|kapittel|fil|pdf|docx|pptx|xlsx)\b/i.test(msg) ||
-      /\b[a-zæøå]{2,4}-?\d{2,4}\b/i.test(msg);
+      /\b(?:canvas|emne|kurs|modul|forelesning|leksjon|kapittel|fil|pdf|docx|pptx|xlsx)\b/i.test(
+        msg,
+      ) || /\b[a-zæøå]{2,4}-?\d{2,4}\b/i.test(msg);
     const hasLightSignals = CANVAS_LIGHT_KEYWORDS.some((kw) => msg.includes(kw));
-    const hasNonGenericFullSignals = CANVAS_FULL_KEYWORDS
-      .filter((kw) => !["hva er", "what is", "hva betyr", "what means"].includes(kw))
-      .some((kw) => msg.includes(kw));
+    const hasNonGenericFullSignals = CANVAS_FULL_KEYWORDS.filter(
+      (kw) => !["hva er", "what is", "hva betyr", "what means"].includes(kw),
+    ).some((kw) => msg.includes(kw));
     return hasCourseOrFileHints || hasLightSignals || hasNonGenericFullSignals;
   };
 
@@ -660,7 +770,8 @@ function chooseModelForFullDocumentMode(
   historyMessages: Array<{ role: string; content: string }>,
 ): { model: string; reason: "base" | "largest_context" } {
   const historyTokens = historyMessages.reduce((sum, msg) => sum + countTokens(msg.content) + 4, 0);
-  const requestedWindowTokens = countTokens(systemPrompt) + countTokens(canvasContext) + historyTokens + 2000;
+  const requestedWindowTokens =
+    countTokens(systemPrompt) + countTokens(canvasContext) + historyTokens + 2000;
   const largestAvailableContextModel = "claude-sonnet-4-6";
   const largestAvailableContextWindow = 200000;
 
@@ -677,9 +788,7 @@ function chooseModelForFullDocumentMode(
  * meldinger kuttes til et head+tail-utdrag så modellen fortsatt ser essensen
  * av samtalen uten å betale for fulle 4000-token-responser.
  */
-function capHistoryMessageSizes<T extends { role: string; content: string }>(
-  messages: T[],
-): T[] {
+function capHistoryMessageSizes<T extends { role: string; content: string }>(messages: T[]): T[] {
   const MAX_OLDER_CHARS = 1600; // ~400 tokens — nok for referanseformål
   const HEAD_CHARS = 900;
   const TAIL_CHARS = 600;
@@ -782,9 +891,7 @@ function matchSlashKbSelection(
 
   const firstToken = candidate.split(/\s+/)[0] ?? "";
   const remainder = candidate.slice(firstToken.length).trim();
-  return firstToken
-    ? { baseId: null, baseName: firstToken, remainder }
-    : null;
+  return firstToken ? { baseId: null, baseName: firstToken, remainder } : null;
 }
 
 /** True hvis bruker sendte /av eller /deaktiver for å deaktivere aktiv KB. */
@@ -799,9 +906,7 @@ function extractFirstHttpUrl(message: string): string | null {
 
   const candidates = message.match(/https?:\/\/[^\s<>"'`]+/gi) ?? [];
   for (const candidate of candidates) {
-    const cleaned = candidate
-      .replace(/[)\]}>,.!?;:]+$/g, "")
-      .replace(/^<|>$/g, "");
+    const cleaned = candidate.replace(/[)\]}>,.!?;:]+$/g, "").replace(/^<|>$/g, "");
     try {
       const parsed = new URL(cleaned);
       if (parsed.protocol === "http:" || parsed.protocol === "https:") {
@@ -876,7 +981,12 @@ async function ensurePublicHttpUrl(rawUrl: string): Promise<URL | null> {
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
   const hostname = parsed.hostname.toLowerCase();
-  if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+  if (
+    !hostname ||
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local")
+  ) {
     return null;
   }
 
@@ -941,7 +1051,11 @@ function normalizeLiveCrawlUrl(urlStr: string): string {
   }
 }
 
-function isWithinLiveCrawlScope(seedUrl: string, candidateUrl: string, samePathOnly: boolean): boolean {
+function isWithinLiveCrawlScope(
+  seedUrl: string,
+  candidateUrl: string,
+  samePathOnly: boolean,
+): boolean {
   try {
     const seed = new URL(seedUrl);
     const candidate = new URL(candidateUrl);
@@ -969,8 +1083,13 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
   }
 
   let finalUrl = safeUrl.toString();
-  let outcome: "success" | "too_short" | "http_error" | "fetch_error" | "body_too_large" | "pdf_disabled" =
-    "fetch_error";
+  let outcome:
+    | "success"
+    | "too_short"
+    | "http_error"
+    | "fetch_error"
+    | "body_too_large"
+    | "pdf_disabled" = "fetch_error";
   try {
     let usedLegacyFetchFallback = false;
     // Bruker crawler-pakkens SSRF-trygge fetch:
@@ -1008,7 +1127,10 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
             const nextUrl = new URL(location, legacyUrl).toString();
             const safeNext = await ensurePublicHttpUrl(nextUrl);
             if (!safeNext) {
-              logger.warn({ hop, nextUrl }, "Legacy fallback: redirect til privat/lokal IP blokkert");
+              logger.warn(
+                { hop, nextUrl },
+                "Legacy fallback: redirect til privat/lokal IP blokkert",
+              );
               legacyResponse = null;
               break;
             }
@@ -1047,13 +1169,19 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
 
         let extracted: string;
         let labelType: string;
-        if (legacyContentType.includes("text/html") || legacyContentType.includes("application/xhtml+xml")) {
+        if (
+          legacyContentType.includes("text/html") ||
+          legacyContentType.includes("application/xhtml+xml")
+        ) {
           const html = await legacyResponse.text();
           extracted = normalizeTextContent(stripHtml(html, { removeStyles: true }));
           labelType = "html";
         } else if (legacyContentType.includes("application/pdf")) {
           if (!LIVE_URL_ENABLE_PDF_CONTEXT) {
-            logger.info({ url: finalUrl }, "Direkte URL-kontekst: PDF parsing er deaktivert (LIVE_URL_ENABLE_PDF_CONTEXT)");
+            logger.info(
+              { url: finalUrl },
+              "Direkte URL-kontekst: PDF parsing er deaktivert (LIVE_URL_ENABLE_PDF_CONTEXT)",
+            );
             outcome = "pdf_disabled";
             return buildPdfDisabledLiveUrlContext(safeUrl.toString());
           }
@@ -1066,15 +1194,24 @@ async function buildLiveUrlContextFromMessage(message: string): Promise<string |
           const buffer = Buffer.from(await legacyResponse.arrayBuffer());
           if (buffer.byteLength > MAX_PDF_SIZE_BYTES) {
             outcome = "body_too_large";
-            logger.warn({ url: finalUrl, byteLength: buffer.byteLength }, "Legacy fallback: PDF-body for stor");
+            logger.warn(
+              { url: finalUrl, byteLength: buffer.byteLength },
+              "Legacy fallback: PDF-body for stor",
+            );
             return null;
           }
-          const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
+          const parsed = await parseDocument(
+            buffer,
+            "application/pdf",
+            safeUrl.pathname || "document.pdf",
+          );
           extracted = normalizeTextContent(parsed.text);
           labelType = "pdf";
         } else if (
-          legacyContentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-          || legacyContentType.includes("application/msword")
+          legacyContentType.includes(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          ) ||
+          legacyContentType.includes("application/msword")
         ) {
           const buffer = Buffer.from(await legacyResponse.arrayBuffer());
           const filename = safeUrl.pathname.split("/").pop() || "document.docx";
@@ -1139,7 +1276,9 @@ ${clipped}
       const htmlBuffer = await readResponseBodyWithLimit(response, MAX_TEXT_CONTENT_SIZE_BYTES);
       const html = htmlBuffer.toString("utf8");
       const domainSelectors = getDomainSelectors(finalUrl);
-      const seedText = normalizeTextContent(extractTextFromHtml(html, domainSelectors) || stripHtml(html, { removeStyles: true }));
+      const seedText = normalizeTextContent(
+        extractTextFromHtml(html, domainSelectors) || stripHtml(html, { removeStyles: true }),
+      );
       const sections: string[] = [];
       const visited = new Set<string>();
       const queue: Array<{ url: string; depth: number; parentUrl?: string }> = [];
@@ -1149,7 +1288,9 @@ ${clipped}
       queue.push({ url: finalUrl, depth: 0 });
 
       if (seedText.length >= LIVE_URL_MIN_TEXT_CHARS) {
-        sections.push(`[HTML depth=0 url=${finalUrl}]\n${clipLiveUrlSection(seedText, LIVE_URL_MAX_HTML_SECTION_CHARS)}`);
+        sections.push(
+          `[HTML depth=0 url=${finalUrl}]\n${clipLiveUrlSection(seedText, LIVE_URL_MAX_HTML_SECTION_CHARS)}`,
+        );
         crawledPages++;
       }
 
@@ -1186,7 +1327,7 @@ ${clipped}
       while (
         cursor < queue.length &&
         crawledPages < LIVE_URL_MAX_PAGES &&
-        (crawledPages + crawledDocuments) < (LIVE_URL_MAX_PAGES + LIVE_URL_MAX_DOCUMENTS)
+        crawledPages + crawledDocuments < LIVE_URL_MAX_PAGES + LIVE_URL_MAX_DOCUMENTS
       ) {
         const current = queue[cursor];
         cursor++;
@@ -1271,16 +1412,25 @@ ${clipped}
       );
     } else if (contentType.includes("application/pdf")) {
       if (!LIVE_URL_ENABLE_PDF_CONTEXT) {
-        logger.info({ url: finalUrl }, "Direkte URL-kontekst: PDF parsing er deaktivert (LIVE_URL_ENABLE_PDF_CONTEXT)");
+        logger.info(
+          { url: finalUrl },
+          "Direkte URL-kontekst: PDF parsing er deaktivert (LIVE_URL_ENABLE_PDF_CONTEXT)",
+        );
         outcome = "pdf_disabled";
         return buildPdfDisabledLiveUrlContext(safeUrl.toString());
       }
       const buffer = await readResponseBodyWithLimit(response, MAX_PDF_SIZE_BYTES);
-      const parsed = await parseDocument(buffer, "application/pdf", safeUrl.pathname || "document.pdf");
+      const parsed = await parseDocument(
+        buffer,
+        "application/pdf",
+        safeUrl.pathname || "document.pdf",
+      );
       extracted = normalizeTextContent(parsed.text);
       labelType = "pdf";
     } else if (
-      contentType.includes("application/vnd.openxmlformats-officedocument.wordprocessingml.document") ||
+      contentType.includes(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      ) ||
       contentType.includes("application/msword")
     ) {
       const buffer = await readResponseBodyWithLimit(response, MAX_OFFICE_DOC_SIZE_BYTES);
@@ -1381,8 +1531,11 @@ function refersToCurrentCourseContext(message: string): boolean {
   const lower = normaliserSkrivefeil(message).trim();
   if (!lower) return false;
 
-  return /\b(?:samme|dette|det)\s+(?:emnet|faget|kurset|modulen|forelesningen|leksjonen|filen)\b/i.test(lower)
-    || /\bi\s+(?:det|dette|samme)\s+(?:emnet|faget|kurset)\b/i.test(lower);
+  return (
+    /\b(?:samme|dette|det)\s+(?:emnet|faget|kurset|modulen|forelesningen|leksjonen|filen)\b/i.test(
+      lower,
+    ) || /\bi\s+(?:det|dette|samme)\s+(?:emnet|faget|kurset)\b/i.test(lower)
+  );
 }
 
 /**
@@ -1394,10 +1547,24 @@ function hasExplicitCourseOverride(message: string): boolean {
 
   // Eksplisitte byttefraser
   const overridePhrases = [
-    "bytt til", "bytte til", "bytt emne", "bytte emne", "bytt fag", "bytte fag",
-    "i stedet for", "istedenfor", "nå vil jeg", "gå til", "endre til",
-    "snakk om", "spør om", "heller om", "endre fokus",
-    "et annet fag", "et annet emne", "annet kurs",
+    "bytt til",
+    "bytte til",
+    "bytt emne",
+    "bytte emne",
+    "bytt fag",
+    "bytte fag",
+    "i stedet for",
+    "istedenfor",
+    "nå vil jeg",
+    "gå til",
+    "endre til",
+    "snakk om",
+    "spør om",
+    "heller om",
+    "endre fokus",
+    "et annet fag",
+    "et annet emne",
+    "annet kurs",
   ];
 
   if (overridePhrases.some((phrase) => lower.includes(phrase))) {
@@ -1418,13 +1585,21 @@ function hasExplicitCourseOverride(message: string): boolean {
 
   // Bart "[X] emnet/kurset/faget" uten preposisjon, som "metode emnet spør jeg om".
   // Ekskluder pronomen som "dette/samme/det" — de fanges av refersToCurrentCourseContext.
-  if (/\b(?!(?:dette|samme|det|denne|disse|ditt|din))[a-zæøå0-9-]{3,}\s+(?:emnet|kurset|faget)\b/i.test(lower)) {
+  if (
+    /\b(?!(?:dette|samme|det|denne|disse|ditt|din))[a-zæøå0-9-]{3,}\s+(?:emnet|kurset|faget)\b/i.test(
+      lower,
+    )
+  ) {
     return true;
   }
 
   // Reversert rekkefølge: "i emnet X", "fra emnet organisering", "om kurset dat1000".
   // Her kommer kursnavnet ETTER emnet/kurset/faget, ikke før.
-  if (/\b(?:emnet|kurset|faget)\s+(?!(?:mitt|ditt|sitt|vårt|deres|nå|her))[a-zæøå0-9-]{3,}\b/i.test(lower)) {
+  if (
+    /\b(?:emnet|kurset|faget)\s+(?!(?:mitt|ditt|sitt|vårt|deres|nå|her))[a-zæøå0-9-]{3,}\b/i.test(
+      lower,
+    )
+  ) {
     return true;
   }
 
@@ -1452,57 +1627,259 @@ export interface TargetedQuery {
  */
 const GENERIC_MODULE_WORDS = new Set([
   // Entall
-  "leksjonen", "leksjon", "forelesningen", "forelesning", "materialet",
-  "kurset", "faget", "emnet", "pensum", "modulen", "modul",
-  "innhold", "alt", "alle", "stoffet",
+  "leksjonen",
+  "leksjon",
+  "forelesningen",
+  "forelesning",
+  "materialet",
+  "kurset",
+  "faget",
+  "emnet",
+  "pensum",
+  "modulen",
+  "modul",
+  "innhold",
+  "alt",
+  "alle",
+  "stoffet",
   // Flertall — disse er de vanligste falske treffene
-  "leksjonene", "forelesningene", "modulene", "emner", "fagene",
-  "forelesningane", "leksjonane",
+  "leksjonene",
+  "forelesningene",
+  "modulene",
+  "emner",
+  "fagene",
+  "forelesningane",
+  "leksjonane",
 ]);
 
 /** Stoppord som filtreres bort fra chunkHint — vanlige norske/engelske ord uten faglig verdi */
 const CHUNK_STOPWORDS = new Set([
   // Hilsener og høflighetsfraser
-  "hei", "hallo", "takk", "vennligst", "please", "hello", "hi",
+  "hei",
+  "hallo",
+  "takk",
+  "vennligst",
+  "please",
+  "hello",
+  "hi",
   // Norske stoppord
-  "kan", "du", "meg", "jeg", "vi", "de", "det", "den", "fra", "til", "om",
-  "og", "i", "på", "av", "er", "en", "et", "som", "med", "for", "ha", "har",
-  "være", "var", "vil", "skal", "må", "kunne", "bli", "ble", "blitt", "ikke",
-  "hva", "hvordan", "hvorfor", "når", "hvor", "hvem", "hvilke", "hvilken",
-  "gi", "lage", "lag", "vis", "vise", "skriv", "skrive", "fortell", "forklar",
-  "forklare", "forklaring", "oppsummer", "oppsummere", "oppsummering",
-  "beskriv", "beskrive", "beskrivelse",
-  "dekker", "dekke", "handler", "handle", "menes", "mener", "betyr", "betydning",
+  "kan",
+  "du",
+  "meg",
+  "jeg",
+  "vi",
+  "de",
+  "det",
+  "den",
+  "fra",
+  "til",
+  "om",
+  "og",
+  "i",
+  "på",
+  "av",
+  "er",
+  "en",
+  "et",
+  "som",
+  "med",
+  "for",
+  "ha",
+  "har",
+  "være",
+  "var",
+  "vil",
+  "skal",
+  "må",
+  "kunne",
+  "bli",
+  "ble",
+  "blitt",
+  "ikke",
+  "hva",
+  "hvordan",
+  "hvorfor",
+  "når",
+  "hvor",
+  "hvem",
+  "hvilke",
+  "hvilken",
+  "gi",
+  "lage",
+  "lag",
+  "vis",
+  "vise",
+  "skriv",
+  "skrive",
+  "fortell",
+  "forklar",
+  "forklare",
+  "forklaring",
+  "oppsummer",
+  "oppsummere",
+  "oppsummering",
+  "beskriv",
+  "beskrive",
+  "beskrivelse",
+  "dekker",
+  "dekke",
+  "handler",
+  "handle",
+  "menes",
+  "mener",
+  "betyr",
+  "betydning",
   // Forklaringsnivå-modifikatorer (ikke fagbegreper)
-  "enkelt", "enkel", "enklere", "detaljert", "detaljerte", "dypere", "dypt", "dyp",
-  "grundig", "grundigere", "kortfattet", "kort", "simpelt", "simpel",
-  "utdypende", "utdyp", "utdype", "ekspert", "avansert", "avanserte",
-  "standard", "overordnet", "overordna", "bred", "bredt", "bredere",
-  "alt", "alle", "noe", "noen", "denne", "dette", "disse", "sin", "sitt", "sine",
-  "siste", "forrige", "neste", "første", "viktig", "viktige", "viktigste",
-  "uke", "uken", "ukes", "dag", "dagen", "dagens", "idag", "nå", "akkurat",
-  "eller", "bør", "burde", "prioritere", "prioritert",
+  "enkelt",
+  "enkel",
+  "enklere",
+  "detaljert",
+  "detaljerte",
+  "dypere",
+  "dypt",
+  "dyp",
+  "grundig",
+  "grundigere",
+  "kortfattet",
+  "kort",
+  "simpelt",
+  "simpel",
+  "utdypende",
+  "utdyp",
+  "utdype",
+  "ekspert",
+  "avansert",
+  "avanserte",
+  "standard",
+  "overordnet",
+  "overordna",
+  "bred",
+  "bredt",
+  "bredere",
+  "alt",
+  "alle",
+  "noe",
+  "noen",
+  "denne",
+  "dette",
+  "disse",
+  "sin",
+  "sitt",
+  "sine",
+  "siste",
+  "forrige",
+  "neste",
+  "første",
+  "viktig",
+  "viktige",
+  "viktigste",
+  "uke",
+  "uken",
+  "ukes",
+  "dag",
+  "dagen",
+  "dagens",
+  "idag",
+  "nå",
+  "akkurat",
+  "eller",
+  "bør",
+  "burde",
+  "prioritere",
+  "prioritert",
   // Generiske kontekst-ord (ikke fagspesifikke)
-  "emnet", "emne", "faget", "fag", "kurset", "kurs", "temaet", "tema",
-  "emner", "emnene", "fagene", "kursene", "oversikt", "liste", "list",
-  "innholdet", "innhold", "stoffet", "stoff", "materialet", "materiale",
-  "pensum", "dokumentet", "dokument",
-  "hent", "hente", "registrert", "registrere", "registrering",
-  "mine", "min", "mitt", "vis", "vise",
+  "emnet",
+  "emne",
+  "faget",
+  "fag",
+  "kurset",
+  "kurs",
+  "temaet",
+  "tema",
+  "emner",
+  "emnene",
+  "fagene",
+  "kursene",
+  "oversikt",
+  "liste",
+  "list",
+  "innholdet",
+  "innhold",
+  "stoffet",
+  "stoff",
+  "materialet",
+  "materiale",
+  "pensum",
+  "dokumentet",
+  "dokument",
+  "hent",
+  "hente",
+  "registrert",
+  "registrere",
+  "registrering",
+  "mine",
+  "min",
+  "mitt",
+  "vis",
+  "vise",
   // Merk: "forelesning", "kapittel", "modul", "leksjon" er bevisst IKKE stoppord —
   // de er innholdsbærende nøkkelord som BM25 trenger for å diskriminere mellom filer
   // som "Forelesning1.pdf" og "Obligatorisk arbeidskrav.assignment".
   // Engelske stoppord (ofte brukt i norske setninger)
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "could", "should",
-  "what", "how", "why", "when", "where", "who", "which",
-  "about", "explain", "describe", "tell", "give", "show", "make", "write",
+  "the",
+  "a",
+  "an",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "being",
+  "have",
+  "has",
+  "had",
+  "do",
+  "does",
+  "did",
+  "will",
+  "would",
+  "could",
+  "should",
+  "what",
+  "how",
+  "why",
+  "when",
+  "where",
+  "who",
+  "which",
+  "about",
+  "explain",
+  "describe",
+  "tell",
+  "give",
+  "show",
+  "make",
+  "write",
 ]);
 
 const URL_ARTIFACT_TOKENS = new Set([
-  "http", "https", "www",
-  "com", "no", "net", "org", "edu", "gov", "io", "co",
-  "html", "htm", "php", "asp", "aspx",
+  "http",
+  "https",
+  "www",
+  "com",
+  "no",
+  "net",
+  "org",
+  "edu",
+  "gov",
+  "io",
+  "co",
+  "html",
+  "htm",
+  "php",
+  "asp",
+  "aspx",
 ]);
 
 /**
@@ -1571,7 +1948,8 @@ function extractQueryTarget(message: string): TargetedQuery {
 
   // Ekstraher kun spesifikke modulhint (nummererte eller eksplisitt navngitte)
   const rawModuleHint = extractModuleHint(message);
-  const moduleHint = rawModuleHint && !GENERIC_MODULE_WORDS.has(rawModuleHint) ? rawModuleHint : null;
+  const moduleHint =
+    rawModuleHint && !GENERIC_MODULE_WORDS.has(rawModuleHint) ? rawModuleHint : null;
 
   // Vanlige emnefragmenter som kan dukke opp i Canvas-emnenavn
   // Dekker ALLE fagfelt representert i norsk høyere utdanning — ikke bare IT/
@@ -1579,86 +1957,272 @@ function extractQueryTarget(message: string): TargetedQuery {
   // student skal få like god emne-matching som en IT-student.
   const courseKeywords = [
     // IT / teknologi / realfag
-    "algoritmer", "datastrukturer", "database", "sikkerhet",
-    "python", "objekt", "web", "nettverk", "mobil",
-    "maskinlæring", "machine learning", "windows", "server",
-    "operativsystem", "matematikk", "statistikk", "programmering",
-    "java", "c#", "embedded", "elektronikk", "fysikk", "diskret",
-    "informatikk", "informasjonsteknologi", "kybernetikk", "robotikk",
-    "ikt", "informasjon", "system",
+    "algoritmer",
+    "datastrukturer",
+    "database",
+    "sikkerhet",
+    "python",
+    "objekt",
+    "web",
+    "nettverk",
+    "mobil",
+    "maskinlæring",
+    "machine learning",
+    "windows",
+    "server",
+    "operativsystem",
+    "matematikk",
+    "statistikk",
+    "programmering",
+    "java",
+    "c#",
+    "embedded",
+    "elektronikk",
+    "fysikk",
+    "diskret",
+    "informatikk",
+    "informasjonsteknologi",
+    "kybernetikk",
+    "robotikk",
+    "ikt",
+    "informasjon",
+    "system",
     // Økonomi / business / administrasjon
-    "økonomi", "ledelse", "strategi", "finans", "investering",
-    "revisjon", "skatt", "forretning", "innovasjon", "markedsføring",
-    "regnskap", "logistikk", "entreprenørskap", "personalledelse",
-    "prosjektledelse", "bedriftsøkonomi", "samfunnsøkonomi",
+    "økonomi",
+    "ledelse",
+    "strategi",
+    "finans",
+    "investering",
+    "revisjon",
+    "skatt",
+    "forretning",
+    "innovasjon",
+    "markedsføring",
+    "regnskap",
+    "logistikk",
+    "entreprenørskap",
+    "personalledelse",
+    "prosjektledelse",
+    "bedriftsøkonomi",
+    "samfunnsøkonomi",
     // Organisasjon / arbeidsliv
-    "organisasjon", "organisering", "organisatorisk",
-    "arbeidsliv", "hr", "rekruttering",
+    "organisasjon",
+    "organisering",
+    "organisatorisk",
+    "arbeidsliv",
+    "hr",
+    "rekruttering",
     // Jus
-    "juss", "rettsvitenskap", "strafferett", "sivilrett", "forvaltningsrett",
-    "arbeidsrett", "kontraktsrett", "skatterett", "menneskerettigheter",
-    "internasjonal rett", "rettsfilosofi",
+    "juss",
+    "rettsvitenskap",
+    "strafferett",
+    "sivilrett",
+    "forvaltningsrett",
+    "arbeidsrett",
+    "kontraktsrett",
+    "skatterett",
+    "menneskerettigheter",
+    "internasjonal rett",
+    "rettsfilosofi",
     // Medisin / helsefag
-    "medisin", "sykepleie", "sykepleier", "diagnose", "anatomi", "fysiologi",
-    "farmakologi", "farmasi", "patologi", "klinisk",
-    "folkehelse", "helsefag", "helse", "psykiatri",
-    "fysioterapi", "ergoterapi", "radiografi", "bioingeniør",
-    "tannpleie", "tannhelse", "paramedic", "akuttmedisin",
-    "helsesykepleier", "jordmor", "vernepleier",
+    "medisin",
+    "sykepleie",
+    "sykepleier",
+    "diagnose",
+    "anatomi",
+    "fysiologi",
+    "farmakologi",
+    "farmasi",
+    "patologi",
+    "klinisk",
+    "folkehelse",
+    "helsefag",
+    "helse",
+    "psykiatri",
+    "fysioterapi",
+    "ergoterapi",
+    "radiografi",
+    "bioingeniør",
+    "tannpleie",
+    "tannhelse",
+    "paramedic",
+    "akuttmedisin",
+    "helsesykepleier",
+    "jordmor",
+    "vernepleier",
     // Psykologi
-    "psykologi", "kognitiv", "atferd", "nevropsykologi",
-    "utviklingspsykologi", "personlighet", "klinisk psykologi",
-    "sosialpsykologi", "arbeidspsykologi", "psykoterapi",
+    "psykologi",
+    "kognitiv",
+    "atferd",
+    "nevropsykologi",
+    "utviklingspsykologi",
+    "personlighet",
+    "klinisk psykologi",
+    "sosialpsykologi",
+    "arbeidspsykologi",
+    "psykoterapi",
     // Pedagogikk / utdanning
-    "pedagogikk", "didaktikk", "læring", "undervisning", "utdanning",
-    "klasseledelse", "spesialpedagogikk", "barnehagepedagogikk",
-    "grunnskolelærer", "lektor", "adjunkt",
+    "pedagogikk",
+    "didaktikk",
+    "læring",
+    "undervisning",
+    "utdanning",
+    "klasseledelse",
+    "spesialpedagogikk",
+    "barnehagepedagogikk",
+    "grunnskolelærer",
+    "lektor",
+    "adjunkt",
     // Sosialfag / samfunnsvitenskap
-    "sosiologi", "samfunnsfag", "samfunnsvitenskap", "statsvitenskap",
-    "sosialt arbeid", "barnevern", "sosialpolitikk",
-    "kriminologi", "antropologi", "demografi",
+    "sosiologi",
+    "samfunnsfag",
+    "samfunnsvitenskap",
+    "statsvitenskap",
+    "sosialt arbeid",
+    "barnevern",
+    "sosialpolitikk",
+    "kriminologi",
+    "antropologi",
+    "demografi",
     // Humaniora
-    "filosofi", "historie", "litteratur", "kulturhistorie",
-    "språkvitenskap", "lingvistikk", "arkeologi", "idéhistorie",
-    "engelsk", "norsk", "spansk", "tysk", "fransk", "italiensk",
-    "kunsthistorie", "musikkvitenskap",
+    "filosofi",
+    "historie",
+    "litteratur",
+    "kulturhistorie",
+    "språkvitenskap",
+    "lingvistikk",
+    "arkeologi",
+    "idéhistorie",
+    "engelsk",
+    "norsk",
+    "spansk",
+    "tysk",
+    "fransk",
+    "italiensk",
+    "kunsthistorie",
+    "musikkvitenskap",
     // Religion / teologi
-    "religion", "teologi", "kristendom", "kirkehistorie",
-    "religionsvitenskap", "islam", "jødedom",
+    "religion",
+    "teologi",
+    "kristendom",
+    "kirkehistorie",
+    "religionsvitenskap",
+    "islam",
+    "jødedom",
     // Design / kunst / arkitektur
-    "design", "kunst", "arkitektur", "formgiving", "visuell",
-    "grafisk design", "industridesign", "interiørarkitektur",
-    "mote", "fotografi", "film",
+    "design",
+    "kunst",
+    "arkitektur",
+    "formgiving",
+    "visuell",
+    "grafisk design",
+    "industridesign",
+    "interiørarkitektur",
+    "mote",
+    "fotografi",
+    "film",
     // Naturvitenskap / biologi / miljø
-    "biologi", "kjemi", "geografi", "geologi", "økologi",
-    "miljø", "klima", "havforsk", "marinbiologi",
-    "molekylærbiologi", "mikrobiologi", "genetikk",
+    "biologi",
+    "kjemi",
+    "geografi",
+    "geologi",
+    "økologi",
+    "miljø",
+    "klima",
+    "havforsk",
+    "marinbiologi",
+    "molekylærbiologi",
+    "mikrobiologi",
+    "genetikk",
     // Ingeniørfag / bygg / maritim
-    "bygg", "anlegg", "maskinteknikk", "elektro",
-    "materialteknologi", "energi", "maritim",
-    "petroleum", "mekatronikk", "produksjonsteknologi",
+    "bygg",
+    "anlegg",
+    "maskinteknikk",
+    "elektro",
+    "materialteknologi",
+    "energi",
+    "maritim",
+    "petroleum",
+    "mekatronikk",
+    "produksjonsteknologi",
     // Idrett / friluftsliv
-    "idrett", "friluftsliv", "kroppsøving", "trenerutdanning",
+    "idrett",
+    "friluftsliv",
+    "kroppsøving",
+    "trenerutdanning",
     // Metodikk / vitenskapsteori (universelt akademisk)
-    "metode", "vitenskapsteori", "forskningsmetode",
+    "metode",
+    "vitenskapsteori",
+    "forskningsmetode",
     // Tverrfaglige / felles
-    "analyse", "etikk", "prosjekt", "bacheloroppgave",
-    "kommunikasjon", "masteroppgave",
+    "analyse",
+    "etikk",
+    "prosjekt",
+    "bacheloroppgave",
+    "kommunikasjon",
+    "masteroppgave",
     // Engelske varianter (internasjonale kursnavn)
-    "algorithms", "data structures", "security", "object", "network",
-    "mobile", "operating system", "mathematics", "statistics",
-    "economics", "management", "project", "communication", "innovation",
-    "programming", "electronics", "physics", "analysis", "logistics",
-    "accounting", "marketing", "law", "ethics", "organization",
-    "sociology", "psychology", "philosophy", "history", "biology",
-    "chemistry", "geography", "finance", "investment", "business",
-    "medicine", "nursing", "anatomy", "physiology", "pharmacology",
-    "pathology", "clinical", "public health", "pediatrics",
-    "education", "pedagogy", "didactics", "learning",
-    "design", "architecture", "theology", "religion",
-    "linguistics", "literature", "archaeology", "anthropology",
-    "political science", "social work", "criminology",
-    "civil engineering", "mechanical engineering", "electrical engineering",
+    "algorithms",
+    "data structures",
+    "security",
+    "object",
+    "network",
+    "mobile",
+    "operating system",
+    "mathematics",
+    "statistics",
+    "economics",
+    "management",
+    "project",
+    "communication",
+    "innovation",
+    "programming",
+    "electronics",
+    "physics",
+    "analysis",
+    "logistics",
+    "accounting",
+    "marketing",
+    "law",
+    "ethics",
+    "organization",
+    "sociology",
+    "psychology",
+    "philosophy",
+    "history",
+    "biology",
+    "chemistry",
+    "geography",
+    "finance",
+    "investment",
+    "business",
+    "medicine",
+    "nursing",
+    "anatomy",
+    "physiology",
+    "pharmacology",
+    "pathology",
+    "clinical",
+    "public health",
+    "pediatrics",
+    "education",
+    "pedagogy",
+    "didactics",
+    "learning",
+    "design",
+    "architecture",
+    "theology",
+    "religion",
+    "linguistics",
+    "literature",
+    "archaeology",
+    "anthropology",
+    "political science",
+    "social work",
+    "criminology",
+    "civil engineering",
+    "mechanical engineering",
+    "electrical engineering",
   ];
 
   // Vanlige emnekode-prefikser (2-4 bokstaver som ofte starter emnekoder)
@@ -1666,30 +2230,109 @@ function extractQueryTarget(message: string): TargetedQuery {
   // UiB, UiT, OsloMet, HVL, NMH, NIH, BI, NHH, UiA, Nord, Høgskulen, etc.)
   const courseCodePrefixes = [
     // IT / data / teknologi / realfag
-    "is", "dat", "itk", "inf", "bsy", "ing", "te", "fo", "ikt", "alg",
-    "mat", "sta", "fys", "bio", "kje", "geo",
-    "net", "web", "sys", "ele", "mob", "rob", "cyb",
+    "is",
+    "dat",
+    "itk",
+    "inf",
+    "bsy",
+    "ing",
+    "te",
+    "fo",
+    "ikt",
+    "alg",
+    "mat",
+    "sta",
+    "fys",
+    "bio",
+    "kje",
+    "geo",
+    "net",
+    "web",
+    "sys",
+    "ele",
+    "mob",
+    "rob",
+    "cyb",
     // Økonomi / administrasjon / business
-    "øko", "adm", "led", "pro", "kom", "inn", "sik",
-    "mrk", "fin", "reg", "log", "ent", "bed",
+    "øko",
+    "adm",
+    "led",
+    "pro",
+    "kom",
+    "inn",
+    "sik",
+    "mrk",
+    "fin",
+    "reg",
+    "log",
+    "ent",
+    "bed",
     // Jus
-    "jur", "jus", "rett",
+    "jur",
+    "jus",
+    "rett",
     // Medisin / helse / farmasi
-    "med", "sy", "syk", "farm", "odont", "radio", "fysi", "ergo",
-    "hels", "vern", "jord", "par",
+    "med",
+    "sy",
+    "syk",
+    "farm",
+    "odont",
+    "radio",
+    "fysi",
+    "ergo",
+    "hels",
+    "vern",
+    "jord",
+    "par",
     // Psykologi / pedagogikk / sosialfag
-    "psy", "psyk", "ped", "did", "spe", "bhg", "lær",
-    "sos", "bar", "krim",
+    "psy",
+    "psyk",
+    "ped",
+    "did",
+    "spe",
+    "bhg",
+    "lær",
+    "sos",
+    "bar",
+    "krim",
     // Humaniora / språk / religion
-    "his", "fil", "lit", "spr", "ark", "rel", "teo", "krist",
-    "nor", "eng", "spa", "tys", "fra", "ita", "lat",
-    "kult", "mus", "kun",
+    "his",
+    "fil",
+    "lit",
+    "spr",
+    "ark",
+    "rel",
+    "teo",
+    "krist",
+    "nor",
+    "eng",
+    "spa",
+    "tys",
+    "fra",
+    "ita",
+    "lat",
+    "kult",
+    "mus",
+    "kun",
     // Design / kunst / arkitektur / media
-    "des", "arc", "ark", "mot", "fot", "med",
+    "des",
+    "arc",
+    "ark",
+    "mot",
+    "fot",
+    "med",
     // Sport / friluftsliv
-    "idr", "fri", "krø",
+    "idr",
+    "fri",
+    "krø",
     // Ingeniør / bygg / maritim / energi
-    "byg", "anl", "mas", "mat", "mar", "pet", "ene",
+    "byg",
+    "anl",
+    "mas",
+    "mat",
+    "mar",
+    "pet",
+    "ene",
     // Tverrfaglige
     "bop",
   ];
@@ -1717,68 +2360,68 @@ function extractQueryTarget(message: string): TargetedQuery {
     "operating system": "operativsystem",
     "operating systems": "operativsystem",
     // Jus
-    "strafferett": "juss",
-    "sivilrett": "juss",
-    "forvaltningsrett": "juss",
-    "arbeidsrett": "juss",
-    "kontraktsrett": "juss",
-    "skatterett": "juss",
-    "menneskerettigheter": "juss",
+    strafferett: "juss",
+    sivilrett: "juss",
+    forvaltningsrett: "juss",
+    arbeidsrett: "juss",
+    kontraktsrett: "juss",
+    skatterett: "juss",
+    menneskerettigheter: "juss",
     "internasjonal rett": "juss",
     "offentlig rett": "juss",
     "privat rett": "juss",
-    "rettsvitenskap": "juss",
+    rettsvitenskap: "juss",
     // Psykologi
     "klinisk psykologi": "psykologi",
     "kognitiv psykologi": "psykologi",
-    "sosialpsykologi": "psykologi",
-    "arbeidspsykologi": "psykologi",
-    "utviklingspsykologi": "psykologi",
-    "nevropsykologi": "psykologi",
+    sosialpsykologi: "psykologi",
+    arbeidspsykologi: "psykologi",
+    utviklingspsykologi: "psykologi",
+    nevropsykologi: "psykologi",
     // Medisin / helse
     "klinisk medisin": "medisin",
-    "folkehelsevitenskap": "folkehelse",
+    folkehelsevitenskap: "folkehelse",
     "folkehelse og samfunnsmedisin": "folkehelse",
     "klinisk sykepleie": "sykepleie",
-    "akuttmedisin": "medisin",
-    "allmennmedisin": "medisin",
+    akuttmedisin: "medisin",
+    allmennmedisin: "medisin",
     // Pedagogikk / utdanning
     "didaktikk og læring": "pedagogikk",
-    "spesialpedagogikk": "pedagogikk",
-    "barnehagepedagogikk": "pedagogikk",
-    "utdanningsvitenskap": "pedagogikk",
+    spesialpedagogikk: "pedagogikk",
+    barnehagepedagogikk: "pedagogikk",
+    utdanningsvitenskap: "pedagogikk",
     // Økonomi / business
-    "bedriftsøkonomi": "økonomi",
-    "samfunnsøkonomi": "økonomi",
+    bedriftsøkonomi: "økonomi",
+    samfunnsøkonomi: "økonomi",
     "finansiell analyse": "finans",
     "internasjonal økonomi": "økonomi",
     "strategisk ledelse": "ledelse",
     "organisasjon og ledelse": "ledelse",
-    "prosjektledelse": "ledelse",
-    "personalledelse": "ledelse",
+    prosjektledelse: "ledelse",
+    personalledelse: "ledelse",
     // Sosialfag
     "sosialt arbeid": "sosialfag",
     "barnevern og familiearbeid": "barnevern",
     // Humaniora
     "nordisk litteratur": "litteratur",
-    "kulturhistorie": "historie",
-    "idéhistorie": "historie",
-    "kunsthistorie": "kunst",
-    "musikkvitenskap": "musikk",
+    kulturhistorie: "historie",
+    idéhistorie: "historie",
+    kunsthistorie: "kunst",
+    musikkvitenskap: "musikk",
     // Religion / teologi
-    "religionsvitenskap": "religion",
-    "kirkehistorie": "teologi",
+    religionsvitenskap: "religion",
+    kirkehistorie: "teologi",
     // Design / kunst
     "grafisk design": "design",
-    "industridesign": "design",
-    "interiørarkitektur": "arkitektur",
+    industridesign: "design",
+    interiørarkitektur: "arkitektur",
     // Naturvitenskap
-    "molekylærbiologi": "biologi",
-    "marinbiologi": "biologi",
-    "mikrobiologi": "biologi",
+    molekylærbiologi: "biologi",
+    marinbiologi: "biologi",
+    mikrobiologi: "biologi",
     // Ingeniørfag
     "mekanisk ingeniør": "maskinteknikk",
-    "elektroingeniør": "elektro",
+    elektroingeniør: "elektro",
     "bygg og anlegg": "bygg",
     // Idrett
     "idrett og friluftsliv": "idrett",
@@ -1786,8 +2429,8 @@ function extractQueryTarget(message: string): TargetedQuery {
     "samfunnsvitenskapelig metode": "metode",
     "kvalitativ metode": "metode",
     "kvantitativ metode": "metode",
-    "forskningsmetode": "metode",
-    "vitenskapsteori": "metode",
+    forskningsmetode: "metode",
+    vitenskapsteori: "metode",
   };
 
   // Fjern filnavn-mønstre fra søketeksten for å unngå falske positive
@@ -1804,7 +2447,9 @@ function extractQueryTarget(message: string): TargetedQuery {
 
   // Prøv å matche emnekoder direkte (f.eks. "DAT102", "ALG200", "IS-304", "6105N")
   if (!courseHint) {
-    const courseCodeMatch = cleanedForCourse.match(/\b(?:([a-zæøå]{2,4})-?(\d{2,4})|(\d{4,5}[a-zæøå]))\b/i);
+    const courseCodeMatch = cleanedForCourse.match(
+      /\b(?:([a-zæøå]{2,4})-?(\d{2,4})|(\d{4,5}[a-zæøå]))\b/i,
+    );
     if (courseCodeMatch) {
       // Returner hele emnekoden som hint (f.eks. "dat102")
       courseHint = courseCodeMatch[0].replace("-", "").toLowerCase();
@@ -1816,14 +2461,22 @@ function extractQueryTarget(message: string): TargetedQuery {
   // Bruk siste match i setningen for å unngå at tidlige preposisjoner
   // (f.eks. "til nettverk i windows emnet") låser hint til feil fag.
   if (!courseHint) {
-    const prepositionMatches = [...cleanedForCourse.matchAll(/\b(?:i|om|fra|til|for)\s+([a-zæøå]{3,})\b/gi)];
+    const prepositionMatches = [
+      ...cleanedForCourse.matchAll(/\b(?:i|om|fra|til|for)\s+([a-zæøå]{3,})\b/gi),
+    ];
     const prepositionMatch = prepositionMatches.at(-1);
     if (prepositionMatch?.[1]) {
       const potentialCourse = prepositionMatch[1].toLowerCase();
       // Sjekk om det matcher et kjent nøkkelord eller emnekode-prefiks
-      if (courseKeywords.includes(potentialCourse) || courseCodePrefixes.includes(potentialCourse)) {
+      if (
+        courseKeywords.includes(potentialCourse) ||
+        courseCodePrefixes.includes(potentialCourse)
+      ) {
         courseHint = potentialCourse;
-        logger.info({ courseHint, pattern: "preposition" }, "Ekstraherte fag fra preposisjonsfrase");
+        logger.info(
+          { courseHint, pattern: "preposition" },
+          "Ekstraherte fag fra preposisjonsfrase",
+        );
       }
     }
   }
@@ -1846,7 +2499,10 @@ function extractQueryTarget(message: string): TargetedQuery {
       const prefixRegex = new RegExp(`\\b${prefix}[\\s-]?\\d{2,4}\\b`, "i");
       if (prefixRegex.test(cleanedForCourse)) {
         courseHint = prefix;
-        logger.info({ courseHint, pattern: "codePrefix" }, "Ekstraherte emnekode-prefiks fra melding");
+        logger.info(
+          { courseHint, pattern: "codePrefix" },
+          "Ekstraherte emnekode-prefiks fra melding",
+        );
         break;
       }
     }
@@ -1862,10 +2518,10 @@ function extractQueryTarget(message: string): TargetedQuery {
       // Sammensatte (med mellomrom): krev hel-frase-match
       // Enkeltord: tillat trailing tegn (stem) for å fange norske bøyninger og sammensatte ord
       const pattern = kw.includes(" ")
-        // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste, escaped via escapeRegex
-        ? new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i")
-        // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste, escaped via escapeRegex
-        : new RegExp(`\\b${escaped}[a-zæøå]*\\b`, "i");
+        ? // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste, escaped via escapeRegex
+          new RegExp(`(^|\\s)${escaped}(\\s|$)`, "i")
+        : // eslint-disable-next-line security/detect-non-literal-regexp -- kw kommer fra hardkodet liste, escaped via escapeRegex
+          new RegExp(`\\b${escaped}[a-zæøå]*\\b`, "i");
       if (pattern.test(cleanedForCourse)) {
         courseHint = kw;
         logger.info({ courseHint, pattern: "keywordStem" }, "Ekstraherte fag fra nøkkelord (stem)");
@@ -1891,10 +2547,7 @@ function extractQueryTarget(message: string): TargetedQuery {
   // Ekstraher chunkHint: nøkkelord for BM25/hybrid søk
   const chunkHint = extractChunkHint(message);
   if (chunkHint) {
-    logger.info(
-      { chunkHint, messagePreview: message.substring(0, 80) },
-      "chunkHint ekstrahert",
-    );
+    logger.info({ chunkHint, messagePreview: message.substring(0, 80) }, "chunkHint ekstrahert");
   }
 
   return { courseIdHint: null, courseHint, moduleHint, fileHint, chunkHint };
@@ -2014,9 +2667,7 @@ router.get("/models", (_req, res) => {
     description: info.description,
     isDefault: id === DEFAULT_MODEL,
   }));
-  return res.json(
-    KIModelsResponseSchema.parse({ models, defaultModel: DEFAULT_MODEL }),
-  );
+  return res.json(KIModelsResponseSchema.parse({ models, defaultModel: DEFAULT_MODEL }));
 });
 
 // Hovedendepunkt for chat
@@ -2038,12 +2689,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     return sendZodError(res, parseResult.error, "Ugyldig chat-forespørsel");
   }
 
-  const {
-    messages,
-    model: requestedModel,
-    temperature = 0.7,
-    explanationLevel,
-  } = parseResult.data;
+  const { messages, model: requestedModel, temperature = 0.7, explanationLevel } = parseResult.data;
 
   // Valider meldingsarray
   if (!messages || messages.length === 0) {
@@ -2058,10 +2704,7 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
   }
 
   // Sjekk for veldig lange meldinger (unngå DoS)
-  const totalLength = messages.reduce(
-    (sum, m) => sum + (m.content?.length || 0),
-    0,
-  );
+  const totalLength = messages.reduce((sum, m) => sum + (m.content?.length || 0), 0);
   if (totalLength > KI_MAX_MESSAGE_LENGTH_BACKEND) {
     logger.warn(
       {
@@ -2084,7 +2727,11 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
 
   if (checkAIClientUnavailable(res, resolvedRequestedModel, KIChatResponseSchema)) return;
 
-  if (requestedModel && requestedModel !== resolvedRequestedModel && !SUPPORTED_MODELS[requestedModel]) {
+  if (
+    requestedModel &&
+    requestedModel !== resolvedRequestedModel &&
+    !SUPPORTED_MODELS[requestedModel]
+  ) {
     logger.warn(
       { requestedModel, resolvedRequestedModel },
       "Forespurt modell normalisert/falt tilbake",
@@ -2123,13 +2770,12 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     const slashKbSelection = shouldCheckSlashKb
       ? matchSlashKbSelection(lastUserMessageRaw, availableKbBases)
       : null;
-    const effectiveMessages = slashKbSelection && slashKbSelection.remainder
-      ? messages.map((m, idx) =>
-          idx === lastUserIndex
-            ? { ...m, content: slashKbSelection.remainder }
-            : m,
-        )
-      : messages;
+    const effectiveMessages =
+      slashKbSelection && slashKbSelection.remainder
+        ? messages.map((m, idx) =>
+            idx === lastUserIndex ? { ...m, content: slashKbSelection.remainder } : m,
+          )
+        : messages;
     const normalizedFirstUserMessage = normaliserSkrivefeil(firstUserMessage).trim();
 
     // Stabil chat-identifikator. Brukes som suffix i sesjonslås-nøkkelen slik
@@ -2146,7 +2792,12 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
       const explicitId = (req.body as { chatId?: unknown }).chatId;
       if (typeof explicitId === "string" && explicitId.trim().length > 0) {
         // Saniterer for Redis-nøkkel-bruk: kun alfanumerisk + bindestrek.
-        return explicitId.trim().replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 64) || "default";
+        return (
+          explicitId
+            .trim()
+            .replace(/[^a-zA-Z0-9_-]/g, "")
+            .slice(0, 64) || "default"
+        );
       }
       return firstUserMessage
         ? createHash("sha256").update(firstUserMessage).digest("hex").slice(0, 16)
@@ -2171,8 +2822,9 @@ router.post("/chat", knyttCanvasTokenValgfritt, async (req, res) => {
     }
 
     const isFirstUserGreetingOnly =
-      /^(?:hei|heisann|hallo|hallais|hello|hi|god\s*dag|god\s*morgen|god\s*kveld|hey|yo)[\s!,.?]*$/iu
-        .test(normalizedFirstUserMessage);
+      /^(?:hei|heisann|hallo|hallais|hello|hi|god\s*dag|god\s*morgen|god\s*kveld|hey|yo)[\s!,.?]*$/iu.test(
+        normalizedFirstUserMessage,
+      );
 
     const studentFirstName = extractPreferredStudentFirstName(bruker);
 
@@ -2242,11 +2894,15 @@ Never guess or invent a name from email, username, or other profile fields.
     }
 
     // ——— Sammenligningsverktøy ———
-    const lastUserMessage = [...effectiveMessages].reverse().find((m) => m.role === "user")?.content ?? "";
+    const lastUserMessage =
+      [...effectiveMessages].reverse().find((m) => m.role === "user")?.content ?? "";
     const isComparison = isComparisonQuery(lastUserMessage);
     if (isComparison) {
       enhancedSystemPrompt += STUDYWISE_COMPARISON_PROMPT;
-      logger.info({ userId: req.user.id }, "Sammenligningsspørsmål detektert — injiserer sammenligningsinstruksjoner");
+      logger.info(
+        { userId: req.user.id },
+        "Sammenligningsspørsmål detektert — injiserer sammenligningsinstruksjoner",
+      );
     }
 
     // ——— Intent-deteksjon: Trenger denne meldingen Canvas-data? ———
@@ -2298,8 +2954,7 @@ Never guess or invent a name from email, username, or other profile fields.
       const sourceHeadingMatch = trimmed.match(
         /^(?:Basert på|Based on)\s+(\S+\.(?:pdf|pptx?|docx?|xlsx?))/i,
       );
-      const hasCanvasSourcesSection =
-        /\*\*Kilder:\*\*|\*\*Sources:\*\*/.test(lastAssistantMsg);
+      const hasCanvasSourcesSection = /\*\*Kilder:\*\*|\*\*Sources:\*\*/.test(lastAssistantMsg);
       if (sourceHeadingMatch || hasCanvasSourcesSection) {
         logger.info(
           {
@@ -2335,8 +2990,9 @@ Never guess or invent a name from email, username, or other profile fields.
     // melding: "leksjon/kapittel/modul/forelesning N" — disse indikerer
     // at brukeren vil ha faktisk fil-innhold, ikke struktur-oversikt.
     const lastMessageHasConcreteContentRef =
-      /\b(?:leksjon|lesson|kapittel|chapter|modul|module|forelesning|lecture|forelesing)\s+\d+/i
-        .test(lastUserMessage);
+      /\b(?:leksjon|lesson|kapittel|chapter|modul|module|forelesning|lecture|forelesing)\s+\d+/i.test(
+        lastUserMessage,
+      );
     if (intent === "canvas_light" && lastMessageHasConcreteContentRef) {
       logger.info(
         {
@@ -2350,7 +3006,9 @@ Never guess or invent a name from email, username, or other profile fields.
       intent = "canvas_full";
     }
 
-    const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(lastMessageNormalized);
+    const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(
+      lastMessageNormalized,
+    );
     const hasDirectUrlInLastMessage = extractFirstHttpUrl(lastUserMessage) !== null;
     const hasSlashKbCommandInLastMessage = extractSlashKbCandidate(lastUserMessage) !== null;
     const shouldPrioritizeDirectUrl = hasDirectUrlInLastMessage && !hasSlashKbCommandInLastMessage;
@@ -2418,11 +3076,11 @@ Never guess or invent a name from email, username, or other profile fields.
       const kbScopeTarget = extractQueryTarget(lastUserMessage);
       const kbScopeHasExplicitCourseSwitch = hasExplicitCourseOverride(lastUserMessage);
       const kbScopeHasCanvasSignal =
-        kbScopeHasExplicitCourseSwitch
-        || !!kbScopeTarget.courseHint
-        || kbScopeTarget.courseIdHint !== null
-        || !!kbScopeTarget.moduleHint
-        || !!kbScopeTarget.fileHint;
+        kbScopeHasExplicitCourseSwitch ||
+        !!kbScopeTarget.courseHint ||
+        kbScopeTarget.courseIdHint !== null ||
+        !!kbScopeTarget.moduleHint ||
+        !!kbScopeTarget.fileHint;
 
       if (!kbScopeHasCanvasSignal) {
         logger.info(
@@ -2446,7 +3104,9 @@ Never guess or invent a name from email, username, or other profile fields.
       const hasExplicitCourseSwitch = hasExplicitCourseOverride(lastUserMessage);
       const extractedTarget = extractQueryTarget(lastUserMessage);
       const hasNewCourseHintInMessage =
-        hasExplicitCourseSwitch || !!extractedTarget.courseHint || extractedTarget.courseIdHint !== null;
+        hasExplicitCourseSwitch ||
+        !!extractedTarget.courseHint ||
+        extractedTarget.courseIdHint !== null;
       const haikuRequested = resolvedRequestedModel === "claude-haiku-4-5";
       const hasContentSignals =
         hasFollowUpSignal ||
@@ -2461,7 +3121,9 @@ Never guess or invent a name from email, username, or other profile fields.
         !hasSlashKbCommand &&
         (hasFollowUpSignal || (haikuRequested && hasContentSignals))
       ) {
-        const lockedCourseHintRaw = await getCache(chatScopedKey(req.user.id, chatLockId, "locked-course-hint"));
+        const lockedCourseHintRaw = await getCache(
+          chatScopedKey(req.user.id, chatLockId, "locked-course-hint"),
+        );
         const lockedCourseHint = lockedCourseHintRaw
           ? sanitizeCourseHintValue(lockedCourseHintRaw)
           : null;
@@ -2550,7 +3212,8 @@ Never guess or invent a name from email, username, or other profile fields.
       const baseUrl = req.canvasBaseUrl;
 
       // Hent brukerens Canvas-kontekstpreferanser og skjulte emner
-      const contextPrefs = bruker?.canvasContextPreferences ?? createDefaultCanvasContextPreferences();
+      const contextPrefs =
+        bruker?.canvasContextPreferences ?? createDefaultCanvasContextPreferences();
       const hiddenCourseIds = new Set<number>(bruker?.hiddenCourseIds?.courseIds ?? []);
 
       // Sync-venting er best-effort — feil her skal IKKE stoppe KI-flyten
@@ -2558,8 +3221,17 @@ Never guess or invent a name from email, username, or other profile fields.
         // Sikre at bakgrunns-sync er igangsatt
         // Tråder abortController.signal videre slik at bakgrunns-sync stopper
         // når responsen avsluttes (klient navigerer bort, timeout, etc.).
-        ensureCanvasSync(req.user.id, req.canvasToken, baseUrl, undefined, abortController.signal).catch((err) => {
-          logger.warn({ err, userId: req.user!.id }, "ensureCanvasSync feilet — fortsetter uten sync");
+        ensureCanvasSync(
+          req.user.id,
+          req.canvasToken,
+          baseUrl,
+          undefined,
+          abortController.signal,
+        ).catch((err) => {
+          logger.warn(
+            { err, userId: req.user!.id },
+            "ensureCanvasSync feilet — fortsetter uten sync",
+          );
         });
 
         // Vent på pågående sync slik at lagret KI-innhold er oppdatert.
@@ -2574,10 +3246,16 @@ Never guess or invent a name from email, username, or other profile fields.
             // Dobbelt-sjekk: ensureCanvasSync kan ha startet synkronisering
             // mellom isSyncing()-kallet og nå — prøv in-memory igjen
             if (isSyncing(req.user.id)) {
-              logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (in-memory, re-check)");
+              logger.info(
+                { userId: req.user.id },
+                "Venter på Canvas sync før KI-kontekst (in-memory, re-check)",
+              );
               await waitForSync(req.user.id, SYNC_WAIT_MAX_MS);
             } else {
-              logger.info({ userId: req.user.id }, "Venter på Canvas sync før KI-kontekst (Redis-flagg)");
+              logger.info(
+                { userId: req.user.id },
+                "Venter på Canvas sync før KI-kontekst (Redis-flagg)",
+              );
               const POLL_INTERVAL = 500;
               const maxPolls = Math.ceil(SYNC_WAIT_MAX_MS / POLL_INTERVAL);
               for (let i = 0; i < maxPolls; i++) {
@@ -2604,7 +3282,8 @@ Never guess or invent a name from email, username, or other profile fields.
       // Ekstraher eventuelle emne/modul-hint fra siste brukermelding
       // NB: resolveTargetAgainstKnownCourses kalles ETTER sesjonslås-logikken
       // slik at låst courseHint ikke blir overstyrt av feilaktig kursoppløsning.
-      const lastUserMsg = messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
+      const lastUserMsg =
+        messages.filter((m: { role: string }) => m.role === "user").at(-1)?.content ?? "";
 
       // Referensielle fraser peker tilbake til forrige tur. Walk bakover gjennom
       // brukermeldinger til vi finner én med faktiske hints (moduleHint eller
@@ -2647,17 +3326,11 @@ Never guess or invent a name from email, username, or other profile fields.
       // kun arve når current-meldingen er PURT referensiell (bare "disse",
       // "begge", "fortsett" osv. uten eget konkret hint).
       const currentTarget = extractQueryTarget(lastUserMsg);
-      const currentHasOwnConcreteHint = !!(
-        currentTarget.moduleHint || currentTarget.fileHint
-      );
+      const currentHasOwnConcreteHint = !!(currentTarget.moduleHint || currentTarget.fileHint);
       let effectiveMsgForTargeting = lastUserMsg;
       let target = currentTarget;
       let inheritedFromPrior: string | null = null;
-      if (
-        currentIsReferential &&
-        !currentHasOwnConcreteHint &&
-        !currentRequestsNewArtifact
-      ) {
+      if (currentIsReferential && !currentHasOwnConcreteHint && !currentRequestsNewArtifact) {
         const priorUserMessages = messages
           .filter((m: { role: string }) => m.role === "user")
           .slice(0, -1) // alt unntatt nåværende
@@ -2744,16 +3417,22 @@ Never guess or invent a name from email, username, or other profile fields.
       }
 
       const lockedCourseHintRaw = await getCache(courseHintLockKey);
-      const redisLockedCourseHint = lockedCourseHintRaw ? sanitizeCourseHintValue(lockedCourseHintRaw) : null;
+      const redisLockedCourseHint = lockedCourseHintRaw
+        ? sanitizeCourseHintValue(lockedCourseHintRaw)
+        : null;
       // Redis-låsen går foran persistert primær når begge finnes — Redis gjenspeiler
       // siste aktive valg i sesjonen, mens persistert primær er satt første gang.
       const lockedCourseHint = redisLockedCourseHint ?? persistentPrimaryCourseHint;
-      const sanitizedTargetHint = target.courseHint ? sanitizeCourseHintValue(target.courseHint) : null;
+      const sanitizedTargetHint = target.courseHint
+        ? sanitizeCourseHintValue(target.courseHint)
+        : null;
       const hasOverride = hasExplicitCourseOverride(lastUserMsg);
-      const shouldReuseLockedCourseHint = isLikelyFollowUp
-        || refersToCurrentCourseContext(lastUserMsg);
+      const shouldReuseLockedCourseHint =
+        isLikelyFollowUp || refersToCurrentCourseContext(lastUserMsg);
       const hasBaseSlashCommand = extractSlashKBBaseName(lastUserMsg) !== null;
-      const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(normaliserSkrivefeil(lastUserMsg));
+      const mentionsKnowledgeBase = /\b(?:basen|kunnskapsbase|knowledge base)\b/i.test(
+        normaliserSkrivefeil(lastUserMsg),
+      );
 
       if (hasOverride && sanitizedTargetHint) {
         // Bruker vil eksplisitt bytte kurs — oppdater låsen
@@ -2805,10 +3484,18 @@ Never guess or invent a name from email, username, or other profile fields.
           await setCache(courseHintLockKey, sanitizedTargetHint, SESSION_COURSEHINT_TTL);
           target.courseHint = sanitizedTargetHint;
           logger.info(
-            { previousCourseHint: lockedCourseHint, courseHint: sanitizedTargetHint, override: true },
+            {
+              previousCourseHint: lockedCourseHint,
+              courseHint: sanitizedTargetHint,
+              override: true,
+            },
             "courseHint oppdatert fra ny eksplisitt hint",
           );
-        } else if (sanitizedTargetHint !== lockedCourseHint && !hasBaseSlashCommand && !mentionsKnowledgeBase) {
+        } else if (
+          sanitizedTargetHint !== lockedCourseHint &&
+          !hasBaseSlashCommand &&
+          !mentionsKnowledgeBase
+        ) {
           target.courseHint = lockedCourseHint;
           // Prefill courseIdHint fra persistert primær — ellers trigger
           // resolveModuleHintToCourse og kan hoppe til feil kurs (f.eks.
@@ -2906,11 +3593,13 @@ Never guess or invent a name from email, username, or other profile fields.
       // også den persistente primæren slik at senere oppfølginger følger det nye kurset.
       if (chatIdIsObjectId && target.courseIdHint != null) {
         const currentCourseIdStr = String(target.courseIdHint);
-        const currentHintStr = target.courseHint ? sanitizeCourseHintValue(target.courseHint) : null;
+        const currentHintStr = target.courseHint
+          ? sanitizeCourseHintValue(target.courseHint)
+          : null;
         const hasExplicitOverrideNow = hasExplicitCourseOverride(lastUserMsg);
         const shouldPersist =
-          persistentPrimaryCourseId === null
-          || (hasExplicitOverrideNow && persistentPrimaryCourseId !== currentCourseIdStr);
+          persistentPrimaryCourseId === null ||
+          (hasExplicitOverrideNow && persistentPrimaryCourseId !== currentCourseIdStr);
         if (shouldPersist) {
           try {
             await ChatHistory.updateOne(
@@ -2955,9 +3644,7 @@ Never guess or invent a name from email, username, or other profile fields.
         .update(lastUserMsg.toLowerCase().trim())
         .digest("hex")
         .slice(0, 8);
-      const followUpWithoutCourseHint =
-        !target.courseHint &&
-        isLikelyFollowUpQuestion(lastUserMsg);
+      const followUpWithoutCourseHint = !target.courseHint && isLikelyFollowUpQuestion(lastUserMsg);
       const scopedCourseHint = target.courseHint ?? lockedCourseHint;
       const courseHintCacheSegment = scopedCourseHint
         ? buildCourseHintCacheSegment(scopedCourseHint)
@@ -2965,10 +3652,9 @@ Never guess or invent a name from email, username, or other profile fields.
       // Chat-scoped session-cache (se chatScopedKey-kommentar). Tidligere var
       // last-course og course:<hint>:<query>-cachen per-bruker, noe som gjorde
       // at en oppfølging i én chat kunne treffe cache fra en annen chat.
-      const lastCourseSessionKey =
-        courseHintCacheSegment
-          ? chatScopedKey(req.user.id, chatLockId, "last-course", courseHintCacheSegment)
-          : chatScopedKey(req.user.id, chatLockId, "last-course");
+      const lastCourseSessionKey = courseHintCacheSegment
+        ? chatScopedKey(req.user.id, chatLockId, "last-course", courseHintCacheSegment)
+        : chatScopedKey(req.user.id, chatLockId, "last-course");
       const sessionCacheKey = target.courseHint
         ? chatScopedKey(
             req.user.id,
@@ -2988,7 +3674,10 @@ Never guess or invent a name from email, username, or other profile fields.
         try {
           const parsed = ContextResultSchema.safeParse(JSON.parse(cachedSessionCtx));
           if (!parsed.success) {
-            logger.warn({ sessionCacheKey, errors: parsed.error.issues }, "Ugyldig struktur i session-cache — henter på nytt");
+            logger.warn(
+              { sessionCacheKey, errors: parsed.error.issues },
+              "Ugyldig struktur i session-cache — henter på nytt",
+            );
           } else {
             const parsedData = parsed.data;
             const cacheMissingSources =
@@ -2997,7 +3686,11 @@ Never guess or invent a name from email, username, or other profile fields.
               (!parsedData.kilder || parsedData.kilder.length === 0);
             if (cacheMissingSources) {
               logger.info(
-                { sessionCacheKey, source: parsedData.source, contextLength: parsedData.kontekst.length },
+                {
+                  sessionCacheKey,
+                  source: parsedData.source,
+                  contextLength: parsedData.kontekst.length,
+                },
                 "Session-cache mangler kilder — henter fersk kontekst",
               );
             } else {
@@ -3036,7 +3729,12 @@ Never guess or invent a name from email, username, or other profile fields.
           ),
           new Promise<ContextResult>((resolve) => {
             contextTimeoutHandle = setTimeout(
-              () => resolve({ kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]", hasCanvasData: false, source: "none" }),
+              () =>
+                resolve({
+                  kontekst: "[CANVAS STATUS: Henting tok for lang tid. Prøv igjen.]",
+                  hasCanvasData: false,
+                  source: "none",
+                }),
               KI_TIMEOUT_MS,
             );
           }),
@@ -3066,7 +3764,11 @@ Never guess or invent a name from email, username, or other profile fields.
         // lastCourseSessionKey og sessionCacheKey kan peke på samme nøkkel når followUpWithoutCourseHint=true.
         // Skriv kun til lastCourseSessionKey separat når de er forskjellige, og kun ved rikt innhold —
         // unngår at svakt innhold fra follow-up forgifter last-course-cachen.
-        if (hasRichCanvasContent && !kontekstHarFilInnhold && lastCourseSessionKey !== sessionCacheKey) {
+        if (
+          hasRichCanvasContent &&
+          !kontekstHarFilInnhold &&
+          lastCourseSessionKey !== sessionCacheKey
+        ) {
           await setCache(lastCourseSessionKey, JSON.stringify(contextResult), SESSION_CONTEXT_TTL);
         }
       }
@@ -3076,7 +3778,8 @@ Never guess or invent a name from email, username, or other profile fields.
       fullDocumentModeActive = !!contextResult.fullDocumentMode;
       fullDocumentTriggerWord = contextResult.fullDocumentTriggerWord ?? null;
       fullDocumentPrimaryFileId = contextResult.primaryFileId ?? null;
-      contextKilder = contextResult.kilder && contextResult.kilder.length > 0 ? contextResult.kilder : undefined;
+      contextKilder =
+        contextResult.kilder && contextResult.kilder.length > 0 ? contextResult.kilder : undefined;
       syncJustWaited = !!contextResult.syncWaited;
 
       // Anti-hallusinasjons-guard: når Canvas-kontekst faktisk er lastet inn
@@ -3195,10 +3898,7 @@ Hvis brukeren spør om konkret innhold i filer (presentasjoner, PDF, dokumenter)
 
 Some of the retrieved course material consists of sparse bullet points from PowerPoint slides. For these sections: use the bullet points as structural anchors, but provide a complete and thorough explanation of each point using your knowledge of the subject. Do not simply repeat the bullet points — expand them into full pedagogical explanations so the student gains real understanding.
 `;
-        logger.info(
-          { userId: req.user.id },
-          "Sparse chunks detektert — system prompt utvidet",
-        );
+        logger.info({ userId: req.user.id }, "Sparse chunks detektert — system prompt utvidet");
       }
 
       if (fullDocumentModeActive) {
@@ -3327,10 +4027,7 @@ Explicitly DO NOT:
 End with a short "Hva kan du også spørre om?"-linje that lists other
 chapters/topics in this course material.
 `;
-        logger.info(
-          { userId: req.user.id },
-          "Full dokument-mode aktivert — system prompt utvidet",
-        );
+        logger.info({ userId: req.user.id }, "Full dokument-mode aktivert — system prompt utvidet");
       }
 
       logger.info(
@@ -3391,9 +4088,7 @@ chapters/topics in this course material.
     // to komplette leksjons-sammendrag i, og kuttet midt i leksjon 5.
     // Bruker samme cap som deep-triggere siden arbeidsmengden er den samme.
     const multiFileFullDoc =
-      fullDocumentModeActive
-      && Array.isArray(contextKilder)
-      && contextKilder.length >= 2;
+      fullDocumentModeActive && Array.isArray(contextKilder) && contextKilder.length >= 2;
     const useDeepBudget = isDeepTriggerWord || multiFileFullDoc;
     // Deep-trigger i siste brukermelding ("forklar mer detaljert", "utdyp",
     // "mer om", ...) bumper canvas_light/canvas_full-cap selv når
@@ -3402,24 +4097,35 @@ chapters/topics in this course material.
     // detaljert?" der canvas_light bare hadde 2000 tokens — utdypings-
     // oppfølginger trenger 2-3x mer plass enn vanlige metadata-svar.
     const lastMessageHasDeepTrigger =
-      !fullDocumentModeActive
-      && classifyTriggerWord(lastUserMessage) === "deep";
+      !fullDocumentModeActive && classifyTriggerWord(lastUserMessage) === "deep";
     const baseMaxTokens = fullDocumentModeActive
-      ? (useDeepBudget ? 10000 : 7000)
+      ? useDeepBudget
+        ? 10000
+        : 7000
       : intent === "canvas_full"
-        ? (lastMessageHasDeepTrigger ? 8000 : 6000)
+        ? lastMessageHasDeepTrigger
+          ? 8000
+          : 6000
         : intent === "canvas_light"
-          ? (lastMessageHasDeepTrigger ? 4500 : 2000)
+          ? lastMessageHasDeepTrigger
+            ? 4500
+            : 2000
           : 1400;
     // Full dokument-mode timeout: deep-cap 10000 tokens kan ta ~180-210 s
     // på Sonnet 4.6 (lineær med output). 240 s gir buffer uten å risikere
     // falske CHAT_TIMEOUT. Standard-cap 7000 tar ~135-150 s — 200 s holder.
     const baseTimeoutMs = fullDocumentModeActive
-      ? (useDeepBudget ? 240000 : 200000)
+      ? useDeepBudget
+        ? 240000
+        : 200000
       : intent === "canvas_full"
-        ? (lastMessageHasDeepTrigger ? 150000 : 120000)
+        ? lastMessageHasDeepTrigger
+          ? 150000
+          : 120000
         : intent === "canvas_light"
-          ? (lastMessageHasDeepTrigger ? 90000 : 60000)
+          ? lastMessageHasDeepTrigger
+            ? 90000
+            : 60000
           : 30000;
 
     // Token-basert trimming av samtalehistorikk.
@@ -3429,7 +4135,8 @@ chapters/topics in this course material.
     // samtaletråden tilgjengelig — det gamle floor-et på 1000 tokens var for
     // lavt når canvasKontekst er stor (en tidligere modellrespons på 1400+
     // tokens ble kastet i sin helhet).
-    const systemPromptTokens = countTokens(enhancedSystemPrompt) + (hasCanvasData ? countTokens(canvasKontekst) : 0);
+    const systemPromptTokens =
+      countTokens(enhancedSystemPrompt) + (hasCanvasData ? countTokens(canvasKontekst) : 0);
     const MAX_CONTEXT_TOKENS = intent === "canvas_full" ? 60000 : 20000;
     const MIN_HISTORY_TOKENS = 4000;
     const historyBudget = Math.max(
@@ -3440,9 +4147,10 @@ chapters/topics in this course material.
     const trimmedMessages = capHistoryMessageSizes(tokenTrimmedMessages.slice(-8));
 
     // ——— Studiekontekst fra tidligere samtaler ———
-    const studyContextCourseId = hasCanvasData && canvasKontekst.length > 0
-      ? extractCourseIdFromContext(canvasKontekst)
-      : null;
+    const studyContextCourseId =
+      hasCanvasData && canvasKontekst.length > 0
+        ? extractCourseIdFromContext(canvasKontekst)
+        : null;
     const studyContext = await loadStudyContextForUser(req.user!.id, studyContextCourseId);
     if (studyContext) {
       enhancedSystemPrompt += studyContext;
@@ -3456,7 +4164,8 @@ chapters/topics in this course material.
     let kbFullDocTriggerWord: string | null = null;
     let activeKbNameForLock: string | null = null;
     let activeKbIdForLock: string | null = null;
-    const lastUserMessageForKB = trimmedMessages.filter((m) => m.role === "user").at(-1)?.content ?? "";
+    const lastUserMessageForKB =
+      trimmedMessages.filter((m) => m.role === "user").at(-1)?.content ?? "";
 
     // /av og /deaktiver deaktiverer aktiv KB for gjeldende chat.
     if (isKBDeactivateCommand(lastUserMessageForKB)) {
@@ -3469,10 +4178,7 @@ chapters/topics in this course material.
           const parsed = JSON.parse(existingRaw) as { navn?: string };
           previousName = parsed.navn ?? null;
         } catch (err) {
-          logger.warn(
-            { err, userId: req.user!.id, key },
-            "Ugyldig KB-session cacheverdi ved /av",
-          );
+          logger.warn({ err, userId: req.user!.id, key }, "Ugyldig KB-session cacheverdi ved /av");
         }
       }
       await deleteCacheKeys([key, userKey]);
@@ -3500,9 +4206,10 @@ chapters/topics in this course material.
           .sort({ navn: 1 })
           .lean();
         const names = availableBases.map((b) => b.navn);
-        const responseText = names.length > 0
-          ? `Fant ikke kunnskapsbasen "${slashKbSelection.baseName}". Tilgjengelige baser: ${names.join(", ")}`
-          : `Fant ikke kunnskapsbasen "${slashKbSelection.baseName}". Du har ingen kunnskapsbaser ennå.`;
+        const responseText =
+          names.length > 0
+            ? `Fant ikke kunnskapsbasen "${slashKbSelection.baseName}". Tilgjengelige baser: ${names.join(", ")}`
+            : `Fant ikke kunnskapsbasen "${slashKbSelection.baseName}". Du har ingen kunnskapsbaser ennå.`;
         const payload = KIChatResponseSchema.parse({
           suksess: true,
           response: responseText,
@@ -3545,11 +4252,7 @@ chapters/topics in this course material.
       : await getCache(kbSessionKey(req.user!.id, chatLockId));
     if (activeKbRaw) {
       // Re-prim chat-scoped key så senere lookups i samme samtale er raske.
-      await setCache(
-        kbSessionKey(req.user!.id, chatLockId),
-        activeKbRaw,
-        KB_SESSION_TTL,
-      );
+      await setCache(kbSessionKey(req.user!.id, chatLockId), activeKbRaw, KB_SESSION_TTL);
       try {
         const parsed = JSON.parse(activeKbRaw) as { id?: string; navn?: string };
         if (parsed.id && parsed.navn) {
@@ -3584,7 +4287,12 @@ chapters/topics in this course material.
           }
 
           if (!kbKontekst) {
-            const kbResults = await searchKBContent(req.user!.id, parsed.id, lastUserMessageForKB, 12);
+            const kbResults = await searchKBContent(
+              req.user!.id,
+              parsed.id,
+              lastUserMessageForKB,
+              12,
+            );
             if (kbResults.length > 0) {
               kbKontekst = buildKBContext(kbResults, parsed.navn);
               kbKilder = mapKBResultsToChatSources(kbResults, parsed.navn, parsed.id);
@@ -3654,9 +4362,7 @@ chapters/topics in this course material.
     if (!kbKontekst) {
       const aliases = extractLikelyKbAliases(lastUserMessageForKB);
       if (aliases.length > 0) {
-        const baser = await KnowledgeBase.find({ userId: req.user!.id })
-          .select("_id navn")
-          .lean();
+        const baser = await KnowledgeBase.find({ userId: req.user!.id }).select("_id navn").lean();
 
         // Krever eksakt match mellom et alias og et basenavn for å unngå at en
         // tilfeldig spørring med felles ord aktiverer feil base og dermed lekker
@@ -3711,7 +4417,12 @@ chapters/topics in this course material.
           }
 
           if (!kbKontekst) {
-            const kbResults = await searchKBContent(req.user!.id, matchId, lastUserMessageForKB, 12);
+            const kbResults = await searchKBContent(
+              req.user!.id,
+              matchId,
+              lastUserMessageForKB,
+              12,
+            );
             if (kbResults.length > 0) {
               kbKontekst = buildKBContext(kbResults, match.navn);
               kbKilder = mapKBResultsToChatSources(kbResults, match.navn, matchId);
@@ -3833,9 +4544,7 @@ chapters/topics in this course material.
       // Andre fallback: hvis brukeren har nøyaktig én kunnskapsbase totalt
       // og refererer til "basen", er intensjonen utvetydig.
       if (!kbKontekst) {
-        const baser = await KnowledgeBase.find({ userId: req.user!.id })
-          .select("_id navn")
-          .lean();
+        const baser = await KnowledgeBase.find({ userId: req.user!.id }).select("_id navn").lean();
         if (baser.length === 1) {
           const only = baser[0]!;
           const onlyId = String(only._id);
@@ -3952,7 +4661,11 @@ Referer til kildenavnet (fil/lenke) når du siterer konkrete poeng.
       const fullDoc = await loadFullKBContext(req.user!.id, activeKbIdForLock, activeKbNameForLock);
       if (fullDoc.hasContent) {
         kbKontekst = fullDoc.context;
-        kbKilder = mapKBResultsToChatSources(fullDoc.sources, activeKbNameForLock, activeKbIdForLock);
+        kbKilder = mapKBResultsToChatSources(
+          fullDoc.sources,
+          activeKbNameForLock,
+          activeKbIdForLock,
+        );
         kbFullDocumentMode = true;
         kbFullDocTriggerWord = "låst";
         logger.info(
@@ -3997,7 +4710,7 @@ Referer til kildenavnet (fil/lenke) når du siterer konkrete poeng.
     // Hvis ingen URL i meldingen, bruker vi eksisterende fallback: kun når KB ikke ga kontekst.
     const shouldFetchLiveUrlContext = hasDirectUrlInLastMessage || (!kbKontekst && !kbLockActive);
     if (shouldFetchLiveUrlContext) {
-      liveUrlKontekst = await buildLiveUrlContextFromMessage(lastUserMessageForKB) ?? "";
+      liveUrlKontekst = (await buildLiveUrlContextFromMessage(lastUserMessageForKB)) ?? "";
       if (liveUrlKontekst) {
         const liveSource = extractLiveUrlSource(liveUrlKontekst);
         if (liveSource) liveUrlKilder = [liveSource];
@@ -4031,36 +4744,66 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       // Standard 5-min TTL utløper ofte midt i en samtale og tvinger full re-
       // prosessering av ~25k tokens. 1h-cache koster marginalt mer per skriv
       // men sparer 5-15 sek per oppfølgning og er dermed netto-gevinst.
-      { role: "system", content: fullDocumentStrictPrefix + enhancedSystemPrompt, cache_control: { type: "ephemeral", ttl: "1h" } },
+      {
+        role: "system",
+        content: fullDocumentStrictPrefix + enhancedSystemPrompt,
+        cache_control: { type: "ephemeral", ttl: "1h" },
+      },
       ...(hasCanvasData
-        ? [{ role: "system" as const, content: canvasKontekst, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }]
+        ? [
+            {
+              role: "system" as const,
+              content: canvasKontekst,
+              cache_control: { type: "ephemeral" as const, ttl: "1h" as const },
+            },
+          ]
         : []),
       ...(kbKontekst
-        ? [{ role: "system" as const, content: kbKontekst, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }]
+        ? [
+            {
+              role: "system" as const,
+              content: kbKontekst,
+              cache_control: { type: "ephemeral" as const, ttl: "1h" as const },
+            },
+          ]
         : []),
       ...(liveUrlKontekst
-        ? [{ role: "system" as const, content: liveUrlKontekst, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } }]
+        ? [
+            {
+              role: "system" as const,
+              content: liveUrlKontekst,
+              cache_control: { type: "ephemeral" as const, ttl: "1h" as const },
+            },
+          ]
         : []),
       ...trimmedMessages.map((m: { role: string; content: string }) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
     ];
-    const autoSelectedModelBase = selectModel(intent, trimmedMessages.length, hasCanvasData ? canvasKontekst.length : 0);
+    const autoSelectedModelBase = selectModel(
+      intent,
+      trimmedMessages.length,
+      hasCanvasData ? canvasKontekst.length : 0,
+    );
     const fullDocumentModelSelection = fullDocumentModeActive
-      ? chooseModelForFullDocumentMode(autoSelectedModelBase, enhancedSystemPrompt, canvasKontekst, trimmedMessages)
+      ? chooseModelForFullDocumentMode(
+          autoSelectedModelBase,
+          enhancedSystemPrompt,
+          canvasKontekst,
+          trimmedMessages,
+        )
       : { model: autoSelectedModelBase, reason: "base" as const };
     const normalizedLastUserMessage = normaliserSkrivefeil(lastUserMessageForKB);
-    const asksForDeepSummary = /\b(oppsummer|oppsummering|summarize|summary|analyser|analyse|utdyp|forklar)\b/i.test(
-      normalizedLastUserMessage,
-    );
+    const asksForDeepSummary =
+      /\b(oppsummer|oppsummering|summarize|summary|analyser|analyse|utdyp|forklar)\b/i.test(
+        normalizedLastUserMessage,
+      );
     const shouldEscalateGeneralChatToSonnet =
       intent === "general_chat" &&
-      (
-        liveUrlKontekst.length >= 2500 ||
+      (liveUrlKontekst.length >= 2500 ||
         kbKontekst.length >= 6000 ||
-        (hasDirectUrlInLastMessage && asksForDeepSummary)
-      );
+        (hasDirectUrlInLastMessage && asksForDeepSummary));
     // Korte oppfølgingsspørsmål på låst kurskontekst ("kan du utdype",
     // "forklar mer", "gi et eksempel") trenger sjelden Sonnet-dyp analyse —
     // Haiku 4.5 svarer ~3x raskere med tilsvarende kvalitet når konteksten
@@ -4072,9 +4815,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // forespørsel — ikke en oppfølgning. Slike spørsmål skal Sonnet svare på
     // for å unngå "vagt svar" (observert ORL1000 Leksjon 6 → Haiku gav kun
     // 1695 tokens med overflatisk dekning).
-    const hasModuleOrFileReference = Boolean(
-      traceModuleHint || traceFileHint,
-    );
+    const hasModuleOrFileReference = Boolean(traceModuleHint || traceFileHint);
     const shouldDowngradeShortFollowUpToHaiku =
       intent === "canvas_full" &&
       !fullDocumentModeActive &&
@@ -4098,18 +4839,18 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       ? "user_selected"
       : shouldEscalateGeneralChatToSonnet
         ? "sonnet_general_heavy"
-      : syncJustWaited && !fullDocumentModeActive
-        ? "haiku_sync_waited"
-      : shouldDowngradeShortFollowUpToHaiku
-        ? "haiku_short_followup"
-      : selectedModel === "claude-haiku-4-5"
-        ? "haiku"
-        : "sonnet";
-    const heavyGeneralChat = intent === "general_chat" && (
-      liveUrlKontekst.length >= 8000 ||
-      kbKontekst.length >= 12000 ||
-      shouldEscalateGeneralChatToSonnet
-    );
+        : syncJustWaited && !fullDocumentModeActive
+          ? "haiku_sync_waited"
+          : shouldDowngradeShortFollowUpToHaiku
+            ? "haiku_short_followup"
+            : selectedModel === "claude-haiku-4-5"
+              ? "haiku"
+              : "sonnet";
+    const heavyGeneralChat =
+      intent === "general_chat" &&
+      (liveUrlKontekst.length >= 8000 ||
+        kbKontekst.length >= 12000 ||
+        shouldEscalateGeneralChatToSonnet);
     // Når KB er i full-dokument-modus trenger svaret samme budsjett som
     // Canvas' fullDocumentMode så oppsummeringer ikke blir kuttet. Deep-
     // triggere (utdyp/mer om) får 10k, standard oppsummering får 7k.
@@ -4168,21 +4909,22 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // fra Redis på ~2 sek i stedet for 60-140 sek. Cachen bygges først når
     // vi har sett et vellykket Claude-svar, så første spørring om en leksjon
     // tar normal tid — påfølgende er instant.
-    const cacheInput = fullDocumentModeActive
-      && !crossCourseGuardTriggered
-      && !referentialFollowUpInherited
-      && req.canvasBaseUrl
-      ? {
-          tenantPrefix: getCanvasTenantCachePrefix(req.canvasBaseUrl),
-          primaryCourseId:
-            tracePersistentPrimaryCourseId ??
-            (traceCourseIdHint != null ? String(traceCourseIdHint) : ""),
-          primaryFileId: fullDocumentPrimaryFileId ?? 0,
-          triggerWord: fullDocumentTriggerWord,
-          moduleHint: traceModuleHint,
-          fileHint: traceFileHint,
-        }
-      : null;
+    const cacheInput =
+      fullDocumentModeActive &&
+      !crossCourseGuardTriggered &&
+      !referentialFollowUpInherited &&
+      req.canvasBaseUrl
+        ? {
+            tenantPrefix: getCanvasTenantCachePrefix(req.canvasBaseUrl),
+            primaryCourseId:
+              tracePersistentPrimaryCourseId ??
+              (traceCourseIdHint != null ? String(traceCourseIdHint) : ""),
+            primaryFileId: fullDocumentPrimaryFileId ?? 0,
+            triggerWord: fullDocumentTriggerWord,
+            moduleHint: traceModuleHint,
+            fileHint: traceFileHint,
+          }
+        : null;
     const responseCacheKey = cacheInput ? buildChatResponseCacheKey(cacheInput) : null;
     if (referentialFollowUpInherited) {
       // Eksplisitt log så telemetri viser at vi bevisst hopper over cache
@@ -4208,8 +4950,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
         const cachedKilder = cached.kilder as import("common/ki").KIChatSource[] | undefined;
         // Samme regel som i live-pathen: rene generelle KI-svar skal ikke vise
         // kilder, selv om vi tilfeldigvis cachet noen sammen med svaret.
-        const cachedKilderForPayload =
-          cached.svarKilde === "generell" ? undefined : cachedKilder;
+        const cachedKilderForPayload = cached.svarKilde === "generell" ? undefined : cachedKilder;
         const cachedPayload = KIChatResponseSchema.parse({
           suksess: true,
           response: cached.response,
@@ -4325,8 +5066,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       canvasKontekst.includes("--- FIL-INNHOLD:") ||
       canvasKontekst.includes("--- FIL-INNHOLD (FULLT DOKUMENT):") ||
       canvasKontekst.includes("INNHOLD FRA ");
-    const harKunnskapsbase =
-      kbKontekst.length > 0 || Boolean(kbKilder && kbKilder.length > 0);
+    const harKunnskapsbase = kbKontekst.length > 0 || Boolean(kbKilder && kbKilder.length > 0);
     const harCanvasMetadata = hasCanvasData;
     const harLiveUrl =
       liveUrlKontekst.length > 0 || Boolean(liveUrlKilder && liveUrlKilder.length > 0);
@@ -4355,8 +5095,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // dokumenter fra samtalens primaryCourseId. Ellers ville f.eks. et off-topic
     // spørsmål («hvem var Sokrates?») fått DAT1000-PDFer hengende ved seg fra et
     // tidligere spørsmål i samme samtale.
-    const mergedSources =
-      enforcedSvarKilde === "generell" ? undefined : rawMergedSources;
+    const mergedSources = enforcedSvarKilde === "generell" ? undefined : rawMergedSources;
 
     const payload = KIChatResponseSchema.parse({
       suksess: true,
@@ -4433,7 +5172,11 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
       action: AUDIT_ACTIONS.KI_CHAT,
       category: "ki",
       outcome: "success",
-      metadata: { model: selectedModel, tokens: usage?.total_tokens, messageCount: messages.length },
+      metadata: {
+        model: selectedModel,
+        tokens: usage?.total_tokens,
+        messageCount: messages.length,
+      },
       req,
     }).catch((err) => {
       logger.warn({ err, userId: req.user!.id }, "Audit-feil for KI chat");
@@ -4470,10 +5213,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
           "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
       });
 
-      logger.error(
-        { err: error, category: classified.category },
-        "ki-chat feil (SSE)",
-      );
+      logger.error({ err: error, category: classified.category }, "ki-chat feil (SSE)");
       const errorPayload = KIChatResponseSchema.parse({
         suksess: false,
         melding: classified.userMessage,
@@ -4488,8 +5228,7 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
     // Headers ikke sendt ennå — bruk vanlig JSON-feilrespons
     handleAIError(res, error, KIChatResponseSchema, {
       timeoutLabel: "CHAT_TIMEOUT",
-      timeoutMessage:
-        "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
+      timeoutMessage: "Chat-forespørselen tok for lang tid. Prøv igjen eller forenkle spørsmålet.",
       kontekst: "ki-chat",
     });
     return;
@@ -4504,5 +5243,3 @@ Oppgi tydelig at svaret er basert på den oppgitte URL-en.
 });
 
 export default router;
-
-

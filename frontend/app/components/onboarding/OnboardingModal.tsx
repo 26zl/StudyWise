@@ -160,11 +160,7 @@ export function OnboardingModal({ onLukk }: OnboardingModalProps) {
 
         {/* Innhold */}
         <div className="px-6 pt-8 pb-6">
-          {erVelkomst ? (
-            <VelkomstSide t={t} />
-          ) : (
-            steg && <StegSide steg={steg} t={t} />
-          )}
+          {erVelkomst ? <VelkomstSide t={t} /> : steg && <StegSide steg={steg} t={t} />}
         </div>
 
         {/* Steg-indikator og navigasjon */}
@@ -261,7 +257,9 @@ function VelkomstSide({ t }: { t: Translator }) {
             key={i}
             className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-100 p-3 dark:border-slate-800"
           >
-            <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.fargeklasse}`}>
+            <div
+              className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.fargeklasse}`}
+            >
               {s.ikonLiten}
             </div>
             <span className="text-xs font-medium text-slate-700 dark:text-slate-300">
@@ -275,24 +273,16 @@ function VelkomstSide({ t }: { t: Translator }) {
 }
 
 // Steg-innhold (enkelt steg)
-function StegSide({
-  steg,
-  t,
-}: {
-  steg: OnboardingSteg;
-  t: Translator;
-}) {
+function StegSide({ steg, t }: { steg: OnboardingSteg; t: Translator }) {
   return (
     <div className="flex flex-col items-center text-center">
-      <div className={`mb-5 flex h-16 w-16 items-center justify-center rounded-2xl ${steg.fargeklasse}`}>
+      <div
+        className={`mb-5 flex h-16 w-16 items-center justify-center rounded-2xl ${steg.fargeklasse}`}
+      >
         {steg.ikon}
       </div>
-      <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">
-        {t(steg.tittelKey)}
-      </h3>
-      <p className="max-w-sm text-slate-600 dark:text-slate-400">
-        {t(steg.beskrivKey)}
-      </p>
+      <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white">{t(steg.tittelKey)}</h3>
+      <p className="max-w-sm text-slate-600 dark:text-slate-400">{t(steg.beskrivKey)}</p>
     </div>
   );
 }

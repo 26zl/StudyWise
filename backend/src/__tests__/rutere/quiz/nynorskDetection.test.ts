@@ -12,9 +12,7 @@ import { detectNynorskMarkers } from "../../../rutere/quiz/quiz.js";
 
 describe("detectNynorskMarkers", () => {
   it("detekterer 'kva' (Nynorsk for 'hva')", () => {
-    const hits = detectNynorskMarkers(
-      "Kva er den viktigaste skilnaden mellom metodene?",
-    );
+    const hits = detectNynorskMarkers("Kva er den viktigaste skilnaden mellom metodene?");
     expect(hits).toContain("Kva");
   });
 
@@ -29,15 +27,11 @@ describe("detectNynorskMarkers", () => {
 
   it("detekterer 'korleis', 'kvifor' (Nynorsk spørreord)", () => {
     const hits = detectNynorskMarkers("Korleis og kvifor skjer dette?");
-    expect(hits.map((h) => h.toLowerCase())).toEqual(
-      expect.arrayContaining(["korleis", "kvifor"]),
-    );
+    expect(hits.map((h) => h.toLowerCase())).toEqual(expect.arrayContaining(["korleis", "kvifor"]));
   });
 
   it("detekterer 'skilnad', 'viktigast' med ulike bøyninger", () => {
-    const hits = detectNynorskMarkers(
-      "Ein skilnad mellom dei viktigaste metodane",
-    );
+    const hits = detectNynorskMarkers("Ein skilnad mellom dei viktigaste metodane");
     expect(hits.length).toBeGreaterThan(0);
     expect(hits.map((h) => h.toLowerCase())).toEqual(
       expect.arrayContaining(["skilnad", "viktigaste"]),
@@ -45,9 +39,7 @@ describe("detectNynorskMarkers", () => {
   });
 
   it("detekterer Nynorsk 'oppgåve' og 'førelesing'", () => {
-    const hits = detectNynorskMarkers(
-      "Oppgåva refererer til førelesinga fra veke 3",
-    );
+    const hits = detectNynorskMarkers("Oppgåva refererer til førelesinga fra veke 3");
     expect(hits.length).toBeGreaterThan(0);
   });
 

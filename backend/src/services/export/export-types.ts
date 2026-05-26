@@ -44,8 +44,5 @@ export interface ExportProvider {
    * Eksporterer dokumentet til målformatet.
    * Kaster feil hvis provideren ikke er konfigurert.
    */
-  execute(
-    doc: ExportDocument,
-    options?: RuntimeProviderOptions,
-  ): Promise<ExportResponse>;
+  execute(doc: ExportDocument, options?: RuntimeProviderOptions): Promise<ExportResponse>;
 }

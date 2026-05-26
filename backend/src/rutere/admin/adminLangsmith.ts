@@ -108,7 +108,8 @@ function hentMetadata(run: LangsmithRunSnapshot): Record<string, unknown> {
 
 function hentIntent(run: LangsmithRunSnapshot): string {
   const extra = (run.extra ?? {}) as Record<string, unknown>;
-  if (typeof extra.intent === "string" && extra.intent.trim().length > 0) return extra.intent.trim();
+  if (typeof extra.intent === "string" && extra.intent.trim().length > 0)
+    return extra.intent.trim();
   if (typeof extra.mode === "string" && extra.mode.trim().length > 0) return extra.mode.trim();
 
   const metadata = hentMetadata(run);
@@ -127,17 +128,26 @@ function hentModel(run: LangsmithRunSnapshot): string {
   if (run._normalizedModel && run._normalizedModel.length > 0) return run._normalizedModel;
 
   const inputs = (run.inputs ?? {}) as Record<string, unknown>;
-  if (typeof inputs.model === "string" && inputs.model.trim().length > 0) return inputs.model.trim();
+  if (typeof inputs.model === "string" && inputs.model.trim().length > 0)
+    return inputs.model.trim();
 
   const extra = (run.extra ?? {}) as Record<string, unknown>;
   if (typeof extra.model === "string" && extra.model.trim().length > 0) return extra.model.trim();
 
   // LangSmith-standardlokasjoner for LLM-runs
   const invocationParams = extra.invocation_params as Record<string, unknown> | undefined;
-  if (invocationParams && typeof invocationParams.model === "string" && invocationParams.model.trim().length > 0) {
+  if (
+    invocationParams &&
+    typeof invocationParams.model === "string" &&
+    invocationParams.model.trim().length > 0
+  ) {
     return invocationParams.model.trim();
   }
-  if (invocationParams && typeof invocationParams.model_name === "string" && invocationParams.model_name.trim().length > 0) {
+  if (
+    invocationParams &&
+    typeof invocationParams.model_name === "string" &&
+    invocationParams.model_name.trim().length > 0
+  ) {
     return invocationParams.model_name.trim();
   }
 
@@ -154,7 +164,8 @@ function hentModel(run: LangsmithRunSnapshot): string {
 
 function hentBruker(run: LangsmithRunSnapshot): string {
   const extra = (run.extra ?? {}) as Record<string, unknown>;
-  if (typeof extra.userId === "string" && extra.userId.trim().length > 0) return extra.userId.trim();
+  if (typeof extra.userId === "string" && extra.userId.trim().length > 0)
+    return extra.userId.trim();
 
   const metadata = hentMetadata(run);
   if (typeof metadata.userId === "string" && metadata.userId.trim().length > 0) {
@@ -171,8 +182,10 @@ function hentCourse(run: LangsmithRunSnapshot): string {
 
   const metadata = hentMetadata(run);
   const metaCourseId = metadata.courseId;
-  if (typeof metaCourseId === "string" && metaCourseId.trim().length > 0) return metaCourseId.trim();
-  if (typeof metaCourseId === "number" && Number.isFinite(metaCourseId)) return String(metaCourseId);
+  if (typeof metaCourseId === "string" && metaCourseId.trim().length > 0)
+    return metaCourseId.trim();
+  if (typeof metaCourseId === "number" && Number.isFinite(metaCourseId))
+    return String(metaCourseId);
   return "ukjent";
 }
 
@@ -225,7 +238,8 @@ function hentRagSources(run: LangsmithRunSnapshot): Array<{ fileName: string; sc
         ? fileNameCandidate.trim()
         : null;
     if (!fileName) continue;
-    const score = typeof entry.score === "number" && Number.isFinite(entry.score) ? entry.score : undefined;
+    const score =
+      typeof entry.score === "number" && Number.isFinite(entry.score) ? entry.score : undefined;
     sources.push(score === undefined ? { fileName } : { fileName, score });
   }
 
@@ -314,14 +328,15 @@ function hentTokens(run: LangsmithRunSnapshot): {
     outputsUsage?.output_tokens,
     generationUsage?.output_tokens,
   );
-  const totalTokens = firstPositive(
-    run.total_tokens,
-    extraTokenUsage?.total_tokens,
-    metadataTokenUsage?.total_tokens,
-    llmOutputUsage?.total_tokens,
-    outputsUsage?.total_tokens,
-    generationUsage?.total_tokens,
-  ) || inputTokens + outputTokens;
+  const totalTokens =
+    firstPositive(
+      run.total_tokens,
+      extraTokenUsage?.total_tokens,
+      metadataTokenUsage?.total_tokens,
+      llmOutputUsage?.total_tokens,
+      outputsUsage?.total_tokens,
+      generationUsage?.total_tokens,
+    ) || inputTokens + outputTokens;
 
   return { inputTokens, outputTokens, totalTokens };
 }
@@ -369,10 +384,7 @@ async function hentLangsmithRunsCached(days: number): Promise<LangsmithRunSnapsh
       })) {
         runs.push(run as LangsmithRunSnapshot);
       }
-      logger.info(
-        { antall: runs.length, dager: days },
-        "LangSmith-runs hentet",
-      );
+      logger.info({ antall: runs.length, dager: days }, "LangSmith-runs hentet");
     } catch (error) {
       logger.warn(
         { err: error, project: LANGSMITH_PROJECT },
@@ -390,7 +402,6 @@ async function hentLangsmithRunsCached(days: number): Promise<LangsmithRunSnapsh
       run._normalizedOutputTokens = tokens.outputTokens;
       run._normalizedTotalTokens = tokens.totalTokens;
     }
-
 
     // Cacher kun ikke-tomme resultater — tomme kan skyldes midlertidige feil.
     // Strip inputs/outputs før caching — brukerprompter og AI-svar skal ikke i Redis.
@@ -430,7 +441,10 @@ async function hentLangsmithStatsMedCache() {
     dailyMap.set(isoDateKey(dayDate), { inputTokens: 0, outputTokens: 0 });
   }
 
-  const byIntent: Record<string, { runs: number; tokens: number }> = Object.create(null) as Record<string, { runs: number; tokens: number }>;
+  const byIntent: Record<string, { runs: number; tokens: number }> = Object.create(null) as Record<
+    string,
+    { runs: number; tokens: number }
+  >;
   const period7 = lagTomPeriode();
   const period30 = lagTomPeriode();
   let latencySum = 0;
@@ -495,11 +509,7 @@ async function hentLangsmithStatsMedCache() {
 
   // Cacher kun resultater med faktiske runs — tomme kan skyldes midlertidige feil
   if (period30.runs > 0) {
-    await setCache(
-      LANGSMITH_STATS_CACHE_KEY,
-      JSON.stringify(response),
-      LANGSMITH_CACHE_TTL,
-    );
+    await setCache(LANGSMITH_STATS_CACHE_KEY, JSON.stringify(response), LANGSMITH_CACHE_TTL);
   }
   return response;
 }
@@ -552,7 +562,10 @@ router.get("/langsmith/daily-metrics", async (req, res) => {
     const daysRaw = typeof req.query.days === "string" ? Number.parseInt(req.query.days, 10) : 30;
     const days = Number.isInteger(daysRaw) ? Math.min(Math.max(daysRaw, 1), 90) : 30;
     const now = Date.now();
-    const map = new Map<string, { inputTokens: number; outputTokens: number; latencySum: number; latencyCount: number }>();
+    const map = new Map<
+      string,
+      { inputTokens: number; outputTokens: number; latencySum: number; latencyCount: number }
+    >();
     for (let i = days - 1; i >= 0; i -= 1) {
       map.set(isoDateKey(new Date(now - i * DAY_MS)), {
         inputTokens: 0,
@@ -589,7 +602,8 @@ router.get("/langsmith/daily-metrics", async (req, res) => {
         date,
         inputTokens: values.inputTokens,
         outputTokens: values.outputTokens,
-        avgLatencyMs: values.latencyCount > 0 ? Math.round(values.latencySum / values.latencyCount) : 0,
+        avgLatencyMs:
+          values.latencyCount > 0 ? Math.round(values.latencySum / values.latencyCount) : 0,
       })),
     });
 
@@ -620,7 +634,8 @@ router.get("/langsmith/runs", async (req, res) => {
     const pageRaw = typeof req.query.page === "string" ? Number.parseInt(req.query.page, 10) : 1;
     const page = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
     const status = typeof req.query.status === "string" ? req.query.status.trim() : "all";
-    const intentFilter = typeof req.query.intent === "string" ? req.query.intent.trim().toLowerCase() : "";
+    const intentFilter =
+      typeof req.query.intent === "string" ? req.query.intent.trim().toLowerCase() : "";
     const pageSize = 20;
     const skip = (page - 1) * pageSize;
     const allRuns = await hentLangsmithRunsCached(30);
@@ -690,8 +705,9 @@ router.get("/langsmith/runs/:runId", async (req, res) => {
     const run = (await langsmithClient.readRun(runId)) as Run & LangsmithRunSnapshot;
 
     // Verifiser at run tilhører riktig prosjekt — hindrer eksponering av data fra andre prosjekter
-    const runSession = (run as unknown as { session_name?: string }).session_name
-      ?? (run as unknown as { project_name?: string }).project_name;
+    const runSession =
+      (run as unknown as { session_name?: string }).session_name ??
+      (run as unknown as { project_name?: string }).project_name;
     if (runSession && runSession !== LANGSMITH_PROJECT) {
       return apiError.notFound(res, "LangSmith-run");
     }

@@ -1,13 +1,19 @@
 const DEFAULT_POST_AUTH_REDIRECT = "/dashboard";
 const REDIRECT_BASE_ORIGIN = "https://studwize.page";
 
-type SearchParamsLike = {
-  get(name: string): string | null;
-} | null | undefined;
+type SearchParamsLike =
+  | {
+      get(name: string): string | null;
+    }
+  | null
+  | undefined;
 
-type SearchStringLike = {
-  toString(): string;
-} | null | undefined;
+type SearchStringLike =
+  | {
+      toString(): string;
+    }
+  | null
+  | undefined;
 
 function erAuthPath(pathname: string): boolean {
   return (

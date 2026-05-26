@@ -72,13 +72,8 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function RootLayout({
-  children,
-}: Readonly<{ children: React.ReactNode }>) {
-  const [initialLanguage, headerStore] = await Promise.all([
-    resolveInitialLanguage(),
-    headers(),
-  ]);
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const [initialLanguage, headerStore] = await Promise.all([resolveInitialLanguage(), headers()]);
   const nonce = headerStore.get("x-nonce") ?? undefined;
 
   return (
@@ -87,8 +82,17 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://clerk.studwize.page" />
         <link rel="dns-prefetch" href="https://clerk.studwize.page" />
       </head>
-      <body className="antialiased min-h-dvh flex flex-col bg-slate-50 dark:bg-slate-950" suppressHydrationWarning>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={nonce}>
+      <body
+        className="antialiased min-h-dvh flex flex-col bg-slate-50 dark:bg-slate-950"
+        suppressHydrationWarning
+      >
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+          nonce={nonce}
+        >
           <MainAppShell
             clerkPublishableKey={clerkPublishableKey}
             initialLanguage={initialLanguage}

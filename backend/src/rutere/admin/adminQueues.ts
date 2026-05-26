@@ -33,10 +33,7 @@ const DEFAULT_JOBS_LIMIT = 25;
  * Sanitiserer job-data for å unngå å lekke sensitive felt til frontend.
  * Vi tar med kun de feltene vi vet er trygge per kø-type.
  */
-function sanitizeJobData(
-  jobName: string,
-  raw: unknown,
-): Record<string, unknown> {
+function sanitizeJobData(jobName: string, raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const obj = raw as Record<string, unknown>;
   if (jobName === "clerk-deletion") {
@@ -81,9 +78,10 @@ async function jobToDto(
     finishedOn: job.finishedOn,
     failedReason: job.failedReason,
     delay: job.opts.delay,
-    stacktrace: Array.isArray(job.stacktrace) && job.stacktrace.length > 0
-      ? job.stacktrace.slice(-5)
-      : undefined,
+    stacktrace:
+      Array.isArray(job.stacktrace) && job.stacktrace.length > 0
+        ? job.stacktrace.slice(-5)
+        : undefined,
   };
 }
 
@@ -138,14 +136,7 @@ router.get("/queues/overview", async (req, res) => {
     const overview = await Promise.all(
       queues.map(async (q) => {
         const [counts, isPaused, deadLetterCount, jobTypeCounts] = await Promise.all([
-          q.getJobCounts(
-            "waiting",
-            "active",
-            "delayed",
-            "completed",
-            "failed",
-            "paused",
-          ),
+          q.getJobCounts("waiting", "active", "delayed", "completed", "failed", "paused"),
           q.isPaused(),
           countDeadLetterJobs(q),
           countJobsByType(q),
@@ -196,16 +187,11 @@ router.get("/queues/:name/jobs", async (req, res) => {
   if (!parsed.success) return sendZodError(res, parsed.error, "queue jobs query");
 
   const status = parsed.data.status ?? "failed";
-  const limit = Math.min(
-    MAX_JOBS_LIMIT,
-    Number(parsed.data.limit ?? DEFAULT_JOBS_LIMIT),
-  );
+  const limit = Math.min(MAX_JOBS_LIMIT, Number(parsed.data.limit ?? DEFAULT_JOBS_LIMIT));
 
   try {
     const jobs = await queue.getJobs([status as JobType], 0, limit - 1, false);
-    const dtos = await Promise.all(
-      jobs.map((j) => jobToDto(j, j.name, status)),
-    );
+    const dtos = await Promise.all(jobs.map((j) => jobToDto(j, j.name, status)));
     const counts = await queue.getJobCountByTypes(status);
     void audit({
       actorUserId,
@@ -311,10 +297,7 @@ router.post("/queues/:name/jobs/:id/retry", requireRecentAuth, async (req, res) 
 
     return res.json({ success: true });
   } catch (err) {
-    logger.error(
-      { err, queue: queue.name, jobId },
-      "Admin queue retry feilet",
-    );
+    logger.error({ err, queue: queue.name, jobId }, "Admin queue retry feilet");
     return sendUnknownError(res, err, { kontekst: "admin.queues.retry" });
   }
 });
@@ -347,10 +330,7 @@ router.delete("/queues/:name/jobs/:id", requireRecentAuth, async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    logger.error(
-      { err, queue: queue.name, jobId },
-      "Admin queue remove feilet",
-    );
+    logger.error({ err, queue: queue.name, jobId }, "Admin queue remove feilet");
     return sendUnknownError(res, err, { kontekst: "admin.queues.remove" });
   }
 });

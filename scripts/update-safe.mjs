@@ -102,9 +102,7 @@ function handleFailure(step, result) {
   process.exit(result.status);
 }
 
-const updateArgs = workspaceFilter
-  ? ["--filter", workspaceFilter, "update"]
-  : ["-r", "update"];
+const updateArgs = workspaceFilter ? ["--filter", workspaceFilter, "update"] : ["-r", "update"];
 
 const steps = [
   ["Oppdaterer dependencies", "pnpm", updateArgs],

@@ -1,6 +1,6 @@
 /*
-* Swagger/OpenAPI dokumentasjon for API
-*/
+ * Swagger/OpenAPI dokumentasjon for API
+ */
 import swaggerJsdoc from "swagger-jsdoc";
 import { discoverSwaggerPaths } from "./swaggerRouteDiscovery.js";
 import { isProd } from "./utils/env.js";

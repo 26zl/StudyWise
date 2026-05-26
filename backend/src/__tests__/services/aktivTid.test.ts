@@ -35,9 +35,7 @@ describe("beregnAktivTimer", () => {
 
   // Heartbeat-intervaller fungerer som før
   it("summerer heartbeat-intervaller korrekt", () => {
-    const heartbeats = [
-      { start: new Date(BASE - 2 * MS_I_TIME), end: new Date(BASE - MS_I_TIME) },
-    ];
+    const heartbeats = [{ start: new Date(BASE - 2 * MS_I_TIME), end: new Date(BASE - MS_I_TIME) }];
     const timer = beregnAktivTimer([], heartbeats, DAG_START);
     expect(timer).toBe(1.0);
   });
@@ -95,9 +93,7 @@ describe("beregnAktivTimer", () => {
 
   it("runder til 1 desimal", () => {
     // 1t + 7.5 min = 1.125t → 1.1
-    const heartbeats = [
-      { start: new Date(BASE - MS_I_TIME - 7.5 * 60_000), end: new Date(BASE) },
-    ];
+    const heartbeats = [{ start: new Date(BASE - MS_I_TIME - 7.5 * 60_000), end: new Date(BASE) }];
     const timer = beregnAktivTimer([], heartbeats, DAG_START);
     expect(timer).toBe(1.1);
   });

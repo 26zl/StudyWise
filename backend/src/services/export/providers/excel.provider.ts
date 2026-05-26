@@ -7,7 +7,13 @@
 
 import ExcelJS from "exceljs";
 import type { ExportProvider, ExportProviderResult } from "../export-types.js";
-import type { ExportDocument, ExportBlock, TextSegment, ListItem, ExportResponse } from "common/export";
+import type {
+  ExportDocument,
+  ExportBlock,
+  TextSegment,
+  ListItem,
+  ExportResponse,
+} from "common/export";
 
 const COLORS = {
   heading: "0F172A",
@@ -103,10 +109,7 @@ export class ExcelExportProvider implements ExportProvider {
     headers: { segments: TextSegment[] }[] | undefined,
     rows: { segments: TextSegment[] }[][],
   ): void {
-    const colCount = Math.max(
-      headers?.length ?? 0,
-      ...rows.map((r) => r.length),
-    );
+    const colCount = Math.max(headers?.length ?? 0, ...rows.map((r) => r.length));
 
     if (headers && headers.length > 0) {
       const headerTexts = headers.map((h) => this.segmentsToText(h.segments));
@@ -203,7 +206,11 @@ export class ExcelExportProvider implements ExportProvider {
     row.alignment = { wrapText: true };
   }
 
-  private renderList(sheet: ExcelJS.Worksheet, items: ListItem[], type: "bullet" | "numbered"): void {
+  private renderList(
+    sheet: ExcelJS.Worksheet,
+    items: ListItem[],
+    type: "bullet" | "numbered",
+  ): void {
     items.forEach((item, index) => {
       const prefix = type === "bullet" ? "  - " : `  ${index + 1}. `;
       const text = prefix + this.segmentsToText(item.segments);
@@ -297,7 +304,12 @@ export class ExcelExportProvider implements ExportProvider {
   /** Saniterer streng for bruk som Excel-arknavn (fjerner ugyldige tegn, sikrer ikke-tomt) */
   private sanitizeSheetName(name: string): string {
     // ExcelJS kaster på: / \ * ? [ ] og tomme navn
-    return name.replace(/[/\\*?[\]:]/g, " ").replace(/\s+/g, " ").trim() || "Ark";
+    return (
+      name
+        .replace(/[/\\*?[\]:]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim() || "Ark"
+    );
   }
 
   /** Generer arknavn for tabellark */

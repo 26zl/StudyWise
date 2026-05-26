@@ -41,10 +41,7 @@ export async function GET(
 
   // Streng validering: kun numeriske ID-er for å unngå path traversal
   if (!/^\d+$/.test(fileId)) {
-    return NextResponse.json(
-      { feil: "Ugyldig fileId", kode: "invalid_file_id" },
-      { status: 400 },
-    );
+    return NextResponse.json({ feil: "Ugyldig fileId", kode: "invalid_file_id" }, { status: 400 });
   }
 
   if (!API_BASE) {

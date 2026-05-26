@@ -21,10 +21,7 @@ import {
   getCanvasTenantCachePrefix,
   type CanvasHttpError,
 } from "./canvasUtils.js";
-import {
-  rateLimitCanvas,
-  rateLimitCanvasTung,
-} from "../../middleware/rate-limit.js";
+import { rateLimitCanvas, rateLimitCanvasTung } from "../../middleware/rate-limit.js";
 import { noCache } from "../../middleware/no-cache.js";
 import { logger } from "../../utils/logger.js";
 import { getCache, setCache } from "../../cache/redis.js";
@@ -32,10 +29,7 @@ import { userKey } from "../../services/canvas-sync.service.js";
 import { CanvasUser } from "../../database/models/CanvasUser.js";
 import { CanvasStructureModel } from "../../database/models/CanvasStructure.js";
 import { User } from "../../database/models/User.js";
-import {
-  buildCanvasUserPayload,
-  isMongoDuplicateKeyError,
-} from "../../utils/canvasUserSync.js";
+import { buildCanvasUserPayload, isMongoDuplicateKeyError } from "../../utils/canvasUserSync.js";
 import {
   fetchUserProfile,
   fetchCourses,
@@ -62,10 +56,7 @@ import {
   extractCourseIdFromContext,
   fetchUserEnrollments,
 } from "./canvasService.js";
-import {
-  CalendarItemsResponseSchema,
-  type CalendarItem,
-} from "common/calendar";
+import { CalendarItemsResponseSchema, type CalendarItem } from "common/calendar";
 
 import { z, ZodError } from "zod";
 import {
@@ -78,10 +69,7 @@ import {
 import { CircuitBreakerError } from "../../utils/circuitBreaker.js";
 
 /** Én felles oversetter: Canvas/Zod-feil → strukturert JSON-respons. Brukes av både handleCanvasError og router.use. */
-function sendCanvasErrorResponse(
-  res: import("express").Response,
-  error: unknown,
-): void {
+function sendCanvasErrorResponse(res: import("express").Response, error: unknown): void {
   // CircuitBreakerError → 503 Service Unavailable med Retry-After.
   // Differensierer "Canvas er nede" fra "vi har en bug" overfor frontend, slik
   // at dashboardet kan rendre én banner i stedet for N ødelagte kort.
@@ -108,14 +96,14 @@ function sendCanvasErrorResponse(
     upstreamErr.httpStatus >= 500 &&
     upstreamErr.httpStatus < 600
   ) {
-    const retryAfter = typeof upstreamErr.retryAfter === "number" && upstreamErr.retryAfter > 0
-      ? upstreamErr.retryAfter
-      : 30;
+    const retryAfter =
+      typeof upstreamErr.retryAfter === "number" && upstreamErr.retryAfter > 0
+        ? upstreamErr.retryAfter
+        : 30;
     res.setHeader("Retry-After", String(retryAfter));
     res.status(503).json({
       feil: "Canvas er midlertidig utilgjengelig",
-      melding:
-        "Canvas svarer ikke akkurat nå (kan være planlagt vedlikehold). Prøv igjen senere.",
+      melding: "Canvas svarer ikke akkurat nå (kan være planlagt vedlikehold). Prøv igjen senere.",
       kode: "service_unavailable",
       kilde: "canvas",
       status: "outage",
@@ -207,10 +195,7 @@ router.get("/whoami", async (req, res) => {
     if (!resolvedCanvasBaseUrl) {
       return apiError.badRequest(res, "Canvas-institusjon mangler");
     }
-    const { data: canvasUser } = await fetchUserProfile(
-      req.canvasToken,
-      resolvedCanvasBaseUrl,
-    );
+    const { data: canvasUser } = await fetchUserProfile(req.canvasToken, resolvedCanvasBaseUrl);
     // whoami skal aldri stjele eller flytte en eksisterende kobling mellom brukere.
     const eksisterendeKobling = await CanvasUser.findOne({
       canvasId: canvasUser.id,
@@ -253,8 +238,7 @@ router.get("/whoami", async (req, res) => {
           },
         )) as CanvasUserSynkResult;
         const oppdatertCanvasBrukerObj =
-          typeof oppdatertCanvasBruker === "object" &&
-          oppdatertCanvasBruker !== null
+          typeof oppdatertCanvasBruker === "object" && oppdatertCanvasBruker !== null
             ? oppdatertCanvasBruker
             : null;
         const oppdatertCanvasBrukerId = oppdatertCanvasBrukerObj
@@ -279,8 +263,7 @@ router.get("/whoami", async (req, res) => {
     // Returner Canvas-data med created_at
     // Prioritet: Canvas sin dato > vår lagrede Canvas-dato > når brukeren koblet til StudyWise
     const oppdatertCanvasBrukerObj =
-      typeof oppdatertCanvasBruker === "object" &&
-      oppdatertCanvasBruker !== null
+      typeof oppdatertCanvasBruker === "object" && oppdatertCanvasBruker !== null
         ? oppdatertCanvasBruker
         : null;
     const oppdatertCanvasBrukerCanvasUserCreatedAt = oppdatertCanvasBrukerObj
@@ -358,15 +341,11 @@ router.get("/calendar_events", rateLimitCanvasTung, async (req, res) => {
     const { data: events, meta } = await fetchCalendarEvents(req.canvasToken, {
       baseUrl: req.canvasBaseUrl,
       contextCodes,
-      startDate:
-        typeof start_date === "string" ? start_date : defaultRange.startDate,
+      startDate: typeof start_date === "string" ? start_date : defaultRange.startDate,
       endDate: typeof end_date === "string" ? end_date : defaultRange.endDate,
       type: eventType,
     });
-    logger.info(
-      { count: events.length, courseCount: courses.length },
-      "Hentet calendar_events",
-    );
+    logger.info({ count: events.length, courseCount: courses.length }, "Hentet calendar_events");
     res.json({
       events,
       meta,
@@ -382,14 +361,11 @@ router.get("/calendar_events", rateLimitCanvasTung, async (req, res) => {
 router.get("/forelesninger", rateLimitCanvasTung, async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
-    const { data: lectures, meta } = await fetchCanvasLectures(
-      req.canvasToken,
-      {
-        startDate: typeof start_date === "string" ? start_date : undefined,
-        endDate: typeof end_date === "string" ? end_date : undefined,
-        baseUrl: req.canvasBaseUrl,
-      },
-    );
+    const { data: lectures, meta } = await fetchCanvasLectures(req.canvasToken, {
+      startDate: typeof start_date === "string" ? start_date : undefined,
+      endDate: typeof end_date === "string" ? end_date : undefined,
+      baseUrl: req.canvasBaseUrl,
+    });
     res.json({
       items: lectures,
       meta: { generatedAt: new Date().toISOString(), ...meta },
@@ -421,7 +397,8 @@ router.get("/emner", async (req, res) => {
     logger.info({ count: courses.length }, "Hentet aktive emner");
     if (req.user?.id && req.canvasToken && req.canvasBaseUrl) {
       const { ensureCanvasSync } = await import("../../services/context-loader.service.js");
-      const { syncCanvasDataForUser, hasCanvasSyncData } = await import("../../services/canvas-sync.service.js");
+      const { syncCanvasDataForUser, hasCanvasSyncData } =
+        await import("../../services/canvas-sync.service.js");
 
       // Proaktiv sync: sjekk om bruker har synkroniserte data.
       // Hvis ikke (første gang eller etter cache-utløp), kjør full sync med bypass rate-limit.
@@ -433,11 +410,9 @@ router.get("/emner", async (req, res) => {
           logger.debug({ err }, "Proaktiv Canvas-sync feilet (ikke-kritisk)");
         });
       } else {
-        ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch(
-          (err) => {
-            logger.debug({ err }, "Bakgrunns Canvas-sync feilet (ikke-kritisk)");
-          },
-        );
+        ensureCanvasSync(req.user.id, req.canvasToken, req.canvasBaseUrl).catch((err) => {
+          logger.debug({ err }, "Bakgrunns Canvas-sync feilet (ikke-kritisk)");
+        });
       }
     }
     res.json({
@@ -476,7 +451,9 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
   const tokenAvtrykk = token
     ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 32)
     : "ukjent";
-  const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
+  const tenantPrefix = req.canvasBaseUrl
+    ? getCanvasTenantCachePrefix(req.canvasBaseUrl)
+    : "default";
   const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:emner-metadata`;
 
   try {
@@ -539,49 +516,35 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
         }
 
         // Hent alle 5 ressurser parallelt per kurs
-        const [
-          courseDetailsResult,
-          frontPageResult,
-          modulesResult,
-          filesResult,
-          pagesResult,
-        ] = await Promise.allSettled([
-          fetchCourse(req.canvasToken, courseId, req.canvasBaseUrl),
-          fetchFrontPage(req.canvasToken, courseId, req.canvasBaseUrl),
-          fetchModules(req.canvasToken, courseId, req.canvasBaseUrl),
-          fetchFiles(req.canvasToken, courseId, req.canvasBaseUrl),
-          fetchPages(req.canvasToken, courseId, req.canvasBaseUrl),
-        ]);
+        const [courseDetailsResult, frontPageResult, modulesResult, filesResult, pagesResult] =
+          await Promise.allSettled([
+            fetchCourse(req.canvasToken, courseId, req.canvasBaseUrl),
+            fetchFrontPage(req.canvasToken, courseId, req.canvasBaseUrl),
+            fetchModules(req.canvasToken, courseId, req.canvasBaseUrl),
+            fetchFiles(req.canvasToken, courseId, req.canvasBaseUrl),
+            fetchPages(req.canvasToken, courseId, req.canvasBaseUrl),
+          ]);
 
         // Sjekk kursdetaljer for syllabus
         const courseDetails =
-          courseDetailsResult.status === "fulfilled"
-            ? courseDetailsResult.value.data
-            : null;
+          courseDetailsResult.status === "fulfilled" ? courseDetailsResult.value.data : null;
 
         // Sjekk frontpage - kun true hvis det finnes faktisk innhold å vise
         let wikiHasContent = false;
-        if (
-          frontPageResult.status === "fulfilled" &&
-          frontPageResult.value.data
-        ) {
+        if (frontPageResult.status === "fulfilled" && frontPageResult.value.data) {
           const page = frontPageResult.value.data;
           wikiHasContent = !!(page.body && page.body.trim().length > 0);
         }
 
         // Sjekk syllabus
         const syllabusHasContent = !!(
-          courseDetails?.syllabus_body &&
-          courseDetails.syllabus_body.trim().length > 0
+          courseDetails?.syllabus_body && courseDetails.syllabus_body.trim().length > 0
         );
 
         // Hent moduler, filer og sider
-        const modules =
-          modulesResult.status === "fulfilled" ? modulesResult.value.data : [];
-        const files =
-          filesResult.status === "fulfilled" ? filesResult.value.data : [];
-        const pages =
-          pagesResult.status === "fulfilled" ? pagesResult.value.data : [];
+        const modules = modulesResult.status === "fulfilled" ? modulesResult.value.data : [];
+        const files = filesResult.status === "fulfilled" ? filesResult.value.data : [];
+        const pages = pagesResult.status === "fulfilled" ? pagesResult.value.data : [];
 
         // Sjekk om alle API-kall feilet — i så fall returnerer vi null
         // slik at frontend kan vise alle knapper som fallback i stedet for "ingen innhold"
@@ -625,7 +588,10 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
     metadataResults.forEach((m) => {
       // Ekskluder emner der alle API-kall feilet — frontend viser da alle knapper som fallback
       if (m.alleFeilet) {
-        logger.warn({ courseId: m.courseId }, "Alle metadata-kall feilet for emne, ekskluderer fra metadata");
+        logger.warn(
+          { courseId: m.courseId },
+          "Alle metadata-kall feilet for emne, ekskluderer fra metadata",
+        );
         return;
       }
       metadataMap[m.courseId] = {
@@ -659,7 +625,12 @@ router.get("/emner/metadata", rateLimitCanvasTung, async (req, res) => {
 // Henter detaljer for et spesifikt emne
 router.get("/emner/:courseId", async (req, res) => {
   try {
-    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
+    const courseIdNum = parseNumericParam(
+      res,
+      req.params.courseId,
+      "courseId",
+      "courseId må være et tall",
+    );
     if (courseIdNum === null) return;
     const { data: course } = await fetchCourse(req.canvasToken, courseIdNum, req.canvasBaseUrl);
     logger.info({ courseId: course.id }, "Hentet emnedetaljer");
@@ -675,21 +646,20 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
   try {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
     if (courseIdNum === null) return;
-    const { data: assignments, meta } = await fetchAssignments(
-      req.canvasToken,
-      courseIdNum,
-      { baseUrl: req.canvasBaseUrl },
-    );
-    logger.info(
-      { courseId: courseIdNum, count: assignments.length },
-      "Hentet oppgaver for emne",
-    );
+    const { data: assignments, meta } = await fetchAssignments(req.canvasToken, courseIdNum, {
+      baseUrl: req.canvasBaseUrl,
+    });
+    logger.info({ courseId: courseIdNum, count: assignments.length }, "Hentet oppgaver for emne");
     res.json({
       assignments,
       meta,
     });
   } catch (error) {
-    return handleCanvasError(res, error, `Feil under henting av oppgaver for emne ${req.params.courseId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil under henting av oppgaver for emne ${req.params.courseId}`,
+    );
   }
 });
 
@@ -697,7 +667,12 @@ router.get("/emner/:courseId/oppgaver", async (req, res) => {
 // Henter announcements for et spesifikt emne
 router.get("/emner/:courseId/announcements", async (req, res) => {
   try {
-    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
+    const courseIdNum = parseNumericParam(
+      res,
+      req.params.courseId,
+      "courseId",
+      "courseId må være et tall",
+    );
     if (courseIdNum === null) return;
     const { data: announcements, meta } = await fetchCourseAnnouncements(
       req.canvasToken,
@@ -713,7 +688,11 @@ router.get("/emner/:courseId/announcements", async (req, res) => {
       meta,
     });
   } catch (error) {
-    return handleCanvasError(res, error, `Feil under henting av announcements for emne ${req.params.courseId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil under henting av announcements for emne ${req.params.courseId}`,
+    );
   }
 });
 
@@ -748,22 +727,23 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
   const tokenAvtrykk = token
     ? crypto.createHash("sha256").update(token).digest("hex").slice(0, 32)
     : "ukjent";
-  const tenantPrefix = req.canvasBaseUrl ? getCanvasTenantCachePrefix(req.canvasBaseUrl) : "default";
+  const tenantPrefix = req.canvasBaseUrl
+    ? getCanvasTenantCachePrefix(req.canvasBaseUrl)
+    : "default";
   const cacheKey = `canvas:${tenantPrefix}:${tokenAvtrykk}:kalender-v3`; // Ny versjon med Planner API
   const cacheTimestampKey = `${cacheKey}:timestamp`;
-  const queryParsed = z.object({
-    refresh: z.enum(["true", "false"]).optional(),
-    page: z.coerce.number().int().min(1).default(1).catch(1),
-    limit: z.coerce.number().int().min(1).max(500).default(100).catch(100),
-  }).safeParse(req.query);
+  const queryParsed = z
+    .object({
+      refresh: z.enum(["true", "false"]).optional(),
+      page: z.coerce.number().int().min(1).default(1).catch(1),
+      limit: z.coerce.number().int().min(1).max(500).default(100).catch(100),
+    })
+    .safeParse(req.query);
   const queryParams = queryParsed.success ? queryParsed.data : { page: 1, limit: 100 };
   const forceRefresh = req.query.refresh === "true";
   const page = queryParams.page;
   const limit = queryParams.limit;
-  const buildCachedCalendarResponse = (
-    cached: string,
-    cacheAge?: number,
-  ) => {
+  const buildCachedCalendarResponse = (cached: string, cacheAge?: number) => {
     // Re-valider mot common-skjemaet før vi paginerer. Hvis cachen har drift
     // (f.eks. etter en feltoppdatering i common/calendar) faller vi tilbake til
     // frisk Canvas-henting heller enn å sende ugyldig form til frontend.
@@ -783,10 +763,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
       return null;
     }
     const allItems: CalendarItem[] = parsedCache.items;
-    const paginatedItems = allItems.slice(
-      (page - 1) * limit,
-      page * limit,
-    );
+    const paginatedItems = allItems.slice((page - 1) * limit, page * limit);
 
     return {
       ...parsedCache,
@@ -815,10 +792,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
         const cacheAge = cachedTimestamp
           ? Math.floor((Date.now() - parseInt(cachedTimestamp, 10)) / 1000)
           : undefined;
-        logger.warn(
-          { cacheAge },
-          "Canvas API feilet - returnerer cached data som fallback",
-        );
+        logger.warn({ cacheAge }, "Canvas API feilet - returnerer cached data som fallback");
         const cachedResponse = buildCachedCalendarResponse(cached, cacheAge);
         if (cachedResponse) return res.json(cachedResponse);
       }
@@ -857,13 +831,11 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     let userProfileResult: Awaited<ReturnType<typeof fetchUserProfile>>;
     let enrollmentsResult: Awaited<ReturnType<typeof fetchUserEnrollments>>;
     try {
-      [coursesResult, userProfileResult, enrollmentsResult] = await Promise.all(
-        [
-          fetchCourses(req.canvasToken, req.canvasBaseUrl),
-          fetchUserProfile(req.canvasToken, req.canvasBaseUrl),
-          fetchUserEnrollments(req.canvasToken, req.canvasBaseUrl),
-        ],
-      );
+      [coursesResult, userProfileResult, enrollmentsResult] = await Promise.all([
+        fetchCourses(req.canvasToken, req.canvasBaseUrl),
+        fetchUserProfile(req.canvasToken, req.canvasBaseUrl),
+        fetchUserEnrollments(req.canvasToken, req.canvasBaseUrl),
+      ]);
     } catch (error) {
       // Kritisk feil - prøv cached data og avslutt route hvis fallback lykkes
       return await returnCachedOnError(error);
@@ -883,11 +855,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
 
     // Bygg context_codes for Calendar Events API
     // Inkluderer course_section context codes for TimeEdit-hendelser
-    const contextCodes = buildContextCodes(
-      userProfile.id,
-      courses,
-      enrollments,
-    );
+    const contextCodes = buildContextCodes(userProfile.id, courses, enrollments);
     // Beregn datointervall
     const { startDate, endDate } = beregnKalenderVindu();
     // Bruk Planner API + Calendar Events i stedet for N assignment-kall
@@ -907,17 +875,11 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
       }),
     ]);
     // Hent data fra resolved promises eller tomme lister ved feil
-    const plannerItems =
-      plannerResult.status === "fulfilled" ? plannerResult.value.data : [];
+    const plannerItems = plannerResult.status === "fulfilled" ? plannerResult.value.data : [];
     const calendarEvents =
-      calendarEventsResult.status === "fulfilled"
-        ? calendarEventsResult.value.data
-        : [];
+      calendarEventsResult.status === "fulfilled" ? calendarEventsResult.value.data : [];
     if (plannerResult.status === "rejected") {
-      logger.warn(
-        { err: plannerResult.reason },
-        "Kalender: planner feilet, fortsetter uten",
-      );
+      logger.warn({ err: plannerResult.reason }, "Kalender: planner feilet, fortsetter uten");
     }
     if (calendarEventsResult.status === "rejected") {
       logger.warn(
@@ -926,10 +888,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
       );
     }
     // Hvis begge API-kall feilet, prøv cached data
-    if (
-      plannerResult.status === "rejected" &&
-      calendarEventsResult.status === "rejected"
-    ) {
+    if (plannerResult.status === "rejected" && calendarEventsResult.status === "rejected") {
       const error = plannerResult.reason || calendarEventsResult.reason;
       return returnCachedOnError(error);
     }
@@ -949,17 +908,10 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
 
     // Normaliser Planner items (assignments, quizzes, discussions, etc.)
     // Filtrer ut kunngjøringer og wiki-sider som ikke hører hjemme i kalenderen
-    const EXCLUDED_PLANNER_TYPES = [
-      "announcement",
-      "Announcement",
-      "wiki_page",
-      "WikiPage",
-    ];
+    const EXCLUDED_PLANNER_TYPES = ["announcement", "Announcement", "wiki_page", "WikiPage"];
 
     plannerItems
-      .filter(
-        (item) => !EXCLUDED_PLANNER_TYPES.includes(item.plannable_type || ""),
-      )
+      .filter((item) => !EXCLUDED_PLANNER_TYPES.includes(item.plannable_type || ""))
       .forEach((item) => {
         const dueAt = item.plannable?.due_at || item.plannable_date;
         if (!erInnenforKalenderVindu(dueAt)) return;
@@ -970,15 +922,9 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
         // Bestem ID-prefiks og source basert på type
         let id: string;
         let source: "assignment" | "todo" | "event" = "assignment";
-        if (
-          item.plannable_type === "assignment" ||
-          item.plannable_type === "Assignment"
-        ) {
+        if (item.plannable_type === "assignment" || item.plannable_type === "Assignment") {
           id = `assignment-${item.plannable_id}`;
-        } else if (
-          item.plannable_type === "quiz" ||
-          item.plannable_type === "Quiz"
-        ) {
+        } else if (item.plannable_type === "quiz" || item.plannable_type === "Quiz") {
           id = `quiz-${item.plannable_id}`;
           source = "todo";
         } else if (
@@ -1070,9 +1016,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     });
 
     // Sorter etter dato
-    items.sort(
-      (a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime(),
-    );
+    items.sort((a, b) => new Date(a.due_at).getTime() - new Date(b.due_at).getTime());
 
     // Paginer resultatene
     const totalItems = items.length;
@@ -1098,16 +1042,8 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     // Lagre komplett liste i cache (uten paginering)
     try {
       const cachePayload = { ...payload, items }; // Lagre alle items
-      await setCache(
-        cacheKey,
-        JSON.stringify(cachePayload),
-        CACHE_TTL.ASSIGNMENTS,
-      ); // 10 min cache
-      await setCache(
-        cacheTimestampKey,
-        String(Date.now()),
-        CACHE_TTL.ASSIGNMENTS,
-      );
+      await setCache(cacheKey, JSON.stringify(cachePayload), CACHE_TTL.ASSIGNMENTS); // 10 min cache
+      await setCache(cacheTimestampKey, String(Date.now()), CACHE_TTL.ASSIGNMENTS);
       // Per-bruker-bro: KI-chat-konteksten leser kun userId-nøkler (har ikke
       // token-avtrykket). Speil de neste 7 dagene med events/timetable her så
       // at chat kan svare på «når er neste time». Begrenset til 30 elementer
@@ -1166,10 +1102,7 @@ router.get("/kalender", rateLimitCanvasTung, async (req, res) => {
     const err = error as CanvasHttpError;
     if (err.message?.includes("timeout")) {
       logger.error({ err: error }, "Feil ved henting av kalender-data");
-      return apiError.timeout(
-        res,
-        "Henting av kalenderdata tok for lang tid. Prøv igjen.",
-      );
+      return apiError.timeout(res, "Henting av kalenderdata tok for lang tid. Prøv igjen.");
     }
     return handleCanvasError(res, error, "Feil ved henting av kalender-data");
   }
@@ -1205,23 +1138,29 @@ router.get("/planlegger", async (req, res) => {
 // Henter moduler for et spesifikt emne
 router.get("/emner/:courseId/modules", async (req, res) => {
   try {
-    const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId", "courseId må være et tall");
+    const courseIdNum = parseNumericParam(
+      res,
+      req.params.courseId,
+      "courseId",
+      "courseId må være et tall",
+    );
     if (courseIdNum === null) return;
     const { data: modules, meta } = await fetchModules(
       req.canvasToken,
       courseIdNum,
       req.canvasBaseUrl,
     );
-    logger.info(
-      { courseId: courseIdNum, moduleCount: modules.length },
-      "Hentet moduler",
-    );
+    logger.info({ courseId: courseIdNum, moduleCount: modules.length }, "Hentet moduler");
     res.json({
       modules,
       meta,
     });
   } catch (error) {
-    return handleCanvasError(res, error, `Feil under henting av moduler for emne ${req.params.courseId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil under henting av moduler for emne ${req.params.courseId}`,
+    );
   }
 });
 
@@ -1230,7 +1169,8 @@ router.get("/emner/:courseId/modules", async (req, res) => {
 router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
   try {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
-    const moduleIdNum = courseIdNum !== null ? parseNumericParam(res, req.params.moduleId, "moduleId") : null;
+    const moduleIdNum =
+      courseIdNum !== null ? parseNumericParam(res, req.params.moduleId, "moduleId") : null;
     if (courseIdNum === null || moduleIdNum === null) return;
     const { data: items, meta } = await fetchModuleItems(
       req.canvasToken,
@@ -1247,7 +1187,11 @@ router.get("/emner/:courseId/modules/:moduleId/items", async (req, res) => {
       meta,
     });
   } catch (error) {
-    return handleCanvasError(res, error, `Feil ved henting av modul items for modul ${req.params.moduleId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil ved henting av modul items for modul ${req.params.moduleId}`,
+    );
   }
 });
 
@@ -1261,8 +1205,10 @@ router.get(
   async (req, res) => {
     try {
       const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
-      const moduleIdNum = courseIdNum !== null ? parseNumericParam(res, req.params.moduleId, "moduleId") : null;
-      const itemIdNum = moduleIdNum !== null ? parseNumericParam(res, req.params.itemId, "itemId") : null;
+      const moduleIdNum =
+        courseIdNum !== null ? parseNumericParam(res, req.params.moduleId, "moduleId") : null;
+      const itemIdNum =
+        moduleIdNum !== null ? parseNumericParam(res, req.params.itemId, "itemId") : null;
       if (courseIdNum === null || moduleIdNum === null || itemIdNum === null) return;
       // Hent detaljene for modul-itemet slik at vi kan finne riktig mål
       const { data: item } = await fetchModuleItem(
@@ -1284,11 +1230,7 @@ router.get(
           req.canvasBaseUrl,
         );
 
-        const safeUrl = validateCanvasRedirectUrl(
-          file.url,
-          canvasOrigin,
-          "/files/",
-        );
+        const safeUrl = validateCanvasRedirectUrl(file.url, canvasOrigin, "/files/");
 
         if (safeUrl) {
           logger.info(
@@ -1319,10 +1261,7 @@ router.get(
         });
       }
       // Ingen annen trygg redirect tilgjengelig
-      return apiError.notFound(
-        res,
-        "Ingen tilgjengelig url for modul-elementet",
-      );
+      return apiError.notFound(res, "Ingen tilgjengelig url for modul-elementet");
     } catch (error) {
       return handleCanvasError(res, error, `Feil ved åpning av modul item ${req.params.itemId}`);
     }
@@ -1335,13 +1274,13 @@ router.get("/emner/:courseId/pages/:pageId", async (req, res) => {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
     if (courseIdNum === null) return;
     const { pageId } = req.params;
-    if (!isSafePathSegment(pageId)) return apiError.badRequest(res, "Ugyldig pageId", "pageId inneholder ugyldige tegn (path traversal ikke tillatt)");
-    const { data: page } = await fetchPage(
-      req.canvasToken,
-      courseIdNum,
-      pageId,
-      req.canvasBaseUrl,
-    );
+    if (!isSafePathSegment(pageId))
+      return apiError.badRequest(
+        res,
+        "Ugyldig pageId",
+        "pageId inneholder ugyldige tegn (path traversal ikke tillatt)",
+      );
+    const { data: page } = await fetchPage(req.canvasToken, courseIdNum, pageId, req.canvasBaseUrl);
     logger.info({ courseId: courseIdNum, pageUrl: page.url }, "Hentet wiki page");
     res.json(page);
   } catch (error) {
@@ -1354,15 +1293,15 @@ router.get("/emner/:courseId/pages", async (req, res) => {
   try {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
     if (courseIdNum === null) return;
-    const { data: pages, meta } = await fetchPages(
-      req.canvasToken,
-      courseIdNum,
-      req.canvasBaseUrl,
-    );
+    const { data: pages, meta } = await fetchPages(req.canvasToken, courseIdNum, req.canvasBaseUrl);
     logger.info({ courseId: courseIdNum, count: pages.length }, "Hentet liste over sider");
     res.json({ pages, meta });
   } catch (error) {
-    return handleCanvasError(res, error, `Feil ved henting av pages for kurs ${req.params.courseId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil ved henting av pages for kurs ${req.params.courseId}`,
+    );
   }
 });
 
@@ -1385,9 +1324,7 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
     // Prøv syllabus som fallback
     const err = error as CanvasHttpError & { code?: CanvasErrorCode };
     const isNotFound =
-      err.status === 404 ||
-      err.code === "resource_not_found" ||
-      err.code === "resource_disabled";
+      err.status === 404 || err.code === "resource_not_found" || err.code === "resource_disabled";
 
     if (isNotFound) {
       try {
@@ -1396,11 +1333,7 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
           return res.status(204).end();
         }
         // Hent kurs med syllabus_body som fallback
-        const { data: course } = await fetchCourse(
-          req.canvasToken,
-          fallbackId,
-          req.canvasBaseUrl,
-        );
+        const { data: course } = await fetchCourse(req.canvasToken, fallbackId, req.canvasBaseUrl);
         if (course.syllabus_body && course.syllabus_body.trim().length > 0) {
           logger.info(
             { courseId: req.params.courseId },
@@ -1417,21 +1350,19 @@ router.get("/emner/:courseId/frontpage", async (req, res) => {
           });
           return;
         }
-        logger.info(
-          { courseId: req.params.courseId },
-          "Kurset har ingen frontpage eller syllabus",
-        );
+        logger.info({ courseId: req.params.courseId }, "Kurset har ingen frontpage eller syllabus");
         return res.status(204).send();
       } catch {
         // Hvis syllabus-henting også feiler, returner 204
-        logger.info(
-          { courseId: req.params.courseId },
-          "Kurset har ingen frontpage satt",
-        );
+        logger.info({ courseId: req.params.courseId }, "Kurset har ingen frontpage satt");
         return res.status(204).send();
       }
     }
-    return handleCanvasError(res, error, `Feil ved henting av frontpage for kurs ${req.params.courseId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil ved henting av frontpage for kurs ${req.params.courseId}`,
+    );
   }
 });
 
@@ -1453,20 +1384,16 @@ router.get("/emner/:courseId/files", async (req, res) => {
   try {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
     if (courseIdNum === null) return;
-    const { data: files, meta } = await fetchFiles(
-      req.canvasToken,
-      courseIdNum,
-      req.canvasBaseUrl,
-    );
+    const { data: files, meta } = await fetchFiles(req.canvasToken, courseIdNum, req.canvasBaseUrl);
     logger.info({ courseId: courseIdNum, count: files.length }, "Hentet filer for kurs");
     res.json({ files, meta });
   } catch (error) {
     const canvasError = error as CanvasHttpError & { code?: CanvasErrorCode; name?: string };
     const canFallbackToEmptyFiles =
-      canvasError?.name === "CanvasApiError"
-      && (canvasError.code === "permission_denied"
-        || canvasError.code === "resource_disabled"
-        || canvasError.code === "resource_not_found");
+      canvasError?.name === "CanvasApiError" &&
+      (canvasError.code === "permission_denied" ||
+        canvasError.code === "resource_disabled" ||
+        canvasError.code === "resource_not_found");
 
     if (canFallbackToEmptyFiles) {
       res.setHeader("x-canvas-access-status", "limited");
@@ -1493,7 +1420,11 @@ router.get("/emner/:courseId/files", async (req, res) => {
       });
     }
 
-    return handleCanvasError(res, error, `Feil ved henting av filer for kurs ${req.params.courseId}`);
+    return handleCanvasError(
+      res,
+      error,
+      `Feil ved henting av filer for kurs ${req.params.courseId}`,
+    );
   }
 });
 
@@ -1552,10 +1483,7 @@ async function finnCanvasUiUrlForRessurs(
     }
     return null;
   } catch (err) {
-    logger.warn(
-      { err, userId, fileIdNum },
-      "finnCanvasUiUrlForRessurs feilet",
-    );
+    logger.warn({ err, userId, fileIdNum }, "finnCanvasUiUrlForRessurs feilet");
     return null;
   }
 }
@@ -1566,8 +1494,7 @@ router.get("/filer/:fileId/download", async (req, res) => {
     const fileIdNum = parseNumericParam(res, req.params.fileId, "fileId");
     if (fileIdNum === null) return;
     const canvasBaseUrl = req.canvasBaseUrl;
-    if (!canvasBaseUrl)
-      return apiError.badRequest(res, "Canvas-institusjon mangler");
+    if (!canvasBaseUrl) return apiError.badRequest(res, "Canvas-institusjon mangler");
     const canvasOrigin = new URL(canvasBaseUrl).origin;
     const metadataResult = await fetchFileMetadata(
       req.canvasToken,
@@ -1577,15 +1504,10 @@ router.get("/filer/:fileId/download", async (req, res) => {
       const metaErr = metadataError as CanvasApiError;
       const isAccessError =
         metaErr?.name === "CanvasApiError" &&
-        (metaErr.code === "permission_denied" ||
-          metaErr.code === "resource_not_found");
+        (metaErr.code === "permission_denied" || metaErr.code === "resource_not_found");
       const userId = req.user?.id;
       if (isAccessError && userId) {
-        const uiUrl = await finnCanvasUiUrlForRessurs(
-          userId,
-          fileIdNum,
-          canvasOrigin,
-        );
+        const uiUrl = await finnCanvasUiUrlForRessurs(userId, fileIdNum, canvasOrigin);
         if (uiUrl) {
           logger.info(
             { userId, fileIdNum, code: metaErr.code, uiUrl },
@@ -1599,24 +1521,16 @@ router.get("/filer/:fileId/download", async (req, res) => {
     });
     if (metadataResult === null) return;
     const file = metadataResult.data;
-    const safeUrl = validateCanvasRedirectUrl(
-      file.url,
-      canvasOrigin,
-      "/files/",
-    );
+    const safeUrl = validateCanvasRedirectUrl(file.url, canvasOrigin, "/files/");
     if (!safeUrl) return apiError.badRequest(res, "Ugyldig fil-url host");
     const canvasToken = req.canvasToken?.replace(/^Bearer\s+/i, "").trim();
     // Last ned fra Canvas og stream til klient
     const canvasRes = await fetch(safeUrl, {
-      headers: canvasToken
-        ? buildCanvasAuthHeaders(canvasToken)
-        : undefined,
+      headers: canvasToken ? buildCanvasAuthHeaders(canvasToken) : undefined,
       signal: req.timeoutSignal,
     });
     if (!canvasRes.ok || !canvasRes.body) {
-      return res
-        .status(canvasRes.status)
-        .json({ feil: "Kunne ikke hente fil fra Canvas" });
+      return res.status(canvasRes.status).json({ feil: "Kunne ikke hente fil fra Canvas" });
     }
     res.setHeader(
       "Content-Type",
@@ -1631,14 +1545,9 @@ router.get("/filer/:fileId/download", async (req, res) => {
     res.removeHeader("Pragma");
     res.removeHeader("Expires");
     res.removeHeader("Surrogate-Control");
-    const nodeStream = Readable.fromWeb(
-      canvasRes.body as unknown as ReadableStream,
-    );
+    const nodeStream = Readable.fromWeb(canvasRes.body as unknown as ReadableStream);
     nodeStream.on("error", (err) => {
-      logger.error(
-        { err, fileId: req.params.fileId },
-        "Feil under fil-streaming fra Canvas",
-      );
+      logger.error({ err, fileId: req.params.fileId }, "Feil under fil-streaming fra Canvas");
       if (!res.headersSent) {
         res.status(502).json({ feil: "Fil-streaming fra Canvas feilet" });
       }
@@ -1653,7 +1562,8 @@ router.get("/filer/:fileId/download", async (req, res) => {
 router.get("/emner/:courseId/diskusjoner/:topicId", async (req, res) => {
   try {
     const courseIdNum = parseNumericParam(res, req.params.courseId, "courseId");
-    const topicIdNum = courseIdNum !== null ? parseNumericParam(res, req.params.topicId, "topicId") : null;
+    const topicIdNum =
+      courseIdNum !== null ? parseNumericParam(res, req.params.topicId, "topicId") : null;
     if (courseIdNum === null || topicIdNum === null) return;
     const { data: topic } = await fetchDiscussionTopic(
       req.canvasToken,

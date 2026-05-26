@@ -76,8 +76,7 @@ type PushCandidate = {
 function getWebPushConfig() {
   const publicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
   const privateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
-  const subject =
-    process.env.WEB_PUSH_SUBJECT?.trim() || "mailto:kontakt@studwize.page";
+  const subject = process.env.WEB_PUSH_SUBJECT?.trim() || "mailto:kontakt@studwize.page";
 
   return {
     configured: Boolean(publicKey && privateKey),
@@ -175,8 +174,7 @@ function buildAnnouncementCandidates(
     })
     .map((announcement) => {
       const courseName =
-        (announcement.context_code && courseMap.get(announcement.context_code)) ||
-        "Canvas";
+        (announcement.context_code && courseMap.get(announcement.context_code)) || "Canvas";
       const preview = truncateText(stripHtml(announcement.message ?? ""));
 
       return {
@@ -216,9 +214,7 @@ function formaterTidIgjen(ms: number): string {
   return dager === 1 ? "1 dag" : `${dager} dager`;
 }
 
-function buildDeadlineCandidates(
-  assignments: DeadlineAssignment[],
-): PushCandidate[] {
+function buildDeadlineCandidates(assignments: DeadlineAssignment[]): PushCandidate[] {
   const now = Date.now();
 
   return assignments
@@ -252,9 +248,7 @@ function buildDeadlineCandidates(
  * Bygger tidlige fristvarsler (3-5 dager før frist).
  * Inkluderer kompleksitetsvurdering basert på poeng for å hjelpe brukeren prioritere.
  */
-function buildEarlyDeadlineCandidates(
-  assignments: DeadlineAssignment[],
-): PushCandidate[] {
+function buildEarlyDeadlineCandidates(assignments: DeadlineAssignment[]): PushCandidate[] {
   const now = Date.now();
 
   return assignments
@@ -264,7 +258,11 @@ function buildEarlyDeadlineCandidates(
 
       const dueAt = Date.parse(assignment.due_at);
       const remaining = dueAt - now;
-      return !Number.isNaN(dueAt) && remaining > EARLY_DEADLINE_MIN_MS && remaining <= EARLY_DEADLINE_MAX_MS;
+      return (
+        !Number.isNaN(dueAt) &&
+        remaining > EARLY_DEADLINE_MIN_MS &&
+        remaining <= EARLY_DEADLINE_MAX_MS
+      );
     })
     .map((assignment) => {
       const dueAt = Date.parse(assignment.due_at!);
@@ -304,9 +302,7 @@ function buildEventCandidates(
     .map((event) => ({
       id: `hendelse-${event.id}`,
       title: event.title,
-      body: event.location_name
-        ? `Starter snart. Sted: ${event.location_name}`
-        : "Starter snart.",
+      body: event.location_name ? `Starter snart. Sted: ${event.location_name}` : "Starter snart.",
       url: NOTIFICATIONS_DASHBOARD_URL,
       tag: `event-${event.id}`,
       createdAt: Date.parse(event.start_at ?? new Date().toISOString()),
@@ -330,9 +326,7 @@ async function buildUserPushCandidates(input: {
 
   if (preferences.announcements) {
     const announcementsResult = await fetchAllAnnouncements(canvasToken, canvasBaseUrl);
-    candidates.push(
-      ...buildAnnouncementCandidates(announcementsResult.data, courseMap),
-    );
+    candidates.push(...buildAnnouncementCandidates(announcementsResult.data, courseMap));
   }
 
   if ((preferences.deadlines || preferences.earlyDeadlines) && courses.length > 0) {
@@ -369,9 +363,7 @@ async function buildUserPushCandidates(input: {
     candidates.push(...buildEventCandidates(eventsResult.data));
   }
 
-  return candidates
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .slice(0, WEB_PUSH_NOTIFICATION_LIMIT);
+  return candidates.sort((a, b) => b.createdAt - a.createdAt).slice(0, WEB_PUSH_NOTIFICATION_LIMIT);
 }
 
 async function markPushIdsAsSent(
@@ -380,9 +372,7 @@ async function markPushIdsAsSent(
   newIds: readonly string[],
 ): Promise<void> {
   const keepFromExisting = Math.max(0, BROWSER_PUSH_SENT_IDS_MAX - newIds.length);
-  const cappedExistingIds = keepFromExisting > 0
-    ? existingIds.slice(-keepFromExisting)
-    : [];
+  const cappedExistingIds = keepFromExisting > 0 ? existingIds.slice(-keepFromExisting) : [];
   const nextState = normalizeBrowserPushSentState({
     sentIds: [...cappedExistingIds, ...newIds],
   });
@@ -408,10 +398,9 @@ async function processUserPushNotifications(user: {
     return;
   }
 
-  const preferences =
-    normalizeBrowserPushPreferences(
-      user.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
-    );
+  const preferences = normalizeBrowserPushPreferences(
+    user.browserPushPreferences ?? createDefaultBrowserPushPreferences(),
+  );
   if (!preferences.enabled) {
     return;
   }
@@ -474,11 +463,7 @@ async function processUserPushNotifications(user: {
   }
 
   if (deliveredIds.length > 0) {
-    await markPushIdsAsSent(
-      user._id.toString(),
-      sentState.sentIds,
-      deliveredIds,
-    );
+    await markPushIdsAsSent(user._id.toString(), sentState.sentIds, deliveredIds);
   }
 }
 
@@ -550,10 +535,7 @@ export async function upsertWebPushSubscription(
   }
 }
 
-export async function removeWebPushSubscription(
-  userId: string,
-  endpoint: string,
-): Promise<void> {
+export async function removeWebPushSubscription(userId: string, endpoint: string): Promise<void> {
   await WebPushSubscriptionModel.deleteOne({
     userId: new mongoose.Types.ObjectId(userId),
     endpoint,
@@ -691,9 +673,7 @@ export async function processWebPushNotifications(): Promise<void> {
 
 export function startWebPushPolling() {
   if (!isWebPushConfigured()) {
-    logger.warn(
-      "Web-push er deaktivert fordi VAPID-konfigurasjon mangler",
-    );
+    logger.warn("Web-push er deaktivert fordi VAPID-konfigurasjon mangler");
     return null;
   }
 

@@ -7,10 +7,7 @@
 
 import type { ExportTarget, ExportResponse, ExportDocument } from "common/export";
 import { EXPORT_TARGETS } from "common/export";
-import type {
-  ExportProvider,
-  RuntimeProviderOptions,
-} from "./export-types.js";
+import type { ExportProvider, RuntimeProviderOptions } from "./export-types.js";
 import { buildExportDocument } from "./export-builder.js";
 import { markdownProvider } from "./providers/markdown.provider.js";
 import { PdfExportProvider } from "./providers/pdf.provider.js";
@@ -84,17 +81,11 @@ export async function executeExport(params: ExportParams): Promise<ExportRespons
   // Bygg internt dokument fra Markdown-innhold
   const doc: ExportDocument = buildExportDocument(title, content, metadata);
 
-  logger.info(
-    { target, blockCount: doc.blocks.length },
-    "Starter eksport",
-  );
+  logger.info({ target, blockCount: doc.blocks.length }, "Starter eksport");
 
   const result = await provider.execute(doc, options);
 
-  logger.info(
-    { target, kind: result.kind },
-    "Eksport fullført",
-  );
+  logger.info({ target, kind: result.kind }, "Eksport fullført");
 
   return result;
 }

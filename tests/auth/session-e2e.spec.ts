@@ -100,7 +100,12 @@ async function signOut(page: Page): Promise<void> {
   }
 }
 
-async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
+async function fillSignupForm(
+  page: Page,
+  email: string,
+  username: string,
+  password: string,
+): Promise<void> {
   const firstNameInput = page.locator("#signup-firstname");
   await firstNameInput.waitFor({ state: "visible", timeout: 30_000 });
   await firstNameInput.fill("Test");
@@ -122,7 +127,11 @@ async function fillSignupForm(page: Page, email: string, username: string, passw
   await submitButton.click();
 }
 
-async function createTestUser(context: BrowserContext, email: string, username: string): Promise<Page> {
+async function createTestUser(
+  context: BrowserContext,
+  email: string,
+  username: string,
+): Promise<Page> {
   const page = await context.newPage();
   await setupClerkTestingToken({ page });
   await page.goto("/auth/sign-up");
@@ -188,7 +197,8 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
     const tab2Url = tab2.url();
 
     // Fane 2 kan omdirigeres til innlogging eller vise utlogget tilstand
-    const tab2Redirected = tab2Url.includes("sign-in") || tab2Url.includes("sign-up") || !tab2Url.includes("dashboard");
+    const tab2Redirected =
+      tab2Url.includes("sign-in") || tab2Url.includes("sign-up") || !tab2Url.includes("dashboard");
 
     evidence.steps.push({
       step: "tab2_after_logout",
@@ -232,7 +242,10 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
     const me1 = await callMeEndpoint(page);
 
     // Hopp over hvis signup ikke fullførte (Clerk testing token-begrensning)
-    test.skip(!initialAuth || me1.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
+    test.skip(
+      !initialAuth || me1.status !== 200,
+      "Signup fullførte ikke — Clerk testing token-begrensning",
+    );
 
     // Logg ut
     await signOut(page);
@@ -278,15 +291,9 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
     // Oppdater andre faner og sjekk
     await tab2.reload();
     await tab3.reload();
-    await Promise.all([
-      tab2.waitForTimeout(2000),
-      tab3.waitForTimeout(2000),
-    ]);
+    await Promise.all([tab2.waitForTimeout(2000), tab3.waitForTimeout(2000)]);
 
-    const afterLogoutStates = await Promise.all([
-      isAuthenticated(tab2),
-      isAuthenticated(tab3),
-    ]);
+    const afterLogoutStates = await Promise.all([isAuthenticated(tab2), isAuthenticated(tab3)]);
 
     // Etter utlogging + oppdatering skal andre faner ikke være autentisert
     // (eller bli omdirigert til innlogging)
@@ -334,9 +341,9 @@ test.describe("Group J: Session / Cross-Tab Consistency", () => {
       if (!queryClient) return "no_devtools";
 
       const queries = queryClient.getQueryCache().getAll();
-      const userQueries = queries.filter((q: { queryKey: unknown[] }) => 
-        JSON.stringify(q.queryKey).includes("user") || 
-        JSON.stringify(q.queryKey).includes("me")
+      const userQueries = queries.filter(
+        (q: { queryKey: unknown[] }) =>
+          JSON.stringify(q.queryKey).includes("user") || JSON.stringify(q.queryKey).includes("me"),
       );
 
       return userQueries.length > 0 ? "cache_present" : "cache_cleared";

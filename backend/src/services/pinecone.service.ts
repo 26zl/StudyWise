@@ -29,9 +29,7 @@ export interface PineconeChunkMetadata extends Record<string, string | number> {
 }
 
 const pc =
-  PINECONE_API_KEY && PINECONE_INDEX_NAME
-    ? new Pinecone({ apiKey: PINECONE_API_KEY })
-    : null;
+  PINECONE_API_KEY && PINECONE_INDEX_NAME ? new Pinecone({ apiKey: PINECONE_API_KEY }) : null;
 
 let indexHost: string | null = null;
 let indexHostFetchedAt = 0;
@@ -96,17 +94,16 @@ export async function pineconeUpsert(
     for (let i = 0; i < records.length; i += PINECONE_UPSERT_BATCH_SIZE) {
       const batch = records.slice(i, i + PINECONE_UPSERT_BATCH_SIZE);
       const ndjson = batch
-        .map(
-          (r) =>
-            JSON.stringify({
-              _id: r.id,
-              [TEXT_FIELD]: r.text,
-              userId: r.metadata.userId,
-              courseId: r.metadata.courseId,
-              moduleId: r.metadata.moduleId,
-              fileId: r.metadata.fileId,
-              chunkIndex: r.metadata.chunkIndex,
-            }),
+        .map((r) =>
+          JSON.stringify({
+            _id: r.id,
+            [TEXT_FIELD]: r.text,
+            userId: r.metadata.userId,
+            courseId: r.metadata.courseId,
+            moduleId: r.metadata.moduleId,
+            fileId: r.metadata.fileId,
+            chunkIndex: r.metadata.chunkIndex,
+          }),
         )
         .join("\n");
       const res = await fetch(url, {
@@ -168,7 +165,7 @@ export async function pineconeQuery(
       headers: {
         "Api-Key": PINECONE_API_KEY!,
         "Content-Type": "application/json",
-        "Accept": "application/json",
+        Accept: "application/json",
         "X-Pinecone-Api-Version": "2025-04",
       },
       body: JSON.stringify({
@@ -214,7 +211,8 @@ export async function pineconeDeleteByFilter(
   if (!isPineconeConfigured()) return;
   const filterObj: Record<string, unknown> = {};
   if (filter.userId != null && filter.userId !== "") filterObj.userId = { $eq: filter.userId };
-  if (filter.courseId != null && filter.courseId !== "") filterObj.courseId = { $eq: filter.courseId };
+  if (filter.courseId != null && filter.courseId !== "")
+    filterObj.courseId = { $eq: filter.courseId };
   if (filter.fileId != null) filterObj.fileId = { $eq: filter.fileId };
   if (Object.keys(filterObj).length === 0) {
     // Uten filter ville dette slettet *hele* index — kast feil istedenfor å kjøre.
@@ -245,4 +243,3 @@ export async function pineconeDeleteByFilter(
     }
   });
 }
-

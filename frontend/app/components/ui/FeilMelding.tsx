@@ -31,12 +31,7 @@ const iconColor: Record<FeilMeldingType, string> = {
 
 export function FeilMelding({ melding, type = "error" }: FeilMeldingProps) {
   const styles = typeStyles[type];
-  const Icon =
-    type === "error"
-      ? AlertCircle
-      : type === "warning"
-        ? AlertTriangle
-        : Info;
+  const Icon = type === "error" ? AlertCircle : type === "warning" ? AlertTriangle : Info;
 
   return (
     <div

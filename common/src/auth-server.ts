@@ -47,7 +47,11 @@ export async function parseAuthTurnstileCookie(
     return { valid: false, nonce: null };
   }
 
-  if (!/^[a-f0-9]{32}$/i.test(nonce) || !/^\d+$/.test(expiresAt) || !/^[a-f0-9]{64}$/i.test(signature)) {
+  if (
+    !/^[a-f0-9]{32}$/i.test(nonce) ||
+    !/^\d+$/.test(expiresAt) ||
+    !/^[a-f0-9]{64}$/i.test(signature)
+  ) {
     return { valid: false, nonce: null };
   }
 

@@ -28,9 +28,7 @@ parentPort.on("message", async (message: ParseWorkerRequest) => {
     parentPort!.postMessage({ ok: true, result });
   } catch (error) {
     const errorMessage =
-      error instanceof Error && error.message
-        ? error.message
-        : "Ukjent feil ved dokumentparsing";
+      error instanceof Error && error.message ? error.message : "Ukjent feil ved dokumentparsing";
     parentPort!.postMessage({ ok: false, error: errorMessage });
   }
 });

@@ -29,10 +29,10 @@ const StudyBlockSchema = new Schema({
   timeSlot: { type: String, required: true },
   task: { type: String, required: true },
   duration: { type: String, required: true },
-  priority: { 
-    type: String, 
-    enum: ["high", "medium", "low"], 
-    required: true 
+  priority: {
+    type: String,
+    enum: ["high", "medium", "low"],
+    required: true,
   },
   courseName: { type: String, required: true },
   assignmentId: { type: String },
@@ -43,10 +43,10 @@ const StudyBlockSchema = new Schema({
 // Mongoose Schema for Arbeidsplan
 const ArbeidsplanSchema = new Schema(
   {
-    userId: { 
-      type: String, 
+    userId: {
+      type: String,
       required: true,
-      index: true // Index for rask søk
+      index: true, // Index for rask søk
     },
     week: { type: String, required: true },
     weekNumber: { type: Number, required: true },
@@ -56,11 +56,15 @@ const ArbeidsplanSchema = new Schema(
   },
   {
     timestamps: true, // Automatisk createdAt og updatedAt
-  }
+  },
 );
 
 // Compound index for å finne brukerens plan for en spesifikk uke
 ArbeidsplanSchema.index({ userId: 1, year: 1, weekNumber: 1 }, { unique: true });
 
 // Collection-navn "arbeidsplan" (entall) — unngår engelsk flertall "arbeidsplans"
-export const Arbeidsplan = mongoose.model<IArbeidsplan>("Arbeidsplan", ArbeidsplanSchema, "arbeidsplan");  
+export const Arbeidsplan = mongoose.model<IArbeidsplan>(
+  "Arbeidsplan",
+  ArbeidsplanSchema,
+  "arbeidsplan",
+);

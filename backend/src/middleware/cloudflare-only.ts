@@ -136,7 +136,10 @@ const PUBLIC_HEALTH_PATHS = new Set(["/health", "/ready"]);
 function getPeerIp(req: Request): string | null {
   const xff = req.get("x-forwarded-for");
   if (!xff) return null;
-  const hops = xff.split(",").map((s) => s.trim()).filter(Boolean);
+  const hops = xff
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (hops.length === 0) return null;
   // Siste hop = peer som koblet til Heroku Router. Det er her Cloudflare-edge
   // havner når trafikk kommer via CF.

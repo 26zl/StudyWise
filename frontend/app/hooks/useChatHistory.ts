@@ -64,7 +64,11 @@ function erIkkeAutentisert(error: unknown) {
   if (!(error instanceof Error)) return false;
   const status = (error as ApiError).status;
   if (status === 401) return true;
-  return /ikke autentisert/i.test(error.message) || /jwt/i.test(error.message) || /token/i.test(error.message);
+  return (
+    /ikke autentisert/i.test(error.message) ||
+    /jwt/i.test(error.message) ||
+    /token/i.test(error.message)
+  );
 }
 
 /** Avgjør om saveChat skal prøve på nytt (kun ved 5xx). */
@@ -120,153 +124,160 @@ export function useChatHistory(enabled = true) {
    * Oppdaterer React Query-cache og returnerer chat-id. Ved ny chat kan title sendes (f.eks. første 50 tegn av første spørsmål).
    * Støtter retry ved 5xx og silent modus (uten toast).
    */
-  const saveChat = useCallback(async (
-    messages: ChatMessage[],
-    chatId?: string,
-    title?: string,
-    options?: SaveChatOptions,
-  ) => {
-    if (messages.length === 0) return undefined;
-    const payload: ChatSavePayload = { messages };
-    if (title !== undefined) payload.title = title.slice(0, CHAT_TITLE_MAX_LENGTH).trim() || undefined;
-    const body = JSON.stringify(payload);
-    const endpoint = chatId ? `/api/ki/chat/history/${chatId}` : "/api/ki/chat/history";
-    const method = chatId ? "PUT" : "POST";
-    const retryCount = options?.retryCount ?? 0;
-    for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+  const saveChat = useCallback(
+    async (messages: ChatMessage[], chatId?: string, title?: string, options?: SaveChatOptions) => {
+      if (messages.length === 0) return undefined;
+      const payload: ChatSavePayload = { messages };
+      if (title !== undefined)
+        payload.title = title.slice(0, CHAT_TITLE_MAX_LENGTH).trim() || undefined;
+      const body = JSON.stringify(payload);
+      const endpoint = chatId ? `/api/ki/chat/history/${chatId}` : "/api/ki/chat/history";
+      const method = chatId ? "PUT" : "POST";
+      const retryCount = options?.retryCount ?? 0;
+      for (let attempt = 0; attempt <= retryCount; attempt += 1) {
+        try {
+          const raw = await fetchJson<unknown>(endpoint, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+          const data = ChatSaveResponseSchema.parse(raw);
+          const chat = {
+            ...data.chat,
+            timestamp:
+              data.chat.timestamp instanceof Date
+                ? data.chat.timestamp
+                : new Date(data.chat.timestamp),
+          };
+          queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) => {
+            const existing = prev ?? [];
+            const updated = [chat, ...existing.filter((c) => c.id !== chat.id)];
+            return updated.slice(0, MAX_CHATS);
+          });
+          return chat.id;
+        } catch (error) {
+          if (erIkkeAutentisert(error)) return undefined;
+          const shouldRetry = attempt < retryCount && shouldRetrySave(error);
+          if (shouldRetry) {
+            await vent(400 * (attempt + 1));
+            continue;
+          }
+          if (!options?.silent) {
+            showToast.error(t("chatHistory.saveError"), t("errors.generic.retry"));
+          }
+          return undefined;
+        }
+      }
+      return undefined;
+    },
+    [queryClient, t],
+  );
+
+  const setChatTopic = useCallback(
+    async (id: string, topic: string) => {
       try {
-        const raw = await fetchJson<unknown>(endpoint, {
-          method,
+        const normalizedTopic = topic.trim();
+        const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/topic`, {
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body,
+          body: JSON.stringify({ topic: normalizedTopic.length > 0 ? normalizedTopic : null }),
         });
-        const data = ChatSaveResponseSchema.parse(raw);
-        const chat = {
-          ...data.chat,
-          timestamp: data.chat.timestamp instanceof Date ? data.chat.timestamp : new Date(data.chat.timestamp),
-        };
-        queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) => {
-          const existing = prev ?? [];
-          const updated = [chat, ...existing.filter((c) => c.id !== chat.id)];
-          return updated.slice(0, MAX_CHATS);
-        });
-        return chat.id;
+        const parsed = ChatTopicUpdateResponseSchema.parse(raw);
+        queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+          (prev ?? []).map((chat) =>
+            chat.id === parsed.id ? { ...chat, topic: parsed.topic } : chat,
+          ),
+        );
+        return true;
       } catch (error) {
-        if (erIkkeAutentisert(error)) return undefined;
-        const shouldRetry = attempt < retryCount && shouldRetrySave(error);
-        if (shouldRetry) {
-          await vent(400 * (attempt + 1));
-          continue;
+        if (!erIkkeAutentisert(error)) {
+          showToast.error(t("chatHistory.topicUpdateError"));
         }
-        if (!options?.silent) {
-          showToast.error(t("chatHistory.saveError"), t("errors.generic.retry"));
+        return false;
+      }
+    },
+    [queryClient, t],
+  );
+
+  const setChatPinned = useCallback(
+    async (id: string, pinned: boolean) => {
+      try {
+        const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/pin`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ pinned }),
+        });
+        const parsed = ChatPinUpdateResponseSchema.parse(raw);
+        queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+          (prev ?? []).map((chat) =>
+            chat.id === parsed.id ? { ...chat, pinned: parsed.pinned } : chat,
+          ),
+        );
+        return true;
+      } catch (error) {
+        if (!erIkkeAutentisert(error)) {
+          showToast.error(t("chatHistory.pinUpdateError"));
         }
-        return undefined;
+        return false;
       }
-    }
-    return undefined;
-  }, [queryClient, t]);
+    },
+    [queryClient, t],
+  );
 
-  const setChatTopic = useCallback(async (id: string, topic: string) => {
-    try {
-      const normalizedTopic = topic.trim();
-      const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/topic`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ topic: normalizedTopic.length > 0 ? normalizedTopic : null }),
-      });
-      const parsed = ChatTopicUpdateResponseSchema.parse(raw);
-      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
-        (prev ?? []).map((chat) =>
-          chat.id === parsed.id ? { ...chat, topic: parsed.topic } : chat,
-        ),
-      );
-      return true;
-    } catch (error) {
-      if (!erIkkeAutentisert(error)) {
-        showToast.error(t("chatHistory.topicUpdateError"));
+  const setChatTitle = useCallback(
+    async (id: string, title: string) => {
+      try {
+        const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/title`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        });
+        const parsed = ChatTitleUpdateResponseSchema.parse(raw);
+        queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+          (prev ?? []).map((chat) =>
+            chat.id === parsed.id ? { ...chat, title: parsed.title } : chat,
+          ),
+        );
+        return true;
+      } catch (error) {
+        if (!erIkkeAutentisert(error)) {
+          showToast.error(t("chatHistory.titleUpdateError"));
+        }
+        return false;
       }
-      return false;
-    }
-  }, [queryClient, t]);
-
-  const setChatPinned = useCallback(async (id: string, pinned: boolean) => {
-    try {
-      const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/pin`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pinned }),
-      });
-      const parsed = ChatPinUpdateResponseSchema.parse(raw);
-      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
-        (prev ?? []).map((chat) =>
-          chat.id === parsed.id ? { ...chat, pinned: parsed.pinned } : chat,
-        ),
-      );
-      return true;
-    } catch (error) {
-      if (!erIkkeAutentisert(error)) {
-        showToast.error(t("chatHistory.pinUpdateError"));
-      }
-      return false;
-    }
-  }, [queryClient, t]);
-
-  const setChatTitle = useCallback(async (id: string, title: string) => {
-    try {
-      const raw = await fetchJson<unknown>(`/api/ki/chat/history/${id}/title`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      });
-      const parsed = ChatTitleUpdateResponseSchema.parse(raw);
-      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
-        (prev ?? []).map((chat) =>
-          chat.id === parsed.id ? { ...chat, title: parsed.title } : chat,
-        ),
-      );
-      return true;
-    } catch (error) {
-      if (!erIkkeAutentisert(error)) {
-        showToast.error(t("chatHistory.titleUpdateError"));
-      }
-      return false;
-    }
-  }, [queryClient, t]);
+    },
+    [queryClient, t],
+  );
 
   /** Returnerer én lagret samtale fra cache etter id, eller undefined. */
   const loadChat = useCallback((id: string) => chats.find((c) => c.id === id), [chats]);
 
   /** Sletter en samtale i backend og fjerner den fra cache. */
-  const deleteChat = useCallback(async (id: string) => {
-    try {
-      await fetchJson<unknown>("/api/ki/chat/history/" + id, {
-        method: "DELETE",
-      });
-      queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
-        (prev ?? []).filter((c) => c.id !== id)
-      );
-      if (currentChatId === id) {
-        setCurrentChatId(null);
+  const deleteChat = useCallback(
+    async (id: string) => {
+      try {
+        await fetchJson<unknown>("/api/ki/chat/history/" + id, {
+          method: "DELETE",
+        });
+        queryClient.setQueryData<SavedChat[]>(CHAT_HISTORY_QUERY_KEY, (prev) =>
+          (prev ?? []).filter((c) => c.id !== id),
+        );
+        if (currentChatId === id) {
+          setCurrentChatId(null);
+        }
+        if (selectedChatId === id) {
+          setSelectedChatId(null);
+        }
+        showToast.success(t("chatHistory.deleteSuccess"));
+        return true;
+      } catch (error) {
+        if (erIkkeAutentisert(error)) return false;
+        showToast.error(t("chatHistory.deleteError"));
+        return false;
       }
-      if (selectedChatId === id) {
-        setSelectedChatId(null);
-      }
-      showToast.success(t("chatHistory.deleteSuccess"));
-      return true;
-    } catch (error) {
-      if (erIkkeAutentisert(error)) return false;
-      showToast.error(t("chatHistory.deleteError"));
-      return false;
-    }
-  }, [
-    currentChatId,
-    queryClient,
-    selectedChatId,
-    setCurrentChatId,
-    setSelectedChatId,
-    t,
-  ]);
+    },
+    [currentChatId, queryClient, selectedChatId, setCurrentChatId, setSelectedChatId, t],
+  );
 
   /** Viser bekreftelses-toast; ved "Slett" kalles DELETE mot API og cache tømmes. */
   const clearAll = useCallback(() => {
@@ -294,7 +305,17 @@ export function useChatHistory(enabled = true) {
     });
   }, [queryClient, setCurrentChatId, setSelectedChatId, t]);
 
-  return { chats, saveChat, setChatTopic, setChatPinned, setChatTitle, loadChat, deleteChat, clearAll, loading: isLoading };
+  return {
+    chats,
+    saveChat,
+    setChatTopic,
+    setChatPinned,
+    setChatTitle,
+    loadChat,
+    deleteChat,
+    clearAll,
+    loading: isLoading,
+  };
 }
 
 /** Prefetch av chat-historikk (f.eks. i DashboardView) for raskere visning når bruker åpner chat. */

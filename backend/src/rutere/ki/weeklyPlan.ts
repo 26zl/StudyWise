@@ -22,12 +22,7 @@ import {
 import { UKEDAGER } from "common/arbeidsplan";
 import { getIsoWeekInfo, parseTimerStreng, STUDYWISE_TIMEZONE } from "common/dateUtils";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
-import {
-  apiError,
-  requireUserId,
-  sendUnknownError,
-  sendZodError,
-} from "../../utils/apiError.js";
+import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
 import { logger } from "../../utils/logger.js";
 import { knyttCanvasToken } from "../../middleware/auth.js";
 import { DEFAULT_MODEL } from "./aiModels.js";
@@ -89,7 +84,6 @@ const DEFAULT_TIPS = [
   "Legg inn korte pauser mellom studieøktene for å holde konsentrasjonen oppe.",
   "Bruk de siste øktene i uken til oppsummering og finpuss før frister.",
 ] as const;
-
 
 function formatFrist(dueAt?: Date): string {
   if (!dueAt) return "Ikke spesifisert";
@@ -183,10 +177,7 @@ type FristKategori =
  * (a) gi modellen tydelig kontekst og (b) håndheve at studieblokker ikke
  * legges etter fristens ukedag i samme uke.
  */
-function klassifiserFrist(
-  dueAt: Date | undefined,
-  weekDates: Date[],
-): FristKategori {
+function klassifiserFrist(dueAt: Date | undefined, weekDates: Date[]): FristKategori {
   if (!dueAt) return { kind: "ingenFrist" };
 
   const dueParts = getOsloDateParts(dueAt);
@@ -194,12 +185,9 @@ function klassifiserFrist(
   const mondayParts = getOsloDateParts(weekDates[0]);
   const sundayParts = getOsloDateParts(weekDates[6]);
 
-  const dueOrdinal =
-    dueParts.year * 10000 + dueParts.month * 100 + dueParts.day;
-  const mondayOrdinal =
-    mondayParts.year * 10000 + mondayParts.month * 100 + mondayParts.day;
-  const sundayOrdinal =
-    sundayParts.year * 10000 + sundayParts.month * 100 + sundayParts.day;
+  const dueOrdinal = dueParts.year * 10000 + dueParts.month * 100 + dueParts.day;
+  const mondayOrdinal = mondayParts.year * 10000 + mondayParts.month * 100 + mondayParts.day;
+  const sundayOrdinal = sundayParts.year * 10000 + sundayParts.month * 100 + sundayParts.day;
 
   if (dueOrdinal < mondayOrdinal) {
     return { kind: "overdue", isoDate: dueIsoDate };
@@ -242,8 +230,7 @@ function finnOppgaveForBlokk(
     oppgaver.find((oppgave) => {
       const navn = normaliserTekst(oppgave.name);
       const emne = normaliserTekst(oppgave.courseName);
-      const navnMatcher =
-        blokkOppgave.includes(navn) || navn.includes(blokkOppgave);
+      const navnMatcher = blokkOppgave.includes(navn) || navn.includes(blokkOppgave);
       const emneMatcher = !blokkEmne || !emne || blokkEmne === emne;
       return navnMatcher && emneMatcher;
     }) ?? null
@@ -333,8 +320,10 @@ function parseGeneratedWeeklyPlan(
     weekDates,
   );
   const tips =
-    parsedDraft.tips?.map((tip) => tip.trim()).filter(Boolean).slice(0, 5) ??
-    [];
+    parsedDraft.tips
+      ?.map((tip) => tip.trim())
+      .filter(Boolean)
+      .slice(0, 5) ?? [];
 
   const totalHours = blocks.reduce((sum, blokk) => {
     const timer = parseTimerStreng(blokk.duration);
@@ -353,10 +342,7 @@ function parseGeneratedWeeklyPlan(
   return { payload, droppedAfterDeadline };
 }
 
-function buildPrompt(
-  oppgaver: WeeklyPlanAssignment[],
-  weekDates: Date[],
-): string {
+function buildPrompt(oppgaver: WeeklyPlanAssignment[], weekDates: Date[]): string {
   const ukeKontekst = UKEDAGER.map(
     (navn, idx) => `  ${navn}: ${formatOsloIsoDate(weekDates[idx])}`,
   ).join("\n");
@@ -507,10 +493,7 @@ async function processWeeklyPlanJob(
         url: "/oversikt",
         tag: `studywise-ai-weekly-plan-${userId}`,
       }).catch((err) => {
-        logger.warn(
-          { err, userId },
-          "Kunne ikke sende nettleservarsel for ferdig ukeplan",
-        );
+        logger.warn({ err, userId }, "Kunne ikke sende nettleservarsel for ferdig ukeplan");
       });
     }
   } catch (error) {
@@ -519,7 +502,10 @@ async function processWeeklyPlanJob(
       status: "failed",
       error: "Kunne ikke generere ukeplan. Prøv igjen.",
     }).catch((err) => {
-      logger.warn({ err, jobId, userId }, "Kunne ikke skrive failed-status til cache (weekly-plan)");
+      logger.warn(
+        { err, jobId, userId },
+        "Kunne ikke skrive failed-status til cache (weekly-plan)",
+      );
     });
   }
 }

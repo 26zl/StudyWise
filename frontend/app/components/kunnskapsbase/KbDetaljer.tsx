@@ -139,7 +139,12 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
   const [slettLenkeId, setSlettLenkeId] = useState<string | null>(null);
   const [slettFilId, setSlettFilId] = useState<string | null>(null);
 
-  const { data: base, isLoading, isError, error } = useQuery({
+  const {
+    data: base,
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
     queryKey: KB_QUERY_KEYS.base(baseId),
     queryFn: () => hentKBBase(baseId),
     staleTime: 1000 * 60,
@@ -251,9 +256,7 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          {base.navn}
-        </h2>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{base.navn}</h2>
       </div>
 
       {/* KI-tips */}
@@ -449,7 +452,8 @@ export function KbDetaljer({ baseId, onBack }: KbDetaljerProps) {
                     />
                   </div>
                   <p className="mt-0.5 pl-5.5 text-xs text-slate-400">
-                    {formaterStorrelse(fil.storrelse)} · {formaterDatoShort(fil.opprettetDato, language)}
+                    {formaterStorrelse(fil.storrelse)} ·{" "}
+                    {formaterDatoShort(fil.opprettetDato, language)}
                   </p>
                 </div>
                 {slettFilId === fil.id ? (

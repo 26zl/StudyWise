@@ -18,12 +18,12 @@
 import mongoose, { Schema, type Document } from "mongoose";
 
 export type FileExtractionStatusCode =
-  | "empty"        // Ekstraksjon kjørte men returnerte 0 tegn (typisk bilde-basert PPTX).
-  | "sparse"       // Ekstraksjon ga noe tekst, men mye mindre enn forventet for filstørrelsen
-                   // (typisk bilde-tung PPTX der kun slide-titler og fottekst blir tekst).
-                   // Chunks blir fortsatt lagret, men KI får beskjed om at innholdet er partielt.
-  | "failed"       // Exception under ekstraksjon (korrupt fil, ukjent feil).
-  | "too_large"    // Filen oversteg max-size-grensen.
+  | "empty" // Ekstraksjon kjørte men returnerte 0 tegn (typisk bilde-basert PPTX).
+  | "sparse" // Ekstraksjon ga noe tekst, men mye mindre enn forventet for filstørrelsen
+  // (typisk bilde-tung PPTX der kun slide-titler og fottekst blir tekst).
+  // Chunks blir fortsatt lagret, men KI får beskjed om at innholdet er partielt.
+  | "failed" // Exception under ekstraksjon (korrupt fil, ukjent feil).
+  | "too_large" // Filen oversteg max-size-grensen.
   | "unsupported"; // Filtype vi ikke støtter (.zip, .mp4 osv.).
 
 export interface IFileExtractionStatus extends Document {
@@ -67,10 +67,7 @@ const FileExtractionStatusSchema = new Schema<IFileExtractionStatus>(
 );
 
 FileExtractionStatusSchema.index({ userId: 1, courseId: 1 });
-FileExtractionStatusSchema.index(
-  { userId: 1, courseId: 1, fileId: 1 },
-  { unique: true },
-);
+FileExtractionStatusSchema.index({ userId: 1, courseId: 1, fileId: 1 }, { unique: true });
 
 export const FileExtractionStatus = mongoose.model<IFileExtractionStatus>(
   "FileExtractionStatus",

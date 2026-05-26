@@ -149,7 +149,16 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
         setIsSubmitting(false);
       }
     },
-    [signIn, setActive, identifier, password, isSubmitting, t, redirectEtterAuth, getSignInErrorMessage],
+    [
+      signIn,
+      setActive,
+      identifier,
+      password,
+      isSubmitting,
+      t,
+      redirectEtterAuth,
+      getSignInErrorMessage,
+    ],
   );
 
   // MFA: verifiser TOTP- eller backup-kode
@@ -253,10 +262,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
     return (
       <div className="w-full max-w-md">
         <AuthCard>
-          <LoadingView
-            fullPage={false}
-            translationKey="common.loading.generic"
-          />
+          <LoadingView fullPage={false} translationKey="common.loading.generic" />
         </AuthCard>
       </div>
     );
@@ -266,10 +272,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
     return (
       <div className="w-full max-w-md">
         <AuthCard>
-          <LoadingView
-            fullPage={false}
-            translationKey="common.loading.redirecting"
-          />
+          <LoadingView fullPage={false} translationKey="common.loading.redirecting" />
         </AuthCard>
       </div>
     );
@@ -357,10 +360,7 @@ export function SignInClient({ initialVerified }: SignInClientProps) {
       {isVerified && !mfaStep && (
         <>
           <AuthCard>
-            <AuthHeader
-              title={t("auth.signIn.title")}
-              subtitle={t("auth.signIn.subtitle")}
-            />
+            <AuthHeader title={t("auth.signIn.title")} subtitle={t("auth.signIn.subtitle")} />
 
             <AuthOAuthButtons
               onGoogle={() => void handleOAuth("oauth_google")}

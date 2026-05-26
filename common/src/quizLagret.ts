@@ -50,7 +50,7 @@ export const QuizForsokSchema = z.object({
   answers: z.array(QuizForsokSvarSchema).min(1),
 });
 
-// Lagret quiz 
+// Lagret quiz
 
 export const LagretQuizSchema = z.object({
   id: z.string().min(1),

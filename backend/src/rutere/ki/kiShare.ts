@@ -12,12 +12,7 @@ import { ChatHistory, type ChatHistoryDocument } from "../../database/models/Cha
 import { SharedChat, type SharedChatDocument } from "../../database/models/SharedChat.js";
 import { decrypt } from "../../utils/kryptering.js";
 import { logger } from "../../utils/logger.js";
-import {
-  apiError,
-  requireUserId,
-  sendUnknownError,
-  sendZodError,
-} from "../../utils/apiError.js";
+import { apiError, requireUserId, sendUnknownError, sendZodError } from "../../utils/apiError.js";
 import {
   ChatMessageSchema,
   ChatShareCreateSchema,
@@ -56,9 +51,7 @@ function triggerOpportunisticCleanup(): void {
   });
 }
 
-async function deactivateExpiredSharedChats(
-  filter: Record<string, unknown> = {},
-): Promise<number> {
+async function deactivateExpiredSharedChats(filter: Record<string, unknown> = {}): Promise<number> {
   const result = await SharedChat.updateMany(
     {
       ...filter,
@@ -72,7 +65,9 @@ async function deactivateExpiredSharedChats(
   return result.modifiedCount ?? 0;
 }
 
-async function deactivateSharedChat(shared: Pick<SharedChatDocument, "_id" | "isActive">): Promise<void> {
+async function deactivateSharedChat(
+  shared: Pick<SharedChatDocument, "_id" | "isActive">,
+): Promise<void> {
   if (!shared.isActive) {
     return;
   }
@@ -85,7 +80,11 @@ async function deactivateSharedChat(shared: Pick<SharedChatDocument, "_id" | "is
   );
 }
 
-async function loadSharedChatForRead(req: Request, res: Response, shareId: string): Promise<{
+async function loadSharedChatForRead(
+  req: Request,
+  res: Response,
+  shareId: string,
+): Promise<{
   shared: SharedChatDocument;
   chat: Pick<ChatHistoryDocument, "_id" | "title" | "encryptedMessages">;
   messages: z.infer<typeof ChatMessageSchema>[];
@@ -193,9 +192,7 @@ function parseShareIdParam(req: Request): string | null {
   return shareId;
 }
 
-function buildSharedChatPublicPayload(
-  loaded: Awaited<ReturnType<typeof loadSharedChatForRead>>,
-) {
+function buildSharedChatPublicPayload(loaded: Awaited<ReturnType<typeof loadSharedChatForRead>>) {
   if (!loaded) return null;
   const { shared, chat, messages } = loaded;
   return SharedChatPublicResponseSchema.parse({
@@ -353,9 +350,10 @@ kiShareRouter.get("/chat/shared", async (req, res) => {
 
         return {
           shareId: doc.shareId,
-          chatId: typeof doc.chatId === "object" && doc.chatId && "_id" in doc.chatId
-            ? String(doc.chatId._id)
-            : String(doc.chatId),
+          chatId:
+            typeof doc.chatId === "object" && doc.chatId && "_id" in doc.chatId
+              ? String(doc.chatId._id)
+              : String(doc.chatId),
           chatTitle,
           topic:
             doc.chatId &&
@@ -373,9 +371,7 @@ kiShareRouter.get("/chat/shared", async (req, res) => {
         };
       });
 
-    return res.json(
-      SharedChatListResponseSchema.parse({ links }),
-    );
+    return res.json(SharedChatListResponseSchema.parse({ links }));
   } catch (error) {
     return sendUnknownError(res, error, {
       kontekst: "GET chat shared",
@@ -404,10 +400,7 @@ kiShareRouter.delete("/chat/shared", async (req, res) => {
 
     const deletedCount = result.modifiedCount ?? 0;
 
-    logger.info(
-      { userId, deletedCount },
-      "Deaktiverte alle delingslenker for bruker",
-    );
+    logger.info({ userId, deletedCount }, "Deaktiverte alle delingslenker for bruker");
 
     void audit({
       actorUserId: userId,
@@ -460,7 +453,11 @@ kiShareRouter.patch("/chat/shared/:shareId", async (req, res) => {
       return apiError.notFound(res, "Delt lenke");
     }
 
-    if (parsed.data.expiresAt !== undefined && parsed.data.expiresAt !== null && isExpired(parsed.data.expiresAt)) {
+    if (
+      parsed.data.expiresAt !== undefined &&
+      parsed.data.expiresAt !== null &&
+      isExpired(parsed.data.expiresAt)
+    ) {
       return apiError.badRequest(res, "Utløpstidspunkt må være i fremtiden");
     }
 
@@ -555,4 +552,3 @@ sharedChatRouter.get("/ki/share/:shareId", PUBLIC_SHARE_RATE_LIMIT, async (req, 
     });
   }
 });
-

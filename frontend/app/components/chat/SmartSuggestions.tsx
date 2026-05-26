@@ -17,7 +17,14 @@ interface SmartSuggestionsProps {
 
 // --- Kategorisering av AI-svar ---
 
-type ResponseCategory = "kode" | "liste" | "oppgave" | "forklaring" | "planlegging" | "oppsummering" | "generelt";
+type ResponseCategory =
+  | "kode"
+  | "liste"
+  | "oppgave"
+  | "forklaring"
+  | "planlegging"
+  | "oppsummering"
+  | "generelt";
 
 function categorizeResponse(text: string): ResponseCategory {
   if (/```/.test(text)) return "kode";
@@ -66,15 +73,42 @@ export function SmartSuggestions({
   const { t } = useLanguage();
   const [suggestions, setSuggestions] = useState<{ text: string; type: SuggestionType }[]>([]);
 
-  const FOLLOW_UPS = useMemo((): Record<ResponseCategory, string[]> => ({
-    kode: [t("smartSuggestions.kode0"), t("smartSuggestions.kode1"), t("smartSuggestions.kode2")],
-    liste: [t("smartSuggestions.liste0"), t("smartSuggestions.liste1"), t("smartSuggestions.liste2")],
-    forklaring: [t("smartSuggestions.forklaring0"), t("smartSuggestions.forklaring1"), t("smartSuggestions.forklaring2")],
-    oppgave: [t("smartSuggestions.oppgave0"), t("smartSuggestions.oppgave1"), t("smartSuggestions.oppgave2")],
-    planlegging: [t("smartSuggestions.planlegging0"), t("smartSuggestions.planlegging1"), t("smartSuggestions.planlegging2")],
-    oppsummering: [t("smartSuggestions.oppsummering0"), t("smartSuggestions.oppsummering1"), t("smartSuggestions.oppsummering2")],
-    generelt: [t("smartSuggestions.generelt0"), t("smartSuggestions.generelt1"), t("smartSuggestions.generelt2")],
-  }), [t]);
+  const FOLLOW_UPS = useMemo(
+    (): Record<ResponseCategory, string[]> => ({
+      kode: [t("smartSuggestions.kode0"), t("smartSuggestions.kode1"), t("smartSuggestions.kode2")],
+      liste: [
+        t("smartSuggestions.liste0"),
+        t("smartSuggestions.liste1"),
+        t("smartSuggestions.liste2"),
+      ],
+      forklaring: [
+        t("smartSuggestions.forklaring0"),
+        t("smartSuggestions.forklaring1"),
+        t("smartSuggestions.forklaring2"),
+      ],
+      oppgave: [
+        t("smartSuggestions.oppgave0"),
+        t("smartSuggestions.oppgave1"),
+        t("smartSuggestions.oppgave2"),
+      ],
+      planlegging: [
+        t("smartSuggestions.planlegging0"),
+        t("smartSuggestions.planlegging1"),
+        t("smartSuggestions.planlegging2"),
+      ],
+      oppsummering: [
+        t("smartSuggestions.oppsummering0"),
+        t("smartSuggestions.oppsummering1"),
+        t("smartSuggestions.oppsummering2"),
+      ],
+      generelt: [
+        t("smartSuggestions.generelt0"),
+        t("smartSuggestions.generelt1"),
+        t("smartSuggestions.generelt2"),
+      ],
+    }),
+    [t],
+  );
 
   const analysis = useMemo(() => {
     if (!lastAIMessage?.trim()) return null;
@@ -160,4 +194,4 @@ export function SmartSuggestions({
       </div>
     </div>
   );
-} 
+}

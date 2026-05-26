@@ -24,12 +24,9 @@ export function buildCanvasUserPayload(
     permissions: {
       canUpdateName: canvasUser.permissions?.can_update_name ?? false,
       canUpdateAvatar: canvasUser.permissions?.can_update_avatar ?? false,
-      limitParentAppWebAccess:
-        canvasUser.permissions?.limit_parent_app_web_access ?? false,
+      limitParentAppWebAccess: canvasUser.permissions?.limit_parent_app_web_access ?? false,
     },
-    canvasUserCreatedAt: canvasUser.created_at
-      ? new Date(canvasUser.created_at)
-      : undefined,
+    canvasUserCreatedAt: canvasUser.created_at ? new Date(canvasUser.created_at) : undefined,
     localUser,
   };
 }

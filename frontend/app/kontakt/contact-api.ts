@@ -28,9 +28,7 @@ export interface SendKontaktPayload extends KontaktRequest {
  * Kaster ved nettverksfeil — kaller-koden håndterer dette i sin catch-gren.
  * Returnerer { success: false } ved HTTP-feil fra serveren.
  */
-export async function sendKontakt(
-  data: SendKontaktPayload,
-): Promise<SendKontaktResult> {
+export async function sendKontakt(data: SendKontaktPayload): Promise<SendKontaktResult> {
   const formData = new FormData();
   formData.append("navn", data.navn);
   formData.append("epost", data.epost);
@@ -61,7 +59,12 @@ export async function sendKontakt(
     const errorData: ApiErrorResponse = await response.json().catch(() => ({}));
     return {
       success: false,
-      error: errorData.melding || errorData.feil || errorData.message || errorData.error || "Noe gikk galt. Prøv igjen senere.",
+      error:
+        errorData.melding ||
+        errorData.feil ||
+        errorData.message ||
+        errorData.error ||
+        "Noe gikk galt. Prøv igjen senere.",
     };
   }
 

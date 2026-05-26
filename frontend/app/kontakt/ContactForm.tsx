@@ -256,7 +256,9 @@ export function ContactForm() {
         continue;
       }
       if (file.size > KONTAKT_MAX_ATTACHMENT_SIZE_BYTES) {
-        showToast.error(t("contactForm.imageSizeError").replace("{size}", String(maxAttachmentSizeMb)));
+        showToast.error(
+          t("contactForm.imageSizeError").replace("{size}", String(maxAttachmentSizeMb)),
+        );
         continue;
       }
       nextFiles.push(file);

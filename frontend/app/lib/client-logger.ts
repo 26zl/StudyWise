@@ -33,9 +33,7 @@ let installCount = 0;
 let originalConsoleError: typeof console.error | null = null;
 let originalConsoleWarn: typeof console.warn | null = null;
 let windowErrorListener: ((event: ErrorEvent) => void) | null = null;
-let unhandledRejectionListener:
-  | ((event: PromiseRejectionEvent) => void)
-  | null = null;
+let unhandledRejectionListener: ((event: PromiseRejectionEvent) => void) | null = null;
 let beforeUnloadListener: (() => void) | null = null;
 
 function truncate(s: string, max: number): string {
@@ -74,11 +72,7 @@ function summarizeObject(value: object): string {
 function summarizeValue(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return sanitizeText(value);
-  if (
-    typeof value === "number" ||
-    typeof value === "boolean" ||
-    typeof value === "bigint"
-  ) {
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
     return String(value);
   }
   if (value instanceof Error) {
@@ -237,10 +231,7 @@ export function installAdminLogForwarder() {
   unhandledRejectionListener = (event) => {
     enqueue({
       level: "error",
-      msg: truncate(
-        `unhandledRejection: ${summarizeValue(event.reason)}`,
-        2000,
-      ),
+      msg: truncate(`unhandledRejection: ${summarizeValue(event.reason)}`, 2000),
       context: { url: window.location.pathname },
     });
   };
@@ -256,7 +247,11 @@ export function installAdminLogForwarder() {
 }
 
 /** Manuell logging fra admin-komponenter (f.eks. catch-blokker som vil rapportere). */
-export function logToAdminBuffer(level: ClientLogLevel, msg: string, context?: Record<string, unknown>) {
+export function logToAdminBuffer(
+  level: ClientLogLevel,
+  msg: string,
+  context?: Record<string, unknown>,
+) {
   if (!installed) return;
   enqueue({ level, msg: truncate(msg, 2000), context });
 }

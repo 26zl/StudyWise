@@ -90,9 +90,15 @@ router.get("/statistikk", async (req, res) => {
     const antallAdmin = aktiveBrukere.filter((bruker) => bruker.role === "admin").length;
     const antallMedCanvas = aktiveBrukere.filter((bruker) => Boolean(bruker.canvasBaseUrl)).length;
     const antallUtenCanvas = totalBrukere - antallMedCanvas;
-    const antallGoogle = aktiveBrukere.filter((bruker) => bruker.authProviders?.includes("google")).length;
-    const antallMicrosoft = aktiveBrukere.filter((bruker) => bruker.authProviders?.includes("microsoft")).length;
-    const antallEmail = aktiveBrukere.filter((bruker) => bruker.authProviders?.includes("email")).length;
+    const antallGoogle = aktiveBrukere.filter((bruker) =>
+      bruker.authProviders?.includes("google"),
+    ).length;
+    const antallMicrosoft = aktiveBrukere.filter((bruker) =>
+      bruker.authProviders?.includes("microsoft"),
+    ).length;
+    const antallEmail = aktiveBrukere.filter((bruker) =>
+      bruker.authProviders?.includes("email"),
+    ).length;
     const antallUkjentProvider = Math.max(
       totalBrukere - antallGoogle - antallMicrosoft - antallEmail,
       0,
@@ -307,7 +313,10 @@ router.get("/statistikk", async (req, res) => {
         { $count: "total" },
       ]),
       // allow-deleted-users: filtrerer via aktiveBrukerObjectIds som allerede er hentet med deletedAt-filter
-      User.countDocuments({ _id: { $in: aktiveBrukerObjectIds }, notionApiKey: { $exists: true, $ne: null } }),
+      User.countDocuments({
+        _id: { $in: aktiveBrukerObjectIds },
+        notionApiKey: { $exists: true, $ne: null },
+      }),
       KnowledgeBase.aggregate<{
         baser: number;
         lenker: number;
@@ -376,13 +385,21 @@ router.get("/statistikk", async (req, res) => {
     const canvasModuler = canvasStrukturAgg[0]?.canvasModuler ?? 0;
     const canvasModulElementer = canvasStrukturAgg[0]?.canvasModulElementer ?? 0;
     const brukereMedSyncData = syncAgg.length;
-    const brukereMedFerskSync24t = syncAgg.filter((entry) => new Date(entry.sistSyncedAt) >= siste24TimerSiden).length;
-    const brukereMedGammelSync7d = syncAgg.filter((entry) => new Date(entry.sistSyncedAt) < siste7DagerSiden).length;
+    const brukereMedFerskSync24t = syncAgg.filter(
+      (entry) => new Date(entry.sistSyncedAt) >= siste24TimerSiden,
+    ).length;
+    const brukereMedGammelSync7d = syncAgg.filter(
+      (entry) => new Date(entry.sistSyncedAt) < siste7DagerSiden,
+    ).length;
     const canvasBrukereUtenSyncData = Math.max(canvasBrukerIds.length - brukereMedSyncData, 0);
-    const auditKategori24t = Object.fromEntries(auditKategori24tAgg.map((entry) => [entry._id, entry.total]));
+    const auditKategori24t = Object.fromEntries(
+      auditKategori24tAgg.map((entry) => [entry._id, entry.total]),
+    );
     const antallPushBrukere = pushBrukereAgg[0]?.total ?? 0;
-    const snittEnheterPerBruker = antallPushBrukere > 0 ? avrundEnDesimal(pushAbonnementer / antallPushBrukere) : 0;
-    const snittSamtalerPerBruker = totalBrukere > 0 ? avrundEnDesimal(totalSamtaler / totalBrukere) : 0;
+    const snittEnheterPerBruker =
+      antallPushBrukere > 0 ? avrundEnDesimal(pushAbonnementer / antallPushBrukere) : 0;
+    const snittSamtalerPerBruker =
+      totalBrukere > 0 ? avrundEnDesimal(totalSamtaler / totalBrukere) : 0;
     const snittDeloppgaverPerOppdeling =
       totalOppgaveoppdelinger > 0 ? avrundEnDesimal(totalDeloppgaver / totalOppgaveoppdelinger) : 0;
     const snittChunksPerFil =
@@ -408,106 +425,106 @@ router.get("/statistikk", async (req, res) => {
     });
 
     const response = AdminStatsResponseSchema.parse({
-        brukere: {
-          totalt: totalBrukere,
-          admin: antallAdmin,
-          vanlige: totalBrukere - antallAdmin,
-          medCanvas: antallMedCanvas,
-          utenCanvas: antallUtenCanvas,
-          slettede: antallSlettede,
-          google: antallGoogle,
-          microsoft: antallMicrosoft,
-          email: antallEmail,
-          ukjentProvider: antallUkjentProvider,
-        },
-        samtaler: {
-          totalt: totalSamtaler,
-          bokmerket: bokmerkedeSamtaler,
-          snittPerBruker: snittSamtalerPerBruker,
-        },
-        deling: {
-          aktiveLenker: aktiveDelingslenker,
-          inaktiveLenker: inaktiveDelingslenker,
-          utlopteLenker: utlopteDelingslenker,
-          lenkerMedVisninger: delingslenkerMedVisninger,
-          visningerTotalt: totalDelingsvisninger,
-        },
-        oppgaver: {
-          oppgaveoppdelinger: totalOppgaveoppdelinger,
-          deloppgaverTotalt: totalDeloppgaver,
-          fullforteDeloppgaver,
-          godkjenteDeloppgaver,
-          snittDeloppgaverPerOppdeling,
-        },
-        arbeidsplan: {
-          planer: arbeidsplanerTotalt,
-          blokkerTotalt,
-          fullforteBlokker,
-          brukereMedPlan,
-          fullforingsgrad: arbeidsplanFullforingsgrad,
-        },
-        innhold: {
-          dokumentfragmenter: totalEmbeddings,
-          dokumentfiler: totalDokumentfiler,
-          dokumentemner: totalDokumentemner,
-          brukereMedInnhold: antallBrukereMedInnhold,
-          tokensTotalt: totalTokens,
-          snittChunksPerFil,
-          kursstrukturer,
-          canvasOppgaver,
-          canvasKunngjoringer,
-          canvasModuler,
-          canvasModulElementer,
-        },
-        kunnskapsbase: {
-          baser: kbBaser,
-          lenker: kbLenker,
-          filer: kbFiler,
-          chunks: kbChunksTotalt,
-          brukereMedBase: kbBrukere,
-          crawledeLenker: kbCrawlede,
-          feiledeLenker: kbFeilede,
-          snittBaserPerBruker,
-        },
-        sync: {
-          brukereMedSyncData,
-          brukereMedFerskSync24t,
-          brukereMedGammelSync7d,
-          canvasBrukereUtenSyncData,
-        },
-        varsler: {
-          pushAbonnementer,
-          brukereMedPush: antallPushBrukere,
-          snittEnheterPerBruker,
-        },
-        integrasjoner: {
-          brukereMedNotion,
-        },
-        revisjon: {
-          hendelserTotalt: auditTotalt,
-          feilTotalt: auditFeilTotalt,
-          hendelser24t: audit24t,
-          feil24t: auditFeil24t,
-          admin24t: auditKategori24t.admin ?? 0,
-          auth24t: auditKategori24t.auth ?? 0,
-          integration24t: auditKategori24t.integration ?? 0,
-          ki24t: auditKategori24t.ki ?? 0,
-          privacy24t: auditKategori24t.privacy ?? 0,
-          profile24t: auditKategori24t.profile ?? 0,
-          security24t: auditKategori24t.security ?? 0,
-        },
-        kvalitet: {
-          orphanedSamtaler,
-          orphanedOppgaveoppdelinger,
-          orphanedDokumentfragmenter,
-          orphanedArbeidsplaner,
-          orphanedCanvasStrukturer,
-          orphanedCanvasBrukere,
-          delingerUtenEier,
-          orphanedKunnskapsbaser,
-          orphanedKBChunks,
-        },
-      });
+      brukere: {
+        totalt: totalBrukere,
+        admin: antallAdmin,
+        vanlige: totalBrukere - antallAdmin,
+        medCanvas: antallMedCanvas,
+        utenCanvas: antallUtenCanvas,
+        slettede: antallSlettede,
+        google: antallGoogle,
+        microsoft: antallMicrosoft,
+        email: antallEmail,
+        ukjentProvider: antallUkjentProvider,
+      },
+      samtaler: {
+        totalt: totalSamtaler,
+        bokmerket: bokmerkedeSamtaler,
+        snittPerBruker: snittSamtalerPerBruker,
+      },
+      deling: {
+        aktiveLenker: aktiveDelingslenker,
+        inaktiveLenker: inaktiveDelingslenker,
+        utlopteLenker: utlopteDelingslenker,
+        lenkerMedVisninger: delingslenkerMedVisninger,
+        visningerTotalt: totalDelingsvisninger,
+      },
+      oppgaver: {
+        oppgaveoppdelinger: totalOppgaveoppdelinger,
+        deloppgaverTotalt: totalDeloppgaver,
+        fullforteDeloppgaver,
+        godkjenteDeloppgaver,
+        snittDeloppgaverPerOppdeling,
+      },
+      arbeidsplan: {
+        planer: arbeidsplanerTotalt,
+        blokkerTotalt,
+        fullforteBlokker,
+        brukereMedPlan,
+        fullforingsgrad: arbeidsplanFullforingsgrad,
+      },
+      innhold: {
+        dokumentfragmenter: totalEmbeddings,
+        dokumentfiler: totalDokumentfiler,
+        dokumentemner: totalDokumentemner,
+        brukereMedInnhold: antallBrukereMedInnhold,
+        tokensTotalt: totalTokens,
+        snittChunksPerFil,
+        kursstrukturer,
+        canvasOppgaver,
+        canvasKunngjoringer,
+        canvasModuler,
+        canvasModulElementer,
+      },
+      kunnskapsbase: {
+        baser: kbBaser,
+        lenker: kbLenker,
+        filer: kbFiler,
+        chunks: kbChunksTotalt,
+        brukereMedBase: kbBrukere,
+        crawledeLenker: kbCrawlede,
+        feiledeLenker: kbFeilede,
+        snittBaserPerBruker,
+      },
+      sync: {
+        brukereMedSyncData,
+        brukereMedFerskSync24t,
+        brukereMedGammelSync7d,
+        canvasBrukereUtenSyncData,
+      },
+      varsler: {
+        pushAbonnementer,
+        brukereMedPush: antallPushBrukere,
+        snittEnheterPerBruker,
+      },
+      integrasjoner: {
+        brukereMedNotion,
+      },
+      revisjon: {
+        hendelserTotalt: auditTotalt,
+        feilTotalt: auditFeilTotalt,
+        hendelser24t: audit24t,
+        feil24t: auditFeil24t,
+        admin24t: auditKategori24t.admin ?? 0,
+        auth24t: auditKategori24t.auth ?? 0,
+        integration24t: auditKategori24t.integration ?? 0,
+        ki24t: auditKategori24t.ki ?? 0,
+        privacy24t: auditKategori24t.privacy ?? 0,
+        profile24t: auditKategori24t.profile ?? 0,
+        security24t: auditKategori24t.security ?? 0,
+      },
+      kvalitet: {
+        orphanedSamtaler,
+        orphanedOppgaveoppdelinger,
+        orphanedDokumentfragmenter,
+        orphanedArbeidsplaner,
+        orphanedCanvasStrukturer,
+        orphanedCanvasBrukere,
+        delingerUtenEier,
+        orphanedKunnskapsbaser,
+        orphanedKBChunks,
+      },
+    });
 
     // Skriv til cache før respons — best-effort. Hvis Redis er nede eller
     // serialisering feiler, svarer vi brukeren uten cache og logger lavt.
@@ -560,27 +577,27 @@ router.get("/feedback", async (req, res) => {
 
     return res.json(
       AdminFeedbackResponseSchema.parse({
-      rating,
-      totals: {
-        up: totals.find((t) => t._id === "up")?.count ?? 0,
-        down: totals.find((t) => t._id === "down")?.count ?? 0,
-      },
-      items: items.map((i) => ({
-        id: String(i._id),
-        messageId: i.messageId,
-        chatId: i.chatId,
-        rating: i.rating,
-        question: i.question,
-        answer: i.answer,
-        createdAt: i.createdAt,
-        user: i.user
-          ? {
-              id: String((i.user as { _id: unknown })._id),
-              email: (i.user as { email?: string }).email,
-              username: (i.user as { username?: string }).username,
-            }
-          : null,
-      })),
+        rating,
+        totals: {
+          up: totals.find((t) => t._id === "up")?.count ?? 0,
+          down: totals.find((t) => t._id === "down")?.count ?? 0,
+        },
+        items: items.map((i) => ({
+          id: String(i._id),
+          messageId: i.messageId,
+          chatId: i.chatId,
+          rating: i.rating,
+          question: i.question,
+          answer: i.answer,
+          createdAt: i.createdAt,
+          user: i.user
+            ? {
+                id: String((i.user as { _id: unknown })._id),
+                email: (i.user as { email?: string }).email,
+                username: (i.user as { username?: string }).username,
+              }
+            : null,
+        })),
       }),
     );
   } catch (error) {

@@ -8,8 +8,7 @@ import { Loader2 } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import type { MessageKey, TranslationValues } from "@/app/i18n";
 
-const SPINNER_DEFAULT_CLASS =
-  "w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin";
+const SPINNER_DEFAULT_CLASS = "w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin";
 
 export interface LoadingSpinnerProps {
   /** Overstyr størrelse og/eller farge; animate-spin beholdes */
@@ -20,9 +19,7 @@ export function LoadingSpinner({ className }: LoadingSpinnerProps) {
   return (
     <Loader2
       aria-hidden="true"
-      className={
-        className ? `${SPINNER_DEFAULT_CLASS} ${className}`.trim() : SPINNER_DEFAULT_CLASS
-      }
+      className={className ? `${SPINNER_DEFAULT_CLASS} ${className}`.trim() : SPINNER_DEFAULT_CLASS}
     />
   );
 }
@@ -53,8 +50,7 @@ export function LoadingView({
 }: LoadingViewProps) {
   const { t } = useLanguage();
   const visningstekst =
-    text ??
-    (translationKey ? t(translationKey, values) : t("common.loading.generic"));
+    text ?? (translationKey ? t(translationKey, values) : t("common.loading.generic"));
 
   return (
     <div

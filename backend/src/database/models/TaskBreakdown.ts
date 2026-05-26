@@ -7,41 +7,41 @@ import type { SubTask } from "common/ki";
 
 const SubTaskSchema = new mongoose.Schema(
   {
-  id: {
-    type: String,
-    required: true,
-  },
-  title: {
-    type: String,
-    required: true,
-    maxlength: 200,
-  },
-  description: {
-    type: String,
-    required: true,
-    maxlength: 1000,
-  },
-  estimatedTime: {
-    type: String,
-    required: true,
-  },
-  priority: {
-    type: String,
-    enum: ["low", "medium", "high"],
-    required: true,
-  },
-  completed: {
-    type: Boolean,
-    default: false,
-  },
-  completedAt: {
-    type: Date,
-    default: null,
-  },
-  approved: {
-    type: Boolean,
-    default: false,
-  },
+    id: {
+      type: String,
+      required: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      maxlength: 200,
+    },
+    description: {
+      type: String,
+      required: true,
+      maxlength: 1000,
+    },
+    estimatedTime: {
+      type: String,
+      required: true,
+    },
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      required: true,
+    },
+    completed: {
+      type: Boolean,
+      default: false,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    approved: {
+      type: Boolean,
+      default: false,
+    },
   },
   { _id: false },
 );
@@ -85,4 +85,7 @@ const TaskBreakdownSchema = new mongoose.Schema<TaskBreakdownDocument>({
 
 TaskBreakdownSchema.index({ userId: 1, assignmentId: 1 }, { unique: true });
 
-export const TaskBreakdown = mongoose.model<TaskBreakdownDocument>("TaskBreakdown", TaskBreakdownSchema);
+export const TaskBreakdown = mongoose.model<TaskBreakdownDocument>(
+  "TaskBreakdown",
+  TaskBreakdownSchema,
+);

@@ -1,11 +1,15 @@
 /*
  * API Ruter for Arbeidsplan
  * CRUD operasjoner for å lagre, hente, oppdatere og slette arbeidsplaner
- */    
+ */
 
 import { Router, Request, Response } from "express";
 import mongoose from "mongoose";
-import { Arbeidsplan, type IArbeidsplan, type IStudyBlock } from "../../database/models/arbeidsplan.js";
+import {
+  Arbeidsplan,
+  type IArbeidsplan,
+  type IStudyBlock,
+} from "../../database/models/arbeidsplan.js";
 import { requireUserId, sendZodError, sendUnknownError, apiError } from "../../utils/apiError.js";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import {
@@ -72,20 +76,20 @@ router.post("/", async (req: Request, res: Response) => {
       userId,
       year: data.year,
       weekNumber: data.weekNumber,
-    }); 
+    });
 
     let plan;
     if (existing) {
       // Slå sammen nye blokker med eksisterende i stedet for å erstatte
-      const mergedBlocks = [...existing.blocks, ...data.blocks as IStudyBlock[]];
+      const mergedBlocks = [...existing.blocks, ...(data.blocks as IStudyBlock[])];
       if (mergedBlocks.length > MAX_BLOCKS_PER_PLAN) {
         return apiError.badRequest(res, `Arbeidsplanen kan ha maks ${MAX_BLOCKS_PER_PLAN} blokker`);
       }
       existing.week = data.week;
       existing.blocks = mergedBlocks;
-      existing.totalHours = Math.round(
-        mergedBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10,
-      ) / 10;
+      existing.totalHours =
+        Math.round(mergedBlocks.reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10) /
+        10;
       plan = await existing.save();
     } else {
       plan = await Arbeidsplan.create({
@@ -168,15 +172,14 @@ router.get("/stats/progress", async (req: Request, res: Response) => {
 
     const totalBlocks = plan.blocks.length;
     const completedBlocks = plan.blocks.filter((b) => b.completed).length;
-    const percentage = totalBlocks > 0
-      ? Math.round((completedBlocks / totalBlocks) * 100)
-      : 0;
+    const percentage = totalBlocks > 0 ? Math.round((completedBlocks / totalBlocks) * 100) : 0;
 
-    const completedHours = Math.round(
-      plan.blocks
-        .filter((b) => b.completed)
-        .reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10
-    ) / 10;
+    const completedHours =
+      Math.round(
+        plan.blocks
+          .filter((b) => b.completed)
+          .reduce((sum, b) => sum + parseTimerStreng(b.duration), 0) * 10,
+      ) / 10;
 
     return res.json(
       ArbeidsplanProgressResponseSchema.parse({

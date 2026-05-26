@@ -113,12 +113,13 @@ test.describe("API-sikkerhet — KI-ruter", () => {
     ];
 
     for (const { method, path } of kiRuter) {
-      const res = method === "GET"
-        ? await request.get(`${BACKEND}${path}`)
-        : await request.post(`${BACKEND}${path}`, {
-            headers: { "Content-Type": "application/json", "x-studywise-csrf": "1" },
-            data: {},
-          });
+      const res =
+        method === "GET"
+          ? await request.get(`${BACKEND}${path}`)
+          : await request.post(`${BACKEND}${path}`, {
+              headers: { "Content-Type": "application/json", "x-studywise-csrf": "1" },
+              data: {},
+            });
       expect(res.status(), `${method} ${path} bør kreve auth`).toBe(401);
     }
   });

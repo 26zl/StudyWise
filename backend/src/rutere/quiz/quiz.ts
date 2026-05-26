@@ -17,12 +17,7 @@ import {
   AsyncJobStatusSchema,
 } from "common/ki";
 import { logger } from "../../utils/logger.js";
-import {
-  apiError,
-  sendZodError,
-  sendUnknownError,
-  requireUserId,
-} from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import { DEFAULT_MODEL } from "../ki/aiModels.js";
 import { chatCompletion, isClientAvailable } from "../ki/aiClient.js";
@@ -244,14 +239,11 @@ export function resolvePositionReferencesInExplanation(
   );
 
   // "indeks 0/1/2/3", "index 2"
-  text = text.replace(
-    /\b(indeks|index)\s+([0-3])\b/gi,
-    (match, _label: string, digit: string) => {
-      detected = true;
-      const idx = parseInt(digit, 10);
-      return safeReplace(idx) ?? match;
-    },
-  );
+  text = text.replace(/\b(indeks|index)\s+([0-3])\b/gi, (match, _label: string, digit: string) => {
+    detected = true;
+    const idx = parseInt(digit, 10);
+    return safeReplace(idx) ?? match;
+  });
 
   return { text, detected, changed };
 }
@@ -298,9 +290,10 @@ export function detectNynorskMarkers(text: string): string[] {
  * hindre skjevheter som LLM-biasen mot `correctIndex: 0` (eller rapportert
  * "1-4-1-4"-mønster).
  */
-export function shuffleQuizOptions<
-  Q extends { options: string[]; correctIndex: number },
->(q: Q, random: () => number = Math.random): Q {
+export function shuffleQuizOptions<Q extends { options: string[]; correctIndex: number }>(
+  q: Q,
+  random: () => number = Math.random,
+): Q {
   const n = q.options.length;
   const indices = Array.from({ length: n }, (_, i) => i);
   for (let i = n - 1; i > 0; i--) {
@@ -430,13 +423,16 @@ async function processQuizJob(
           fileCount: fileNames.length,
           contextSource: contextResult.source,
           syncWaited: !!contextResult.syncWaited,
-          reason: contextResult.syncWaited ? "sync_just_triggered_no_chunks_yet" : "no_chunks_for_selection",
+          reason: contextResult.syncWaited
+            ? "sync_just_triggered_no_chunks_yet"
+            : "no_chunks_for_selection",
         },
         "Quiz-generering avbrutt: ingen Canvas-data for valgte moduler/filer",
       );
       await setJobState(jobId, userId, {
         status: "failed",
-        error: "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.",
+        error:
+          "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.",
       });
       return;
     }
@@ -525,10 +521,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
     let sanitizedExplanations = 0;
     let detectedPositionRefs = 0;
     const normalizedQuestions = rewrittenQuestions.map((q) => {
-      const sanitized = resolvePositionReferencesInExplanation(
-        q.explanation,
-        q.options,
-      );
+      const sanitized = resolvePositionReferencesInExplanation(q.explanation, q.options);
       if (sanitized.detected) detectedPositionRefs++;
       if (sanitized.changed) sanitizedExplanations++;
       return { ...q, explanation: sanitized.text };
@@ -556,7 +549,12 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
       }
     }
     logger.info(
-      { userId, courseId, questionCount: shuffledQuestions.length, correctIndexDistribution: distribution },
+      {
+        userId,
+        courseId,
+        questionCount: shuffledQuestions.length,
+        correctIndexDistribution: distribution,
+      },
       "Quiz-shuffle fullført — correctIndex-distribusjon",
     );
 
@@ -607,10 +605,7 @@ Generer nøyaktig ${questionCount} spørsmål som JSON-array.`;
         url: "/dashboard?view=quiz",
         tag: `studywise-ai-quiz-${userId}-${courseId}`,
       }).catch((err) => {
-        logger.warn(
-          { err, userId, courseId },
-          "Kunne ikke sende nettleservarsel for ferdig quiz",
-        );
+        logger.warn({ err, userId, courseId }, "Kunne ikke sende nettleservarsel for ferdig quiz");
       });
     }
   } catch (error) {

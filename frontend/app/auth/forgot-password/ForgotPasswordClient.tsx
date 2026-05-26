@@ -33,9 +33,7 @@ type ForgotPasswordClientProps = {
   initialVerified: boolean;
 };
 
-export function ForgotPasswordClient({
-  initialVerified,
-}: ForgotPasswordClientProps) {
+export function ForgotPasswordClient({ initialVerified }: ForgotPasswordClientProps) {
   const { t } = useLanguage();
   const { signIn, errors, fetchStatus } = useSignIn();
   const searchParams = useSearchParams();
@@ -76,10 +74,7 @@ export function ForgotPasswordClient({
     // Server-side Turnstile-gate: verifiser at human-check er bestått før Clerk-kall
     const gateOk = await checkAuthTurnstileGate();
     if (!gateOk) {
-      showToast.error(
-        t("auth.humanCheck.title"),
-        t("auth.humanCheck.gateError"),
-      );
+      showToast.error(t("auth.humanCheck.title"), t("auth.humanCheck.gateError"));
       return;
     }
 
@@ -208,7 +203,11 @@ export function ForgotPasswordClient({
       if (signIn.status === "complete") {
         setIsRedirectingToDashboard(true);
         try {
-          await withAuthTimeout(signIn.finalize(), MFA_TIMEOUT_MS, "forgot_password_mfa_recover_finalize");
+          await withAuthTimeout(
+            signIn.finalize(),
+            MFA_TIMEOUT_MS,
+            "forgot_password_mfa_recover_finalize",
+          );
         } catch {
           // falle gjennom til redirect
         }
@@ -230,10 +229,7 @@ export function ForgotPasswordClient({
     return (
       <div className="w-full max-w-md">
         <AuthCard>
-          <LoadingView
-            fullPage={false}
-            translationKey="common.loading.redirecting"
-          />
+          <LoadingView fullPage={false} translationKey="common.loading.redirecting" />
         </AuthCard>
       </div>
     );
@@ -295,7 +291,10 @@ export function ForgotPasswordClient({
 
                   <AuthError message={generellFeil} />
 
-                  <AuthPrimaryButton isLoading={erLaster} loadingText={t("common.actions.sendCode")}>
+                  <AuthPrimaryButton
+                    isLoading={erLaster}
+                    loadingText={t("common.actions.sendCode")}
+                  >
                     {t("common.actions.sendCode")}
                   </AuthPrimaryButton>
                 </form>
@@ -349,7 +348,10 @@ export function ForgotPasswordClient({
 
                 <AuthError message={generellFeil} />
 
-                <AuthPrimaryButton isLoading={erLaster} loadingText={t("common.actions.verifyCode")}>
+                <AuthPrimaryButton
+                  isLoading={erLaster}
+                  loadingText={t("common.actions.verifyCode")}
+                >
                   {t("common.actions.verifyCode")}
                 </AuthPrimaryButton>
 
@@ -402,7 +404,10 @@ export function ForgotPasswordClient({
 
                 <AuthError message={generellFeil} />
 
-                <AuthPrimaryButton isLoading={erLaster} loadingText={t("common.actions.completeReset")}>
+                <AuthPrimaryButton
+                  isLoading={erLaster}
+                  loadingText={t("common.actions.completeReset")}
+                >
                   {t("common.actions.completeReset")}
                 </AuthPrimaryButton>
               </form>

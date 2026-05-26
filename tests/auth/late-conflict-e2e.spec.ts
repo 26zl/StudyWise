@@ -100,7 +100,12 @@ async function signOut(page: Page): Promise<void> {
   }
 }
 
-async function fillSignupForm(page: Page, email: string, username: string, password: string): Promise<void> {
+async function fillSignupForm(
+  page: Page,
+  email: string,
+  username: string,
+  password: string,
+): Promise<void> {
   const firstNameInput = page.locator("#signup-firstname");
   await firstNameInput.waitFor({ state: "visible", timeout: 30_000 });
   await firstNameInput.fill("Test");
@@ -125,7 +130,10 @@ async function fillSignupForm(page: Page, email: string, username: string, passw
 async function checkForConflictModal(page: Page): Promise<boolean> {
   // Sjekk for brukernavn-konfliktmodal eller lignende — bruker kort timeout, dette er en sjekk, ikke en vent
   try {
-    await page.locator('[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username"), [role="dialog"]:has-text("conflict"), [role="alertdialog"]')
+    await page
+      .locator(
+        '[role="dialog"]:has-text("brukernavn"), [role="dialog"]:has-text("username"), [role="dialog"]:has-text("conflict"), [role="alertdialog"]',
+      )
       .first()
       .waitFor({ state: "visible", timeout: 5_000 });
     return true;
@@ -216,10 +224,11 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     saveEvidence(evidence);
 
     // Vi forventer at enten Clerk blokkerer, backend returnerer 409, eller konfliktmodal vises
-    const handled = !evidence.clerkSignupSuccess || 
-                    evidence.meStatus === 409 || 
-                    evidence.conflictModalShown || 
-                    evidence.authGuardSignout;
+    const handled =
+      !evidence.clerkSignupSuccess ||
+      evidence.meStatus === 409 ||
+      evidence.conflictModalShown ||
+      evidence.authGuardSignout;
     expect(handled).toBeTruthy();
   });
 
@@ -249,9 +258,10 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     if (onDashboard) {
       // Hopp over hvis /me feiler på dashboard (Clerk testing token-begrensning)
       test.skip(meResult.status !== 200, "Signup fullførte ikke — Clerk testing token-begrensning");
-      const user = typeof meResult.body === "object" && meResult.body !== null
-        ? (meResult.body as { user?: { id?: string } }).user
-        : null;
+      const user =
+        typeof meResult.body === "object" && meResult.body !== null
+          ? (meResult.body as { user?: { id?: string } }).user
+          : null;
       expect(user?.id).toBeTruthy();
     } else {
       // Omdirigert bort — også akseptabelt
@@ -281,13 +291,15 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     // Sjekk for konflikt-UI
     const conflictIndicators = await Promise.all([
       // Clerk-nivå feil
-      page.locator('[data-clerk-field-error], .cl-formFieldErrorText')
+      page
+        .locator("[data-clerk-field-error], .cl-formFieldErrorText")
         .allTextContents()
         .catch(() => []),
       // Modal-dialog
       checkForConflictModal(page),
       // Feiltekst på siden
-      page.locator('text=/username.*taken|brukernavn.*brukt|conflict|already exists/i')
+      page
+        .locator("text=/username.*taken|brukernavn.*brukt|conflict|already exists/i")
         .first()
         .waitFor({ state: "visible", timeout: 5_000 })
         .then(() => true)
@@ -299,7 +311,9 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     const hasErrorText = conflictIndicators[2] as boolean;
 
     // Minst én konfliktindikator bør være til stede
-    expect(hasClerkError || hasModal || hasErrorText || !page.url().includes("dashboard")).toBeTruthy();
+    expect(
+      hasClerkError || hasModal || hasErrorText || !page.url().includes("dashboard"),
+    ).toBeTruthy();
   });
 
   test("K05: AuthConflictGuard behavior", async ({ page }) => {
@@ -346,9 +360,10 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     const firstClerkId = await getClerkUserId(page);
     const firstMe = await callMeEndpoint(page);
-    const firstLocalId = firstMe.status === 200 && typeof firstMe.body === "object" && firstMe.body !== null
-      ? ((firstMe.body as { user?: { id?: string } }).user?.id ?? null)
-      : null;
+    const firstLocalId =
+      firstMe.status === 200 && typeof firstMe.body === "object" && firstMe.body !== null
+        ? ((firstMe.body as { user?: { id?: string } }).user?.id ?? null)
+        : null;
 
     await signOut(page);
 
@@ -370,9 +385,10 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
 
     const secondClerkId = await getClerkUserId(page);
     const secondMe = await callMeEndpoint(page);
-    const secondLocalId = secondMe.status === 200 && typeof secondMe.body === "object" && secondMe.body !== null
-      ? ((secondMe.body as { user?: { id?: string } }).user?.id ?? null)
-      : null;
+    const secondLocalId =
+      secondMe.status === 200 && typeof secondMe.body === "object" && secondMe.body !== null
+        ? ((secondMe.body as { user?: { id?: string } }).user?.id ?? null)
+        : null;
 
     // Bør være samme Clerk-bruker og samme lokal bruker
     expect(firstClerkId).toBe(secondClerkId);
@@ -392,9 +408,10 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
     await page.waitForTimeout(5000);
 
     const firstMe = await callMeEndpoint(page);
-    const firstLocalId = firstMe.status === 200 && typeof firstMe.body === "object" && firstMe.body !== null
-      ? ((firstMe.body as { user?: { id?: string } }).user?.id ?? null)
-      : null;
+    const firstLocalId =
+      firstMe.status === 200 && typeof firstMe.body === "object" && firstMe.body !== null
+        ? ((firstMe.body as { user?: { id?: string } }).user?.id ?? null)
+        : null;
 
     await signOut(page);
 
@@ -414,15 +431,19 @@ test.describe("Group K: Late-Conflict / Frontend-Illusion", () => {
       // 1. Returnere 409-konflikt
       // 2. Returnere usernameConflict-markør
       // 3. Opprette bruker med annet brukernavn
-      const conflict = secondMe.status === 409 ||
-        (typeof secondMe.body === "object" && secondMe.body !== null && "__usernameConflict" in secondMe.body);
+      const conflict =
+        secondMe.status === 409 ||
+        (typeof secondMe.body === "object" &&
+          secondMe.body !== null &&
+          "__usernameConflict" in secondMe.body);
 
-      const secondLocalId = secondMe.status === 200 && typeof secondMe.body === "object" && secondMe.body !== null
-        ? ((secondMe.body as { user?: { id?: string } }).user?.id ?? null)
-        : null;
+      const secondLocalId =
+        secondMe.status === 200 && typeof secondMe.body === "object" && secondMe.body !== null
+          ? ((secondMe.body as { user?: { id?: string } }).user?.id ?? null)
+          : null;
 
       // Enten konflikt oppdaget ELLER annen lokal bruker opprettet (ikke samme som første)
-      expect(conflict || (secondLocalId !== firstLocalId)).toBeTruthy();
+      expect(conflict || secondLocalId !== firstLocalId).toBeTruthy();
     } else {
       // Clerk blokkerte — forventet oppførsel
       expect(secondClerkId).toBeNull();

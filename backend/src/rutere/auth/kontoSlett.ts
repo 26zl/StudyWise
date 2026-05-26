@@ -75,9 +75,7 @@ export async function deleteAccountData(
 
   // allow-deleted-users: kontosletting MÅ være idempotent — vi må kunne se soft-deleted
   // brukere for å kunne svare riktig (med tombstone-sjekk) ved gjentatte sletteforsøk
-  const user = await User.findById(id).select(
-    "+canvasApiToken +canvasTokenHash",
-  );
+  const user = await User.findById(id).select("+canvasApiToken +canvasTokenHash");
   if (!user) {
     // Sjekk om brukeren allerede er slettet (idempotency)
     const alreadyDeleted = await DeletedUserTombstone.exists({
@@ -202,10 +200,7 @@ export async function deleteAccountData(
       result.user = (userRes.deletedCount ?? 0) > 0;
     });
   } catch (txError) {
-    logger.error(
-      { err: txError, userId },
-      "MongoDB-transaksjon feilet under kontosletting",
-    );
+    logger.error({ err: txError, userId }, "MongoDB-transaksjon feilet under kontosletting");
     throw txError;
   } finally {
     await session.endSession();
@@ -220,7 +215,8 @@ export async function deleteAccountData(
     await deleteAllKBContentForUser(userId, kbBaseIds);
   } catch (kbCleanupError) {
     vectorCleanupSucceeded = false;
-    const msg = kbCleanupError instanceof Error ? kbCleanupError.message : "KB Pinecone-opprydding feilet";
+    const msg =
+      kbCleanupError instanceof Error ? kbCleanupError.message : "KB Pinecone-opprydding feilet";
     vectorErrors.push(`KB: ${msg}`);
     logger.error(
       { err: kbCleanupError, userId },
@@ -255,13 +251,9 @@ export async function deleteAccountData(
     }
   }
 
-  const runtimeCleanupTasks: Array<Promise<unknown>> = [
-    invalidateUserKISessionCache(userId),
-  ];
+  const runtimeCleanupTasks: Array<Promise<unknown>> = [invalidateUserKISessionCache(userId)];
   if (isRedisReady()) {
-    runtimeCleanupTasks.push(
-      invalidateCacheByPattern(`canvas:user:${userId}:*`),
-    );
+    runtimeCleanupTasks.push(invalidateCacheByPattern(`canvas:user:${userId}:*`));
   }
   const runtimeCleanupResults = await Promise.allSettled(runtimeCleanupTasks);
   for (const cleanupResult of runtimeCleanupResults) {
@@ -312,10 +304,7 @@ export async function deleteAccountData(
   }
 
   if (!result.user) {
-    logger.warn(
-      { userId },
-      "Account deletion: User tombstone could not be written",
-    );
+    logger.warn({ userId }, "Account deletion: User tombstone could not be written");
   }
 
   return {

@@ -16,11 +16,7 @@
  * tilfeldig stokking per mount blir brukeropplevelsen variert og fersk.
  */
 
-export type LoadingMessageCategory =
-  | "status"
-  | "visste-du-at"
-  | "motivasjon"
-  | "pause";
+export type LoadingMessageCategory = "status" | "visste-du-at" | "motivasjon" | "pause";
 
 export const LOADING_MESSAGES: Record<LoadingMessageCategory, string[]> = {
   status: [
@@ -236,9 +232,7 @@ export const LOADING_MESSAGES: Record<LoadingMessageCategory, string[]> = {
  * Returnerer sammenslått liste fra valgte kategorier, stokket tilfeldig.
  * Tomt array-argument betyr "alle kategorier".
  */
-export function buildMessagePool(
-  categories: LoadingMessageCategory[] = [],
-): string[] {
+export function buildMessagePool(categories: LoadingMessageCategory[] = []): string[] {
   const selected =
     categories.length === 0
       ? (Object.keys(LOADING_MESSAGES) as LoadingMessageCategory[])

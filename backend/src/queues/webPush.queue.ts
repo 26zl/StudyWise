@@ -22,9 +22,7 @@ export const WEB_PUSH_JOB_NAME = "web-push";
 const MAX_ATTEMPTS = 5;
 
 const webPushClient = (
-  "default" in webpush &&
-  webpush.default &&
-  typeof webpush.default === "object"
+  "default" in webpush && webpush.default && typeof webpush.default === "object"
     ? webpush.default
     : webpush
 ) as typeof webpush;
@@ -35,8 +33,7 @@ function ensureVapidConfigured(): boolean {
   if (vapidConfigured) return true;
   const publicKey = process.env.WEB_PUSH_VAPID_PUBLIC_KEY?.trim();
   const privateKey = process.env.WEB_PUSH_VAPID_PRIVATE_KEY?.trim();
-  const subject =
-    process.env.WEB_PUSH_SUBJECT?.trim() || "mailto:kontakt@studwize.page";
+  const subject = process.env.WEB_PUSH_SUBJECT?.trim() || "mailto:kontakt@studwize.page";
   if (!publicKey || !privateKey) return false;
   webPushClient.setVapidDetails(subject, publicKey, privateKey);
   vapidConfigured = true;
@@ -95,9 +92,7 @@ export async function enqueueWebPushDelivery(input: {
 function isGoneSubscriptionError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const statusCode =
-    "statusCode" in error && typeof error.statusCode === "number"
-      ? error.statusCode
-      : null;
+    "statusCode" in error && typeof error.statusCode === "number" ? error.statusCode : null;
   return statusCode === 404 || statusCode === 410;
 }
 
@@ -132,15 +127,9 @@ export async function processWebPushJob(job: Job<WebPushJobData>): Promise<void>
         await WebPushSubscriptionModel.deleteOne({
           _id: new mongoose.Types.ObjectId(subscriptionId),
         });
-        logger.info(
-          { subscriptionId, endpoint },
-          "Slettet ugyldig web-push-abonnement (410/404)",
-        );
+        logger.info({ subscriptionId, endpoint }, "Slettet ugyldig web-push-abonnement (410/404)");
       } catch (delErr) {
-        logger.warn(
-          { err: delErr, subscriptionId },
-          "Kunne ikke slette død web-push-subscription",
-        );
+        logger.warn({ err: delErr, subscriptionId }, "Kunne ikke slette død web-push-subscription");
       }
       return;
     }

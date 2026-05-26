@@ -18,10 +18,7 @@ import {
   subscribeToBrowserPush,
   supportsBrowserPush,
 } from "@/app/notifications/browserPush-api";
-import type {
-  BrowserPushPreferences,
-  WebPushClientConfigResponse,
-} from "common/notifications";
+import type { BrowserPushPreferences, WebPushClientConfigResponse } from "common/notifications";
 
 export interface UseBrowserPushNotificationsResult {
   supported: boolean;
@@ -34,10 +31,7 @@ export interface UseBrowserPushNotificationsResult {
   disable: () => Promise<void>;
   updatePreferences: (
     next: Partial<
-      Pick<
-        BrowserPushPreferences,
-        "announcements" | "deadlines" | "events" | "aiResponses"
-      >
+      Pick<BrowserPushPreferences, "announcements" | "deadlines" | "events" | "aiResponses">
     >,
   ) => Promise<void>;
   sendTest: () => Promise<boolean>;
@@ -84,9 +78,9 @@ export function useBrowserPushNotifications(
   initialPreferences?: BrowserPushPreferences,
 ): UseBrowserPushNotificationsResult {
   const support = supportsBrowserPush();
-  const [permission, setPermission] = useState<
-    NotificationPermission | "unsupported"
-  >(support ? Notification.permission : "unsupported");
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
+    support ? Notification.permission : "unsupported",
+  );
   const [configured, setConfigured] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
   const [isPending, setIsPending] = useState(false);
@@ -159,13 +153,10 @@ export function useBrowserPushNotifications(
       const nextPermission = await Notification.requestPermission();
       setPermission(nextPermission);
       if (nextPermission !== "granted") {
-        throw new Error(
-          "Du må godkjenne nettleservarsler for å aktivere funksjonen.",
-        );
+        throw new Error("Du må godkjenne nettleservarsler for å aktivere funksjonen.");
       }
 
-      const { subscription, replacedEndpoint } =
-        await subscribeToBrowserPush(vapidPublicKey);
+      const { subscription, replacedEndpoint } = await subscribeToBrowserPush(vapidPublicKey);
       if (replacedEndpoint) {
         await deleteBrowserPushSubscription(replacedEndpoint).catch(() => {
           // Gammelt abonnement kan allerede være fjernet server-side
@@ -202,11 +193,8 @@ export function useBrowserPushNotifications(
   const disable = async () => {
     setIsPending(true);
     try {
-      const registration =
-        support && configured ? await getBrowserPushRegistration() : null;
-      const subscription = registration
-        ? await registration.pushManager.getSubscription()
-        : null;
+      const registration = support && configured ? await getBrowserPushRegistration() : null;
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
 
       const nextPreferences = {
         ...preferences,

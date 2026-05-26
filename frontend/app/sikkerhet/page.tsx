@@ -4,11 +4,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Code2,
-  ExternalLink,
-  ShieldCheck,
-} from "lucide-react";
+import { Code2, ExternalLink, ShieldCheck } from "lucide-react";
 import { useLanguage } from "@/app/i18n";
 import {
   InfoCard,
@@ -21,25 +17,24 @@ export default function SikkerhetPage() {
   const { t } = useLanguage();
 
   return (
-    <InfoPageLayout
-      title={t("sikkerhet.title")}
-      description={t("sikkerhet.description")}
-    >
+    <InfoPageLayout title={t("sikkerhet.title")} description={t("sikkerhet.description")}>
       <div className="grid gap-4">
-        {([
-          { key: "encryption", color: "green" },
-          { key: "token", color: "green" },
-          { key: "twoFactor", color: "green" },
-          { key: "stepUp", color: "green" },
-          { key: "fileValidation", color: "green" },
-          { key: "https", color: "green" },
-          { key: "csrf", color: "green" },
-          { key: "rateLimit", color: "green" },
-          { key: "sessions", color: "green" },
-          { key: "minimalAccess", color: "green" },
-          { key: "infrastructure", color: "green" },
-          { key: "autoLogout", color: "green" },
-        ] as const).map((item) => (
+        {(
+          [
+            { key: "encryption", color: "green" },
+            { key: "token", color: "green" },
+            { key: "twoFactor", color: "green" },
+            { key: "stepUp", color: "green" },
+            { key: "fileValidation", color: "green" },
+            { key: "https", color: "green" },
+            { key: "csrf", color: "green" },
+            { key: "rateLimit", color: "green" },
+            { key: "sessions", color: "green" },
+            { key: "minimalAccess", color: "green" },
+            { key: "infrastructure", color: "green" },
+            { key: "autoLogout", color: "green" },
+          ] as const
+        ).map((item) => (
           <InfoCard key={item.key} className="flex gap-4">
             <div className="h-fit rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
               <ShieldCheck className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -98,11 +93,23 @@ export default function SikkerhetPage() {
       <InfoSection title={t("sikkerhet.sdlcTitle")}>
         <p className="mb-4">{t("sikkerhet.sdlcIntro")}</p>
         <ul className="space-y-2 text-sm">
-          <li>• <strong>{t("sikkerhet.sdlcOwaspLabel")}</strong> {t("sikkerhet.sdlcOwaspBody")}</li>
-          <li>• <strong>{t("sikkerhet.sdlcCiLabel")}</strong> {t("sikkerhet.sdlcCiBody")}</li>
-          <li>• <strong>{t("sikkerhet.sdlcSupplyChainLabel")}</strong> {t("sikkerhet.sdlcSupplyChainBody")}</li>
-          <li>• <strong>{t("sikkerhet.sdlcEnvSeparationLabel")}</strong> {t("sikkerhet.sdlcEnvSeparationBody")}</li>
-          <li>• <strong>{t("sikkerhet.sdlcReviewLabel")}</strong> {t("sikkerhet.sdlcReviewBody")}</li>
+          <li>
+            • <strong>{t("sikkerhet.sdlcOwaspLabel")}</strong> {t("sikkerhet.sdlcOwaspBody")}
+          </li>
+          <li>
+            • <strong>{t("sikkerhet.sdlcCiLabel")}</strong> {t("sikkerhet.sdlcCiBody")}
+          </li>
+          <li>
+            • <strong>{t("sikkerhet.sdlcSupplyChainLabel")}</strong>{" "}
+            {t("sikkerhet.sdlcSupplyChainBody")}
+          </li>
+          <li>
+            • <strong>{t("sikkerhet.sdlcEnvSeparationLabel")}</strong>{" "}
+            {t("sikkerhet.sdlcEnvSeparationBody")}
+          </li>
+          <li>
+            • <strong>{t("sikkerhet.sdlcReviewLabel")}</strong> {t("sikkerhet.sdlcReviewBody")}
+          </li>
         </ul>
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
           {t("sikkerhet.sdlcStandardsNote")}

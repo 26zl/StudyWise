@@ -114,7 +114,9 @@ router.get("/brukere", async (req, res) => {
         // canvasApiToken har `select: false`; må eksplisitt bes om med `+canvasApiToken`.
         // Vi leser kun `Boolean(...)` på den, ikke selve verdien — ingen tokens lekker
         // gjennom audit/logger eller responsen siden vi mapper til boolean under.
-        .select("email role username firstName lastName canvasBaseUrl +canvasApiToken authProviders mfaEnabled backupCodesEnabled createdAt lockedAt lockedReason deletedAt")
+        .select(
+          "email role username firstName lastName canvasBaseUrl +canvasApiToken authProviders mfaEnabled backupCodesEnabled createdAt lockedAt lockedReason deletedAt",
+        )
         .sort({ createdAt: -1 })
         .skip(offset)
         .limit(limit)
@@ -301,10 +303,10 @@ router.delete("/brukere/:id", requireRecentAuth, async (req, res) => {
 
     return res.json(
       AdminSlettBrukerResponseSchema.parse({
-      slettet: true,
-      deleted: deletionResult.deleted,
-      providerAccountDeleted: deletionResult.providerAccountDeleted,
-      vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
+        slettet: true,
+        deleted: deletionResult.deleted,
+        providerAccountDeleted: deletionResult.providerAccountDeleted,
+        vectorCleanupSucceeded: deletionResult.vectorCleanupSucceeded,
       }),
     );
   } catch (err) {
@@ -441,7 +443,8 @@ router.get("/brukere/:id/detalj", async (req, res) => {
 
     // Delt merge-algoritme med /study-stats/today — se aktivTid.service.ts for
     // hvorfor vi bruker 2-min-markør per chat-oppdatering i stedet for createdAt..updatedAt-spenn.
-    const { beregnAktivTimer, beregnAktiveDager } = await import("../../services/aktivTid.service.js");
+    const { beregnAktivTimer, beregnAktiveDager } =
+      await import("../../services/aktivTid.service.js");
     const vindusStart = thirtyDaysAgo.getTime();
     const activeHoursLast30d = beregnAktivTimer(
       chatIntervalsLast30d as Array<{ updatedAt?: Date }>,
@@ -710,9 +713,7 @@ router.post("/brukere/:id/reset-mfa", requireRecentAuth, async (req, res) => {
       "Admin deaktiverte MFA for bruker",
     );
 
-    return res.json(
-      AdminResetMfaResponseSchema.parse({ success: true, sessionsRevoked }),
-    );
+    return res.json(AdminResetMfaResponseSchema.parse({ success: true, sessionsRevoked }));
   } catch (err) {
     logger.error({ err }, "Admin reset-mfa feilet");
     return apiError.serverError(res);
@@ -793,10 +794,7 @@ router.post("/brukere/:id/lock", requireRecentAuth, async (req, res) => {
       }
     }
 
-    logger.info(
-      { adminUserId: actorUserId, targetUserId: targetId },
-      "Admin låste brukerkonto",
-    );
+    logger.info({ adminUserId: actorUserId, targetUserId: targetId }, "Admin låste brukerkonto");
 
     const response = AdminLockUserResponseSchema.parse({
       id: targetId,

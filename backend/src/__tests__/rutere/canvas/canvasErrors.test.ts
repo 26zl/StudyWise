@@ -4,10 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  createCanvasError,
-  getErrorResponse,
-} from "../../../rutere/canvas/canvasErrors.js";
+import { createCanvasError, getErrorResponse } from "../../../rutere/canvas/canvasErrors.js";
 
 describe("createCanvasError", () => {
   it("oppretter feil med navn 'CanvasApiError' og kode", () => {

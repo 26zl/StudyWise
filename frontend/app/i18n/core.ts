@@ -31,25 +31,17 @@ export function getPreferredLanguageFromAcceptLanguage(
   return /\b(nb|nn|no)\b/i.test(acceptLanguage) ? "nb" : "en";
 }
 
-function getNestedMessage(
-  messages: PartialMessages,
-  key: MessageKey,
-): string | undefined {
-  return key
-    .split(".")
-    .reduce<unknown>((current, part) => {
-      if (current == null || typeof current !== "object") {
-        return undefined;
-      }
+function getNestedMessage(messages: PartialMessages, key: MessageKey): string | undefined {
+  return key.split(".").reduce<unknown>((current, part) => {
+    if (current == null || typeof current !== "object") {
+      return undefined;
+    }
 
-      return (current as Record<string, unknown>)[part];
-    }, messages) as string | undefined;
+    return (current as Record<string, unknown>)[part];
+  }, messages) as string | undefined;
 }
 
-function interpolateMessage(
-  message: string,
-  values?: TranslationValues,
-): string {
+function interpolateMessage(message: string, values?: TranslationValues): string {
   if (!values) {
     return message;
   }
@@ -60,11 +52,7 @@ function interpolateMessage(
   });
 }
 
-export function translate(
-  language: Language,
-  key: MessageKey,
-  values?: TranslationValues,
-): string {
+export function translate(language: Language, key: MessageKey, values?: TranslationValues): string {
   const valgtMelding = getNestedMessage(messagesByLanguage[language], key);
   if (valgtMelding) {
     return interpolateMessage(valgtMelding, values);

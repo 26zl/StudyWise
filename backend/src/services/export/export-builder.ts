@@ -6,13 +6,7 @@
  * quotes, tabeller, skillelinjer, callouts).
  */
 
-import type {
-  ExportDocument,
-  ExportBlock,
-  TextSegment,
-  ListItem,
-  TableCell,
-} from "common/export";
+import type { ExportDocument, ExportBlock, TextSegment, ListItem, TableCell } from "common/export";
 
 // --- Rensing av interne XML-tagger ---
 
@@ -182,7 +176,7 @@ export function parseMarkdownToBlocks(markdown: string): ExportBlock[] {
       });
       continue;
 
-    // Sitat (> tekst)
+      // Sitat (> tekst)
     } else if (trimmed.startsWith("> ")) {
       const quoteLines: string[] = [];
       while (i < lines.length && lines[i].trimEnd().startsWith("> ")) {
@@ -197,7 +191,11 @@ export function parseMarkdownToBlocks(markdown: string): ExportBlock[] {
     }
 
     // Tabell (|---|---|)
-    if (trimmed.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1]?.trimEnd() ?? "")) {
+    if (
+      trimmed.includes("|") &&
+      i + 1 < lines.length &&
+      isTableSeparator(lines[i + 1]?.trimEnd() ?? "")
+    ) {
       const headers = parseTableRow(trimmed);
       i += 2; // hopp over header + separator
       const rows: TableCell[][] = [];

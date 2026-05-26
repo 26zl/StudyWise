@@ -14,11 +14,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  DEFAULT_LANGUAGE,
-  LANGUAGE_COOKIE_KEY,
-  translate,
-} from "./core";
+import { DEFAULT_LANGUAGE, LANGUAGE_COOKIE_KEY, translate } from "./core";
 import type { Language, MessageKey, TranslationValues, Translator } from "./types";
 
 interface LanguageContextValue {

@@ -24,7 +24,10 @@ export const CANVAS_INSTITUSJONER_NORGE: readonly CanvasInstitution[] = [
   { navn: "Høgskulen på Vestlandet", url: "https://hvl.instructure.com" },
   { navn: "Høyskolen for ledelse og teologi", url: "https://hlt.instructure.com" },
   { navn: "Kristiania", url: "https://kristiania.instructure.com" },
-  { navn: "Kriminalomsorgens høgskole og utdanningssenter KRUS", url: "https://krus.instructure.com" },
+  {
+    navn: "Kriminalomsorgens høgskole og utdanningssenter KRUS",
+    url: "https://krus.instructure.com",
+  },
   { navn: "Kunsthøgskolen i Oslo", url: "https://khio.instructure.com" },
   { navn: "Lovisenberg diakonale høgskole", url: "https://ldh.instructure.com" },
   { navn: "MF vitenskapelig høyskole", url: "https://mf.instructure.com" },

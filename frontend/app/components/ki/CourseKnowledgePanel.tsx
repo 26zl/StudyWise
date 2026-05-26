@@ -58,22 +58,18 @@ export function CourseKnowledgePanel({ courseId }: Props) {
           title={collapsed ? t("common.actions.show") : t("common.actions.hide")}
           className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-500 hover:text-slate-900 hover:bg-blue-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-blue-900/30 transition-colors"
         >
-          {collapsed ? (
-            <ChevronDown className="w-4 h-4" />
-          ) : (
-            <ChevronUp className="w-4 h-4" />
-          )}
+          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
         </button>
       </div>
 
       {!collapsed && isLoading && (
-        <div className="py-2"><LoadingSpinner /></div>
+        <div className="py-2">
+          <LoadingSpinner />
+        </div>
       )}
 
       {!collapsed && isError && (
-        <p className="text-xs text-red-600 dark:text-red-400">
-          {t("chat.knowledge.error")}
-        </p>
+        <p className="text-xs text-red-600 dark:text-red-400">{t("chat.knowledge.error")}</p>
       )}
 
       {!collapsed && data && (

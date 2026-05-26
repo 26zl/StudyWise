@@ -36,7 +36,7 @@ const ChatHistorySchema = new Schema<ChatHistoryDocument>(
     primaryCourseId: { type: String, default: undefined },
     primaryCourseHint: { type: String, default: undefined },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 ChatHistorySchema.index({ user: 1, createdAt: -1 });

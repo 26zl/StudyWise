@@ -30,11 +30,7 @@ import { KnowledgeBase } from "../../database/models/Kunnskapsbase.js";
 import { KBContentChunk } from "../../database/models/KBContentChunk.js";
 import { ChatFeedback } from "../../database/models/ChatFeedback.js";
 import { User } from "../../database/models/User.js";
-import {
-  requireUserId,
-  sendZodError,
-  sendUnknownError,
-} from "../../utils/apiError.js";
+import { requireUserId, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
 
@@ -176,9 +172,7 @@ router.get("/debug/extraction", async (req, res) => {
     // Finn hvilke (userId, courseId, fileId)-par som har minst én ContentEmbedding-rad.
     const indexed = await ContentEmbedding.aggregate<{
       _id: { userId: string; courseId: string; fileId: number };
-    }>([
-      { $group: { _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" } } },
-    ]);
+    }>([{ $group: { _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" } } }]);
     const indexedSet = new Set(
       indexed.map((row) => `${row._id.userId}:${row._id.courseId}:${row._id.fileId}`),
     );
@@ -242,13 +236,8 @@ router.get("/debug/extraction", async (req, res) => {
         missingFiles.push(f);
       }
     }
-    const ownerIdsRaw = [
-      ...missingFiles.map((f) => f.userId),
-      ...truncated.map((t) => t.userId),
-    ];
-    const ownerIds = Array.from(new Set(ownerIdsRaw)).filter((id) =>
-      Types.ObjectId.isValid(id),
-    );
+    const ownerIdsRaw = [...missingFiles.map((f) => f.userId), ...truncated.map((t) => t.userId)];
+    const ownerIds = Array.from(new Set(ownerIdsRaw)).filter((id) => Types.ObjectId.isValid(id));
     // allow-deleted-users: admin extraction-audit viser eiere av orphan-filer
     // som mangler chunks. Hvis bruker er soft-deleted er det nettopp da
     // admin trenger å identifisere dem for opprydding av foreldreløse data.
@@ -409,11 +398,7 @@ function classifyIntent(question: string | undefined | null): string {
   if (/\b(oppsummer|oppsummering|forklar|utdyp|analyser|hele dokumentet)\b/.test(lower)) {
     return "canvas_full";
   }
-  if (
-    /\b(forelesning|kapittel|leksjon|modul|pensum|fagbegrep|teori|definisjon)\b/.test(
-      lower,
-    )
-  ) {
+  if (/\b(forelesning|kapittel|leksjon|modul|pensum|fagbegrep|teori|definisjon)\b/.test(lower)) {
     return "canvas_full";
   }
   if (
@@ -449,17 +434,11 @@ router.get("/debug/feedback-triage", async (req, res) => {
     // Les kun feltene vi trenger for klassifisering. Ingen .limit() — vi vil
     // ha hele bevart historikk (TTL holder den bundet). Projection + lean
     // holder minnebruken lav også når samlingen vokser.
-    const feedback = await ChatFeedback.find(
-      {},
-      { rating: 1, question: 1, createdAt: 1 },
-    )
+    const feedback = await ChatFeedback.find({}, { rating: 1, question: 1, createdAt: 1 })
       .sort({ createdAt: -1 })
       .lean();
 
-    const groupMap = new Map<
-      string,
-      { downCount: number; upCount: number; lastAt: Date | null }
-    >();
+    const groupMap = new Map<string, { downCount: number; upCount: number; lastAt: Date | null }>();
     let totalDown = 0;
     let totalUp = 0;
 

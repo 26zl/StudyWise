@@ -15,10 +15,10 @@
 
 ## Roller
 
-| Rolle | Tildeles av | Tilgang |
-| ----- | ----------- | ------- |
-| `user` (standard) | Automatisk ved registrering | Egen data, KI-chat, kunnskapsbase, Canvas-integrasjon, egne preferanser |
-| `admin` | Manuelt av bachelor-teamet i Clerk-dashboard (metadata) | Alt over + admin-panel: vedlikehold, audit-logger, brukeradministrasjon, systemmeldinger, `/health/dependencies` |
+| Rolle             | Tildeles av                                             | Tilgang                                                                                                          |
+| ----------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `user` (standard) | Automatisk ved registrering                             | Egen data, KI-chat, kunnskapsbase, Canvas-integrasjon, egne preferanser                                          |
+| `admin`           | Manuelt av bachelor-teamet i Clerk-dashboard (metadata) | Alt over + admin-panel: vedlikehold, audit-logger, brukeradministrasjon, systemmeldinger, `/health/dependencies` |
 
 Rollen lagres som Clerk public metadata og synkes til `User.role` i MongoDB
 ved innlogging. Backend leser kun fra MongoDB, ikke fra klientinput.
@@ -71,25 +71,25 @@ via Clerk når sesjonen er for gammel.
 
 ### Hvem kan se hva
 
-| Data | Vanlig bruker | Admin |
-| ---- | ------------- | ----- |
-| Egen konto, chat, kunnskapsbase | ✓ | ✓ |
-| Andre brukeres data | ✗ | Kun aggregerte metrics, IKKE innhold av chat/kunnskapsbase |
-| Audit-logger | ✗ | ✓ (via admin-panel) |
-| `/health/dependencies` | ✗ | ✓ |
-| Systemmelding-publisering | ✗ | ✓ |
-| Canvas-tokens (klartekst) | ✗ | ✗ — tokens lagres kryptert, ingen menneske ser klartekst etter inngang |
-| `ENCRYPTION_KEY` | ✗ | Kun via Heroku config vars; ikke i kode eller database |
+| Data                            | Vanlig bruker | Admin                                                                  |
+| ------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| Egen konto, chat, kunnskapsbase | ✓             | ✓                                                                      |
+| Andre brukeres data             | ✗             | Kun aggregerte metrics, IKKE innhold av chat/kunnskapsbase             |
+| Audit-logger                    | ✗             | ✓ (via admin-panel)                                                    |
+| `/health/dependencies`          | ✗             | ✓                                                                      |
+| Systemmelding-publisering       | ✗             | ✓                                                                      |
+| Canvas-tokens (klartekst)       | ✗             | ✗ — tokens lagres kryptert, ingen menneske ser klartekst etter inngang |
+| `ENCRYPTION_KEY`                | ✗             | Kun via Heroku config vars; ikke i kode eller database                 |
 
 Selv admin har ikke direkte tilgang til klartekst av andres Canvas-tokens
 eller chat-innhold — kryptering beskytter mot innvendig trussel.
 
 ## Separasjon av miljøer
 
-| Miljø | Clerk-instans | MongoDB | Redis | Pinecone-index | ENCRYPTION_KEY |
-| ----- | ------------- | ------- | ----- | -------------- | -------------- |
-| Development | `pk_test_*` | Lokal / dev-cluster | Lokal / dev | `studywise-dev` | Dev-nøkkel |
-| Production | `pk_live_*` | Prod-cluster | Redis Cloud prod | `studywise-prod` | Prod-nøkkel i Heroku |
+| Miljø       | Clerk-instans | MongoDB             | Redis            | Pinecone-index   | ENCRYPTION_KEY       |
+| ----------- | ------------- | ------------------- | ---------------- | ---------------- | -------------------- |
+| Development | `pk_test_*`   | Lokal / dev-cluster | Lokal / dev      | `studywise-dev`  | Dev-nøkkel           |
+| Production  | `pk_live_*`   | Prod-cluster        | Redis Cloud prod | `studywise-prod` | Prod-nøkkel i Heroku |
 
 Ingen testdata flyter til produksjon (eller motsatt). Deploy-pipeline
 garanterer at env vars lastes fra riktig miljø.

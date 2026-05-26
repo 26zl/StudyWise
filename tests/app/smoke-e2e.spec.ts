@@ -17,7 +17,8 @@ test.describe("App smoke — sidelasting", () => {
     await expect(nav).toBeVisible();
 
     // Sign in/up-knapper synlig for uautentiserte brukere
-    const authButton = page.getByRole("button", { name: /sign in|logg inn/i })
+    const authButton = page
+      .getByRole("button", { name: /sign in|logg inn/i })
       .or(page.getByRole("link", { name: /sign in|logg inn/i }));
     await expect(authButton.first()).toBeVisible({ timeout: 15_000 });
   });
@@ -48,9 +49,13 @@ test.describe("App smoke — autentiseringsvakter", () => {
 
     const url = page.url();
     const erRedirectet = url.includes("/auth/sign-in");
-    const harAuthUI = await page.getByRole("heading", { name: /sign in|logg inn/i }).isVisible()
+    const harAuthUI = await page
+      .getByRole("heading", { name: /sign in|logg inn/i })
+      .isVisible()
       .catch(() => false);
-    const harDashboard = await page.locator("[data-testid='dashboard'], #main-content").isVisible()
+    const harDashboard = await page
+      .locator("[data-testid='dashboard'], #main-content")
+      .isVisible()
       .catch(() => false);
 
     // Enten redirectet til sign-in, viser auth UI, eller (med Clerk) viser dashboard
@@ -63,7 +68,9 @@ test.describe("App smoke — autentiseringsvakter", () => {
 
     const url = page.url();
     const erRedirectet = url.includes("/auth/sign-in");
-    const harAuthUI = await page.getByRole("heading", { name: /sign in|logg inn/i }).isVisible()
+    const harAuthUI = await page
+      .getByRole("heading", { name: /sign in|logg inn/i })
+      .isVisible()
       .catch(() => false);
 
     expect(erRedirectet || harAuthUI).toBeTruthy();

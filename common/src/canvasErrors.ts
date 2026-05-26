@@ -54,18 +54,13 @@ export function requiresReauth(code: CanvasErrorCode): boolean {
  * Sjekk om feil er gjenopprettbar (kan prøves igjen)
  */
 export function isRecoverableError(code: CanvasErrorCode): boolean {
-  return ["rate_limited", "timeout", "server_error", "network_error"].includes(
-    code,
-  );
+  return ["rate_limited", "timeout", "server_error", "network_error"].includes(code);
 }
 
 /**
  * Klassifiser HTTP-status til feilkode
  */
-export function classifyHttpStatus(
-  status: number,
-  errorBody?: string,
-): CanvasErrorCode {
+export function classifyHttpStatus(status: number, errorBody?: string): CanvasErrorCode {
   const lowerBody = errorBody?.toLowerCase() || "";
 
   switch (status) {
@@ -74,10 +69,7 @@ export function classifyHttpStatus(
 
     case 403:
       // Skille mellom "token mangler" (vår feil) og "permission denied" (Canvas)
-      if (
-        lowerBody.includes("unauthorized") ||
-        lowerBody.includes("ikke autorisert")
-      ) {
+      if (lowerBody.includes("unauthorized") || lowerBody.includes("ikke autorisert")) {
         return "permission_denied";
       }
       if (lowerBody.includes("token") && lowerBody.includes("mangler")) {
@@ -108,13 +100,8 @@ export function classifyHttpStatus(
 /**
  * Brukervenlige feilmeldinger basert på feilkode
  */
-export function getErrorMessage(
-  code: CanvasErrorCode,
-  resource?: string,
-): string {
-  const resourceName = resource
-    ? getResourceDisplayName(resource)
-    : "ressursen";
+export function getErrorMessage(code: CanvasErrorCode, resource?: string): string {
+  const resourceName = resource ? getResourceDisplayName(resource) : "ressursen";
 
   switch (code) {
     case "token_invalid":

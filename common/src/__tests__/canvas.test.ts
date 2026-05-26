@@ -92,27 +92,23 @@ describe("CanvasAssignmentSchema", () => {
 // isCanvasAssignmentSubmitted
 describe("isCanvasAssignmentSubmitted", () => {
   it("returnerer true for 'submitted'", () => {
-    expect(
-      isCanvasAssignmentSubmitted({ submission: { workflow_state: "submitted" } }),
-    ).toBe(true);
+    expect(isCanvasAssignmentSubmitted({ submission: { workflow_state: "submitted" } })).toBe(true);
   });
 
   it("returnerer true for 'graded'", () => {
-    expect(
-      isCanvasAssignmentSubmitted({ submission: { workflow_state: "graded" } }),
-    ).toBe(true);
+    expect(isCanvasAssignmentSubmitted({ submission: { workflow_state: "graded" } })).toBe(true);
   });
 
   it("returnerer true for 'pending_review'", () => {
-    expect(
-      isCanvasAssignmentSubmitted({ submission: { workflow_state: "pending_review" } }),
-    ).toBe(true);
+    expect(isCanvasAssignmentSubmitted({ submission: { workflow_state: "pending_review" } })).toBe(
+      true,
+    );
   });
 
   it("returnerer false for 'unsubmitted'", () => {
-    expect(
-      isCanvasAssignmentSubmitted({ submission: { workflow_state: "unsubmitted" } }),
-    ).toBe(false);
+    expect(isCanvasAssignmentSubmitted({ submission: { workflow_state: "unsubmitted" } })).toBe(
+      false,
+    );
   });
 
   it("returnerer true når submitted_at er satt (uansett workflow_state)", () => {
@@ -135,9 +131,7 @@ describe("isCanvasAssignmentSubmitted", () => {
   });
 
   it("returnerer false for null workflow_state uten submitted_at", () => {
-    expect(
-      isCanvasAssignmentSubmitted({ submission: { workflow_state: null } }),
-    ).toBe(false);
+    expect(isCanvasAssignmentSubmitted({ submission: { workflow_state: null } })).toBe(false);
   });
 });
 
@@ -219,8 +213,6 @@ describe("CanvasFileSchema", () => {
   });
 
   it("avviser manglende påkrevde felter", () => {
-    expect(
-      CanvasFileSchema.safeParse({ id: 1, display_name: "test.pdf" }).success,
-    ).toBe(false);
+    expect(CanvasFileSchema.safeParse({ id: 1, display_name: "test.pdf" }).success).toBe(false);
   });
 });

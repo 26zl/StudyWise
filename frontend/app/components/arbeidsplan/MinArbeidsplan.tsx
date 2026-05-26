@@ -5,24 +5,24 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { 
-  Calendar, 
-  Check, 
-  Clock, 
-  Trash2, 
+import {
+  Calendar,
+  Check,
+  Clock,
+  Trash2,
   TrendingUp,
   ChevronDown,
   ChevronUp,
   Sparkles,
   CheckCircle2,
-  Info
+  Info,
 } from "lucide-react";
 import {
   useCurrentArbeidsplan,
   useToggleBlockCompletion,
   useDeleteArbeidsplan,
   useProgressStats,
-  type StudyBlock
+  type StudyBlock,
 } from "@/app/arbeidsplan/arbeidsplan-api";
 import { PRIORITY_COLORS, DAYS_ORDER, PRIORITY_LABELS } from "@/app/arbeidsplan/arbeidsplan-api";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
@@ -32,7 +32,18 @@ import { useLanguage } from "@/app/i18n";
 import { formaterDatoMedTid } from "@/app/lib/dato";
 
 /** Forklaring for hvorfor en oppgave har en gitt prioritet */
-function getPriorityExplanation(priority: string, task: string, t: (key: "minArbeidsplan.priorityHighDeadline" | "minArbeidsplan.priorityHigh" | "minArbeidsplan.priorityMedium" | "minArbeidsplan.priorityLowRepetition" | "minArbeidsplan.priorityLow") => string): string {
+function getPriorityExplanation(
+  priority: string,
+  task: string,
+  t: (
+    key:
+      | "minArbeidsplan.priorityHighDeadline"
+      | "minArbeidsplan.priorityHigh"
+      | "minArbeidsplan.priorityMedium"
+      | "minArbeidsplan.priorityLowRepetition"
+      | "minArbeidsplan.priorityLow",
+  ) => string,
+): string {
   const lower = task.toLowerCase();
   const harFrist = /frist|deadline|innlevering|eksamen/.test(lower);
   const harRepetisjon = /repeter|gjennomgå|les igjen|oppsummer/.test(lower);
@@ -65,7 +76,7 @@ export function MinArbeidsplan() {
 
   const handleToggleComplete = (blockIndex: number, currentStatus: boolean) => {
     if (!plan?._id) return;
-    
+
     toggleMutation.mutate({
       planId: plan._id,
       blockIndex,
@@ -143,13 +154,16 @@ export function MinArbeidsplan() {
   }
 
   // Grupper blokker etter dag
-  const blocksByDay = plan.blocks.reduce((acc, block, index) => {
-    if (!acc[block.day]) {
-      acc[block.day] = [];
-    }
-    acc[block.day].push({ ...block, index });
-    return acc;
-  }, {} as Record<string, (StudyBlock & { index: number })[]>);
+  const blocksByDay = plan.blocks.reduce(
+    (acc, block, index) => {
+      if (!acc[block.day]) {
+        acc[block.day] = [];
+      }
+      acc[block.day].push({ ...block, index });
+      return acc;
+    },
+    {} as Record<string, (StudyBlock & { index: number })[]>,
+  );
 
   // Sorter dager
   const sortedDays = Object.keys(blocksByDay).sort((a, b) => {
@@ -179,7 +193,9 @@ export function MinArbeidsplan() {
   };
 
   return (
-    <div className={`space-y-4 transition-opacity ${pendingDelete ? "opacity-50 pointer-events-none" : ""}`}>
+    <div
+      className={`space-y-4 transition-opacity ${pendingDelete ? "opacity-50 pointer-events-none" : ""}`}
+    >
       {/* Header med progress */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-linear-to-br from-blue-50 to-slate-50 dark:from-blue-950/20 dark:to-slate-900/20 p-6">
         <div className="flex items-start justify-between mb-4">
@@ -236,20 +252,28 @@ export function MinArbeidsplan() {
                 </span>
               </div>
               <span className="text-slate-600 dark:text-slate-400">
-                {t("minArbeidsplan.tasksCount", { completed: stats.completedBlocks, total: stats.totalBlocks })}
+                {t("minArbeidsplan.tasksCount", {
+                  completed: stats.completedBlocks,
+                  total: stats.totalBlocks,
+                })}
               </span>
             </div>
-            
+
             <div className="relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
               <div
                 className="absolute inset-y-0 left-0 bg-linear-to-r from-blue-500 to-blue-400 transition-all duration-500 rounded-full"
                 style={{ width: `${stats.percentage}%` }}
               />
             </div>
-            
+
             <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
               <span>{t("minArbeidsplan.percentComplete", { percent: stats.percentage })}</span>
-              <span>{t("minArbeidsplan.hoursCount", { completed: stats.completedHours, total: stats.totalHours })}</span>
+              <span>
+                {t("minArbeidsplan.hoursCount", {
+                  completed: stats.completedHours,
+                  total: stats.totalHours,
+                })}
+              </span>
             </div>
           </div>
         )}
@@ -259,7 +283,7 @@ export function MinArbeidsplan() {
       <div className="space-y-3">
         {sortedDays.map((day) => {
           const dayBlocks = blocksByDay[day];
-          const completed = dayBlocks.filter(b => b.completed).length;
+          const completed = dayBlocks.filter((b) => b.completed).length;
           const total = dayBlocks.length;
           const isExpanded = expandedDays.has(day);
 
@@ -277,15 +301,13 @@ export function MinArbeidsplan() {
                 <div className="flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   <div className="text-left">
-                    <h3 className="font-semibold text-slate-900 dark:text-white">
-                      {day}
-                    </h3>
+                    <h3 className="font-semibold text-slate-900 dark:text-white">{day}</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
                       {t("minArbeidsplan.completedCount", { completed, total })}
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   {completed === total && total > 0 && (
                     <CheckCircle2 className="w-5 h-5 text-green-500" />
@@ -305,8 +327,8 @@ export function MinArbeidsplan() {
                     <div
                       key={block.index}
                       className={`p-4 transition-all ${
-                        block.completed 
-                          ? "opacity-60 bg-slate-50 dark:bg-slate-900/30" 
+                        block.completed
+                          ? "opacity-60 bg-slate-50 dark:bg-slate-900/30"
                           : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
                       }`}
                     >
@@ -331,20 +353,24 @@ export function MinArbeidsplan() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex-1 min-w-0">
-                              <h4 className={`font-medium text-sm mb-1 ${
-                                block.completed 
-                                  ? "line-through text-slate-500 dark:text-slate-500"
-                                  : "text-slate-900 dark:text-white"
-                              }`}>
+                              <h4
+                                className={`font-medium text-sm mb-1 ${
+                                  block.completed
+                                    ? "line-through text-slate-500 dark:text-slate-500"
+                                    : "text-slate-900 dark:text-white"
+                                }`}
+                              >
                                 {block.task}
                               </h4>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {block.courseName}
                               </p>
                             </div>
-                            
+
                             <div className="relative group/prio flex items-center gap-1">
-                              <span className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${PRIORITY_COLORS[block.priority]}`}>
+                              <span
+                                className={`px-2 py-1 rounded text-xs font-medium whitespace-nowrap ${PRIORITY_COLORS[block.priority]}`}
+                              >
                                 {PRIORITY_LABELS[block.priority]}
                               </span>
                               <Info className="w-3.5 h-3.5 text-slate-400 cursor-help" />
@@ -365,7 +391,8 @@ export function MinArbeidsplan() {
                             </div>
                             {block.completedAt && (
                               <div className="text-green-600 dark:text-green-400">
-                                ✓ {t("arbeidsplan.completedAt", {
+                                ✓{" "}
+                                {t("arbeidsplan.completedAt", {
                                   date: formaterDatoMedTid(block.completedAt, language),
                                 })}
                               </div>
@@ -383,4 +410,4 @@ export function MinArbeidsplan() {
       </div>
     </div>
   );
-} 
+}

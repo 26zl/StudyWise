@@ -57,10 +57,7 @@ export default [
       "no-useless-catch": "warn",
       // Fange promises som ignoreres (mangler await eller .catch). Backend er
       // async-tungt (DB/Redis/Clerk/AI) — en floating promise kan skjule feil.
-      "@typescript-eslint/no-floating-promises": [
-        "error",
-        { ignoreVoid: true, ignoreIIFE: true },
-      ],
+      "@typescript-eslint/no-floating-promises": ["error", { ignoreVoid: true, ignoreIIFE: true }],
     },
   },
   {

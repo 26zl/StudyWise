@@ -1,6 +1,6 @@
 /*
-* Logger middleware med Pino
-*/
+ * Logger middleware med Pino
+ */
 
 import pino from "pino";
 import { logBuffer, pinoLevelToString } from "./logBuffer.js";
@@ -50,137 +50,137 @@ function shallowSanitize(obj: Record<string, unknown>): Record<string, unknown> 
 // Sjekk om pino-pretty er installert (mangler i prod-install / Docker med --prod)
 let hasPinoPretty = false;
 if (isDev && !isCI) {
-    try {
-        await import("pino-pretty");
-        hasPinoPretty = true;
-    } catch {
-        // pino-pretty ikke tilgjengelig — bruker standard JSON-logging
-    }
+  try {
+    await import("pino-pretty");
+    hasPinoPretty = true;
+  } catch {
+    // pino-pretty ikke tilgjengelig — bruker standard JSON-logging
+  }
 }
 
 // Påkrevd av validateEnv ved serverstart; ingen fallback (én sannhetskilde).
 export const logger = pino({
-    level: process.env.LOG_LEVEL || "info",
-    // Tap inn i logBuffer ved hver logg-call så admin-fanen "Logger" kan vise live-tail.
-    // Vi sanitiserer lett her — den ekte redaction skjer i pino sin redact-pipeline
-    // før output går til stdout/Datadog.
-    hooks: {
-      logMethod(inputArgs, method, level) {
-        try {
-          let msg = "";
-          let context: Record<string, unknown> | undefined;
-          if (typeof inputArgs[0] === "string") {
-            msg = inputArgs[0];
-          } else if (inputArgs[0] && typeof inputArgs[0] === "object") {
-            context = shallowSanitize(inputArgs[0] as Record<string, unknown>);
-            if (typeof inputArgs[1] === "string") {
-              msg = inputArgs[1];
-            }
+  level: process.env.LOG_LEVEL || "info",
+  // Tap inn i logBuffer ved hver logg-call så admin-fanen "Logger" kan vise live-tail.
+  // Vi sanitiserer lett her — den ekte redaction skjer i pino sin redact-pipeline
+  // før output går til stdout/Datadog.
+  hooks: {
+    logMethod(inputArgs, method, level) {
+      try {
+        let msg = "";
+        let context: Record<string, unknown> | undefined;
+        if (typeof inputArgs[0] === "string") {
+          msg = inputArgs[0];
+        } else if (inputArgs[0] && typeof inputArgs[0] === "object") {
+          context = shallowSanitize(inputArgs[0] as Record<string, unknown>);
+          if (typeof inputArgs[1] === "string") {
+            msg = inputArgs[1];
           }
-          logBuffer.push({
-            source: "backend",
-            level: pinoLevelToString(level),
-            msg: msg || "(no message)",
-            context: context && Object.keys(context).length > 0 ? context : undefined,
-          });
-        } catch {
-          // Buffer-feil må aldri stoppe logging
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return method.apply(this, inputArgs as any);
+        logBuffer.push({
+          source: "backend",
+          level: pinoLevelToString(level),
+          msg: msg || "(no message)",
+          context: context && Object.keys(context).length > 0 ? context : undefined,
+        });
+      } catch {
+        // Buffer-feil må aldri stoppe logging
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return method.apply(this, inputArgs as any);
+    },
+  },
+  // dd-trace injiserer dd.trace_id, dd.span_id automatisk via logInjection: true
+  // mixin legger til service/env for Datadog log-korrelasjon
+  ...(ddEnabled && {
+    mixin: () => ({
+      dd: {
+        service: process.env.DD_SERVICE ?? "studywise-backend",
+        env: process.env.DD_ENV ?? process.env.NODE_ENV ?? "development",
+        version: process.env.DD_VERSION ?? "0.0.0",
       },
-    },
-    // dd-trace injiserer dd.trace_id, dd.span_id automatisk via logInjection: true
-    // mixin legger til service/env for Datadog log-korrelasjon
-    ...(ddEnabled && {
-        mixin: () => ({
-            dd: {
-                service: process.env.DD_SERVICE ?? "studywise-backend",
-                env: process.env.DD_ENV ?? process.env.NODE_ENV ?? "development",
-                version: process.env.DD_VERSION ?? "0.0.0",
-            },
-        }),
     }),
-    redact: {
-        paths: [
-            "req.headers.authorization",
-            "req.headers.cookie",
-            "req.headers['set-cookie']",
-            "req.headers['x-api-key']",
-            "req.headers['x-clerk-request-data']",
-            "req.headers['x-clerk-auth-signature']",
-            "req.headers['x-clerk-auth-status']",
-            "req.headers['x-clerk-auth-message']",
-            "req.headers['x-clerk-auth-reason']",
-            "req.headers['x-clerk-clerk-url']",
-            "req.headers['x-vercel-proxy-signature']",
-            "req.headers['x-studywise-csrf']",
-            "req.headers['x-csrf-token']",
-            "req.headers['csrf-token']",
-            "req.body.password",
-            "req.body.token",
-            "req.body.canvasToken",
-            "req.body.canvasApiToken",
-            "req.body.email",
-            "req.body.firstName",
-            "req.body.lastName",
-            "req.body.username",
-            "req.query.token",
-            "req.query.access_token",
-            "req.canvasToken",
-            "req.user",
-            "res.headers['set-cookie']",
-            "userId",
-            "email",
-            "username",
-            "clerkUsername",
-            "err.email",
-            "err.userId",
-            "err.username",
-            // Nested token-redaction: fanger tokens i vilkårlig nestet error/context-objekter.
-            // Pinos wildcard går kun ett nivå (*) og to (*.*); vi dekker flere nivåer
-            // eksplisitt, inkludert Canvas-token som er vanligst i nested error-context.
-            "*.token",
-            "*.canvasToken",
-            "*.canvasApiToken",
-            "*.authorization",
-            "*.cookie",
-            "*.secret",
-            "*.*.token",
-            "*.*.canvasToken",
-            "*.*.canvasApiToken",
-            "*.*.authorization",
-            // URL-/filnavn-redaction: signerte lenker, query-tokens og PII-aktige
-            // filnavn skal aldri ende opp i logger eller Datadog. Vi maskerer hele
-            // verdien — bruker logger.info({ urlSafe: stripQuery(url) }, ...) når
-            // domenet er trygt å logge.
-            "url",
-            "urlCandidate",
-            "sourceUrl",
-            "docUrl",
-            "pageUrl",
-            "filnavn",
-            "filename",
-            "fileName",
-            "entryName",
-            "navn",
-            "name",
-            "fullName",
-            "phone",
-            // Brukertekst fra chat/RAG-søk — backstop for alle logger.info/debug-kall.
-            "queryPreview",
-            "*.queryPreview",
-        ],
-        remove: true,
-    },
-    transport: hasPinoPretty
-        ? {
-            target: "pino-pretty",
-            options: {
-                colorize: true,
-                translateTime: "HH:MM:ss Z",
-                ignore: "pid,hostname",
-            },
-        }
-        : undefined,
+  }),
+  redact: {
+    paths: [
+      "req.headers.authorization",
+      "req.headers.cookie",
+      "req.headers['set-cookie']",
+      "req.headers['x-api-key']",
+      "req.headers['x-clerk-request-data']",
+      "req.headers['x-clerk-auth-signature']",
+      "req.headers['x-clerk-auth-status']",
+      "req.headers['x-clerk-auth-message']",
+      "req.headers['x-clerk-auth-reason']",
+      "req.headers['x-clerk-clerk-url']",
+      "req.headers['x-vercel-proxy-signature']",
+      "req.headers['x-studywise-csrf']",
+      "req.headers['x-csrf-token']",
+      "req.headers['csrf-token']",
+      "req.body.password",
+      "req.body.token",
+      "req.body.canvasToken",
+      "req.body.canvasApiToken",
+      "req.body.email",
+      "req.body.firstName",
+      "req.body.lastName",
+      "req.body.username",
+      "req.query.token",
+      "req.query.access_token",
+      "req.canvasToken",
+      "req.user",
+      "res.headers['set-cookie']",
+      "userId",
+      "email",
+      "username",
+      "clerkUsername",
+      "err.email",
+      "err.userId",
+      "err.username",
+      // Nested token-redaction: fanger tokens i vilkårlig nestet error/context-objekter.
+      // Pinos wildcard går kun ett nivå (*) og to (*.*); vi dekker flere nivåer
+      // eksplisitt, inkludert Canvas-token som er vanligst i nested error-context.
+      "*.token",
+      "*.canvasToken",
+      "*.canvasApiToken",
+      "*.authorization",
+      "*.cookie",
+      "*.secret",
+      "*.*.token",
+      "*.*.canvasToken",
+      "*.*.canvasApiToken",
+      "*.*.authorization",
+      // URL-/filnavn-redaction: signerte lenker, query-tokens og PII-aktige
+      // filnavn skal aldri ende opp i logger eller Datadog. Vi maskerer hele
+      // verdien — bruker logger.info({ urlSafe: stripQuery(url) }, ...) når
+      // domenet er trygt å logge.
+      "url",
+      "urlCandidate",
+      "sourceUrl",
+      "docUrl",
+      "pageUrl",
+      "filnavn",
+      "filename",
+      "fileName",
+      "entryName",
+      "navn",
+      "name",
+      "fullName",
+      "phone",
+      // Brukertekst fra chat/RAG-søk — backstop for alle logger.info/debug-kall.
+      "queryPreview",
+      "*.queryPreview",
+    ],
+    remove: true,
+  },
+  transport: hasPinoPretty
+    ? {
+        target: "pino-pretty",
+        options: {
+          colorize: true,
+          translateTime: "HH:MM:ss Z",
+          ignore: "pid,hostname",
+        },
+      }
+    : undefined,
 });

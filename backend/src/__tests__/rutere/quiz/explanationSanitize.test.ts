@@ -81,10 +81,7 @@ describe("resolvePositionReferencesInExplanation", () => {
 
   it("lar tekst uten posisjonsreferanser stå uendret", () => {
     const original = "Dette skyldes at kvantitative studier gir målbare resultater.";
-    const { text, detected, changed } = resolvePositionReferencesInExplanation(
-      original,
-      OPTIONS,
-    );
+    const { text, detected, changed } = resolvePositionReferencesInExplanation(original, OPTIONS);
     expect(detected).toBe(false);
     expect(changed).toBe(false);
     expect(text).toBe(original);

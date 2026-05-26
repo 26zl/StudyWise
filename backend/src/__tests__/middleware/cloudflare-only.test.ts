@@ -26,11 +26,7 @@ vi.mock("../../utils/apiError.js", () => ({
 
 const { requireCloudflare, _internal } = await import("../../middleware/cloudflare-only.js");
 
-function makeReq(opts: {
-  path?: string;
-  cfHeader?: string;
-  xff?: string;
-}): Request {
+function makeReq(opts: { path?: string; cfHeader?: string; xff?: string }): Request {
   const headers: Record<string, string | undefined> = {
     "cf-connecting-ip": opts.cfHeader,
     "x-forwarded-for": opts.xff,
@@ -159,7 +155,9 @@ describe("isCloudflareIp helper", () => {
 
 describe("getPeerIp helper", () => {
   it("returnerer siste hop fra X-Forwarded-For", () => {
-    const req = { get: (n: string) => (n === "x-forwarded-for" ? "1.2.3.4, 5.6.7.8, 104.16.0.1" : undefined) } as unknown as Request;
+    const req = {
+      get: (n: string) => (n === "x-forwarded-for" ? "1.2.3.4, 5.6.7.8, 104.16.0.1" : undefined),
+    } as unknown as Request;
     expect(_internal.getPeerIp(req)).toBe("104.16.0.1");
   });
 
@@ -169,7 +167,9 @@ describe("getPeerIp helper", () => {
   });
 
   it("trimmer whitespace rundt hops", () => {
-    const req = { get: (n: string) => (n === "x-forwarded-for" ? "  1.2.3.4 ,  104.16.0.1  " : undefined) } as unknown as Request;
+    const req = {
+      get: (n: string) => (n === "x-forwarded-for" ? "  1.2.3.4 ,  104.16.0.1  " : undefined),
+    } as unknown as Request;
     expect(_internal.getPeerIp(req)).toBe("104.16.0.1");
   });
 });

@@ -8,12 +8,7 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Navigasjon — sidelasting", () => {
   test("alle offentlige sider returnerer 200", async ({ page }) => {
-    const offentligeSider = [
-      "/",
-      "/auth/sign-in",
-      "/auth/sign-up",
-      "/personvern",
-    ];
+    const offentligeSider = ["/", "/auth/sign-in", "/auth/sign-up", "/personvern"];
 
     for (const sti of offentligeSider) {
       const res = await page.goto(sti);

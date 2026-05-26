@@ -15,11 +15,7 @@
 import { logger } from "../utils/logger.js";
 import { vectorSearch, type VectorSearchResult } from "./embedding.service.js";
 import { bm25Search, type BM25Result } from "./bm25.service.js";
-import {
-  cohereRerank,
-  isCohereConfigured,
-  type RerankDocument,
-} from "./cohere-rerank.service.js";
+import { cohereRerank, isCohereConfigured, type RerankDocument } from "./cohere-rerank.service.js";
 
 // Konfigurasjon
 /** RRF-konstant (typisk 60) — demper rankeringsforskjeller */
@@ -83,8 +79,10 @@ function splitQueryIntoConcepts(query: string): string[] | null {
   const parts = cleaned.split(splitPattern).filter((part) => {
     const cleanPart = part.trim();
     // Filtrer bort korte ord og stoppord
-    return cleanPart.length >= MIN_CONCEPT_LENGTH &&
-           !["forskjellen", "mellom", "begrepene", "konseptene", "dette", "disse"].includes(cleanPart);
+    return (
+      cleanPart.length >= MIN_CONCEPT_LENGTH &&
+      !["forskjellen", "mellom", "begrepene", "konseptene", "dette", "disse"].includes(cleanPart)
+    );
   });
 
   // Trenger minst 2 begreper for å splitte
@@ -280,7 +278,11 @@ export async function hybridSearch(
 ): Promise<HybridSearchResponse> {
   const trimmedQuery = query?.trim();
   if (!trimmedQuery) {
-    return { results: [], degraded: false, sources: { vector: false, bm25: false, reranked: false } };
+    return {
+      results: [],
+      degraded: false,
+      sources: { vector: false, bm25: false, reranked: false },
+    };
   }
 
   // Adaptiv topN basert på query-kompleksitet
@@ -370,9 +372,7 @@ export async function hybridSearch(
   if (!hasVector && !hasBm25) {
     // Skill mellom "Pinecone nede" og "ingen data matchet spørsmålet" —
     // begge gir tom hybrid, men årsaken er vesentlig for drift.
-    const reason = anyDegraded
-      ? "pinecone_degraded_and_no_bm25_match"
-      : "no_chunks_matched_query";
+    const reason = anyDegraded ? "pinecone_degraded_and_no_bm25_match" : "no_chunks_matched_query";
     logger.info(
       { userId, degraded: anyDegraded, isMultiConcept, reason, queryLen: trimmedQuery.length },
       "Hybrid søk: ingen resultater fra verken vektor- eller BM25-søk",

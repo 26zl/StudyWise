@@ -17,12 +17,7 @@ import {
   AsyncJobStatusSchema,
 } from "common/ki";
 import { logger } from "../../utils/logger.js";
-import {
-  apiError,
-  sendZodError,
-  sendUnknownError,
-  requireUserId,
-} from "../../utils/apiError.js";
+import { apiError, sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import { rateLimitKi } from "../../middleware/rate-limit.js";
 import { DEFAULT_MODEL } from "../ki/aiModels.js";
 import { chatCompletion, isClientAvailable } from "../ki/aiClient.js";
@@ -33,10 +28,7 @@ import {
   AI_COMPLETION_PUSH_MIN_DURATION_MS,
   sendAICompletionWebPush,
 } from "../../services/webPush.service.js";
-import {
-  createCourseTargetedQuery,
-  extractJsonArray,
-} from "../ki/studyContentUtils.js";
+import { createCourseTargetedQuery, extractJsonArray } from "../ki/studyContentUtils.js";
 import { getCache, setCache } from "../../cache/redis.js";
 
 /** Maks ventetid på Canvas-sync før flashcards fortsetter med tilgjengelig data */
@@ -129,13 +121,16 @@ async function processFlashcardJob(
           fileCount: fileNames.length,
           contextSource: contextResult.source,
           syncWaited: !!contextResult.syncWaited,
-          reason: contextResult.syncWaited ? "sync_just_triggered_no_chunks_yet" : "no_chunks_for_selection",
+          reason: contextResult.syncWaited
+            ? "sync_just_triggered_no_chunks_yet"
+            : "no_chunks_for_selection",
         },
         "Flashcards-generering avbrutt: ingen Canvas-data for valgte moduler/filer",
       );
       await setJobState(jobId, userId, {
         status: "failed",
-        error: "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.",
+        error:
+          "Ingen kursinnhold funnet for valgte moduler/filer. Prøv å åpne KI-chatten først slik at Canvas-data synkroniseres.",
       });
       return;
     }
@@ -156,10 +151,7 @@ Generer nøyaktig ${cardCount} flashcards som JSON-array.`;
     // Skalér max_tokens med cardCount — se quiz.ts for samme mønster.
     // Hvert flashcard ≈ 150-250 tokens (JSON + front + back). 4096 hardkodet
     // kuttet JSON for 50 kort.
-    const flashcardsMaxTokens = Math.min(
-      16000,
-      Math.max(4096, 600 + cardCount * 250),
-    );
+    const flashcardsMaxTokens = Math.min(16000, Math.max(4096, 600 + cardCount * 250));
     const result = await chatCompletion({
       model: DEFAULT_MODEL,
       messages: [

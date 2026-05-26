@@ -183,15 +183,15 @@ export const setCache = async (key: string, value: string, ttlSeconds: number = 
     }
     // Redis maks value størrelse er 512MB, men vi advarer ved 1MB lagret.
     if (storedSize > 1024 * 1024) {
-      logger.warn({ key, storedSize, originalSize, compressed }, "Redis setCache: stor verdi (> 1MB)");
+      logger.warn(
+        { key, storedSize, originalSize, compressed },
+        "Redis setCache: stor verdi (> 1MB)",
+      );
     }
     await client.set(keyToUse, payload, {
       EX: ttlSeconds,
     });
-    logger.debug(
-      { key, ttlSeconds, originalSize, storedSize, compressed },
-      "Redis cache SET",
-    );
+    logger.debug({ key, ttlSeconds, originalSize, storedSize, compressed }, "Redis cache SET");
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
     const likelyFull = /OOM|maxmemory|command not allowed when used memory/i.test(msg);

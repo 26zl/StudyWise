@@ -1,5 +1,12 @@
 export { LanguageProvider, useLanguage } from "./LanguageProvider";
-export type { Language, MessageKey, Messages, PartialMessages, TranslationValues, Translator } from "./types";
+export type {
+  Language,
+  MessageKey,
+  Messages,
+  PartialMessages,
+  TranslationValues,
+  Translator,
+} from "./types";
 export {
   DEFAULT_LANGUAGE,
   getPreferredLanguageFromAcceptLanguage,

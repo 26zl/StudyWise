@@ -17,25 +17,25 @@
 
 ## Retention-oversikt
 
-| Datatype | Formål | Lagringssted | Retention | Sletting |
-| -------- | ------ | ------------ | --------- | -------- |
-| Konto (e-post, navn, brukernavn) | Identifisering | Clerk + MongoDB | Inntil kontosletting | Ved brukerens initiativ |
-| Canvas API-token | Canvas-integrasjon | MongoDB (AES-256-GCM) | Inntil bruker fjerner eller sletter konto | Via Innstillinger eller kontosletting |
-| Samtalehistorikk (chat) | Kjernefunksjon | MongoDB (AES-256-GCM blob per samtale) | Inntil bruker sletter eller konto slettes | Per samtale eller alt |
-| Kunnskapsbase (tekst + embeddings) | RAG-kontekst | MongoDB + Pinecone | Inntil bruker sletter basen eller kontoen | Kaskade-sletting via BullMQ |
-| Canvas-cache | Ytelse | Redis | 2 timer TTL (sync-struktur), 5–30 min (misc) | Automatisk via Redis TTL |
-| Rate-limit-tellere | Misbruksbeskyttelse | Redis | 1 min – 1 time | Automatisk via Redis TTL |
-| Brukerpreferanser (UI, varsler, cookieConsent) | Personalisering | MongoDB | Inntil kontosletting | Ved kontosletting |
-| Audit-logger (IP, UA, handling) | Sikkerhet, etterlevelse | MongoDB (TTL-index) | 24 måneder | Automatisk via TTL + anonymisert ved kontosletting |
-| Chat-tilbakemelding (tommel opp/ned) | Kvalitetsforbedring | MongoDB | Inntil kontosletting | Ved kontosletting |
-| Delte samtaler (shared chats) | Deling med utløp | MongoDB (TTL) | 30 dager fra opprettelse | Automatisk via TTL |
-| Web-push-abonnementer | Varsler | MongoDB | Inntil bruker deaktiverer eller sletter konto | Per enhet eller kontosletting |
-| Kontaktskjema-meldinger | Brukerstøtte | MongoDB + Resend-levering | Opptil 365 dager eller til saken er behandlet | Automatisk eller manuell |
-| Clerk-sletting-køoppføringer (tombstones) | OAuth-konflikthåndtering | MongoDB | 90 dager | Automatisk via TTL |
-| Sesjonstokens | Innlogging | Clerk | Per Clerk-konfigurasjon | Logout/utløp |
-| Systemmelding-cache | Ytelse | Redis | 30 sekunder TTL | Automatisk |
-| Public status-cache | Ytelse | Redis | 30 sekunder TTL | Automatisk |
-| Kryptert token-cache (per sesjon) | Ytelse | In-memory | Per sesjon / til logout | Ved logout eller Clerk-sesjonsutløp |
+| Datatype                                       | Formål                   | Lagringssted                           | Retention                                     | Sletting                                           |
+| ---------------------------------------------- | ------------------------ | -------------------------------------- | --------------------------------------------- | -------------------------------------------------- |
+| Konto (e-post, navn, brukernavn)               | Identifisering           | Clerk + MongoDB                        | Inntil kontosletting                          | Ved brukerens initiativ                            |
+| Canvas API-token                               | Canvas-integrasjon       | MongoDB (AES-256-GCM)                  | Inntil bruker fjerner eller sletter konto     | Via Innstillinger eller kontosletting              |
+| Samtalehistorikk (chat)                        | Kjernefunksjon           | MongoDB (AES-256-GCM blob per samtale) | Inntil bruker sletter eller konto slettes     | Per samtale eller alt                              |
+| Kunnskapsbase (tekst + embeddings)             | RAG-kontekst             | MongoDB + Pinecone                     | Inntil bruker sletter basen eller kontoen     | Kaskade-sletting via BullMQ                        |
+| Canvas-cache                                   | Ytelse                   | Redis                                  | 2 timer TTL (sync-struktur), 5–30 min (misc)  | Automatisk via Redis TTL                           |
+| Rate-limit-tellere                             | Misbruksbeskyttelse      | Redis                                  | 1 min – 1 time                                | Automatisk via Redis TTL                           |
+| Brukerpreferanser (UI, varsler, cookieConsent) | Personalisering          | MongoDB                                | Inntil kontosletting                          | Ved kontosletting                                  |
+| Audit-logger (IP, UA, handling)                | Sikkerhet, etterlevelse  | MongoDB (TTL-index)                    | 24 måneder                                    | Automatisk via TTL + anonymisert ved kontosletting |
+| Chat-tilbakemelding (tommel opp/ned)           | Kvalitetsforbedring      | MongoDB                                | Inntil kontosletting                          | Ved kontosletting                                  |
+| Delte samtaler (shared chats)                  | Deling med utløp         | MongoDB (TTL)                          | 30 dager fra opprettelse                      | Automatisk via TTL                                 |
+| Web-push-abonnementer                          | Varsler                  | MongoDB                                | Inntil bruker deaktiverer eller sletter konto | Per enhet eller kontosletting                      |
+| Kontaktskjema-meldinger                        | Brukerstøtte             | MongoDB + Resend-levering              | Opptil 365 dager eller til saken er behandlet | Automatisk eller manuell                           |
+| Clerk-sletting-køoppføringer (tombstones)      | OAuth-konflikthåndtering | MongoDB                                | 90 dager                                      | Automatisk via TTL                                 |
+| Sesjonstokens                                  | Innlogging               | Clerk                                  | Per Clerk-konfigurasjon                       | Logout/utløp                                       |
+| Systemmelding-cache                            | Ytelse                   | Redis                                  | 30 sekunder TTL                               | Automatisk                                         |
+| Public status-cache                            | Ytelse                   | Redis                                  | 30 sekunder TTL                               | Automatisk                                         |
+| Kryptert token-cache (per sesjon)              | Ytelse                   | In-memory                              | Per sesjon / til logout                       | Ved logout eller Clerk-sesjonsutløp                |
 
 ## Kontosletting (GDPR Art. 17)
 

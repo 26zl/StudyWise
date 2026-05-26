@@ -243,7 +243,9 @@ describe("CircuitBreaker", () => {
 
     // Feil med upstream Retry-After=600s (10 min) — skal honoreres
     await expect(
-      cb.execute(() => Promise.reject(Object.assign(new Error("vedlikehold"), { retryAfter: 600 }))),
+      cb.execute(() =>
+        Promise.reject(Object.assign(new Error("vedlikehold"), { retryAfter: 600 })),
+      ),
     ).rejects.toThrow();
     expect(cb.getState()).toBe("OPEN");
 

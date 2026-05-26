@@ -28,7 +28,11 @@ const LogQuerySchema = z.object({
   source: LogSourceSchema.optional(),
   minLevel: LogLevelSchema.optional(),
   // Redis Stream-ID-format: `<ms>-<seq>`
-  sinceId: z.string().regex(/^\d+-\d+$/).max(40).optional(),
+  sinceId: z
+    .string()
+    .regex(/^\d+-\d+$/)
+    .max(40)
+    .optional(),
 });
 
 const FrontendLogPayloadSchema = z.object({
@@ -37,10 +41,7 @@ const FrontendLogPayloadSchema = z.object({
   context: z
     .record(z.string(), z.unknown())
     .optional()
-    .refine(
-      (ctx) => !ctx || JSON.stringify(ctx).length <= 4_000,
-      "context er for stor",
-    ),
+    .refine((ctx) => !ctx || JSON.stringify(ctx).length <= 4_000, "context er for stor"),
 });
 
 const FrontendLogBatchSchema = z.object({

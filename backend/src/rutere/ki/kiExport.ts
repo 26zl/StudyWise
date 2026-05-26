@@ -9,20 +9,16 @@
  */
 
 import { Router } from "express";
-import { ExportRequestSchema, ExportResponseSchema, ExportTargetsResponseSchema } from "common/export";
 import {
-  executeExport,
-  getAvailableTargets,
-} from "../../services/export/export-service.js";
+  ExportRequestSchema,
+  ExportResponseSchema,
+  ExportTargetsResponseSchema,
+} from "common/export";
+import { executeExport, getAvailableTargets } from "../../services/export/export-service.js";
 import type { RuntimeProviderOptions } from "../../services/export/export-types.js";
 import { User } from "../../database/models/User.js";
 import { decrypt, erGyldigKryptert } from "../../utils/kryptering.js";
-import {
-  apiError,
-  requireUserId,
-  sendZodError,
-  sendUnknownError,
-} from "../../utils/apiError.js";
+import { apiError, requireUserId, sendZodError, sendUnknownError } from "../../utils/apiError.js";
 import { logger } from "../../utils/logger.js";
 import { createRateLimiter } from "../../middleware/rate-limit.js";
 
@@ -42,12 +38,12 @@ kiExportRouter.get("/export/targets", async (req, res) => {
   const userId = requireUserId(req, res);
   if (!userId) return;
 
-  const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
+  const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select(
+    "+notionApiKey",
+  );
   const notionConfigured = erGyldigKryptert(bruker?.notionApiKey);
   const targets = getAvailableTargets().map((targetInfo) =>
-    targetInfo.target === "notion"
-      ? { ...targetInfo, configured: notionConfigured }
-      : targetInfo,
+    targetInfo.target === "notion" ? { ...targetInfo, configured: notionConfigured } : targetInfo,
   );
   return res.json(ExportTargetsResponseSchema.parse({ targets }));
 });
@@ -78,7 +74,9 @@ kiExportRouter.post("/export", exportRateLimit, async (req, res) => {
     let runtimeOptions: RuntimeProviderOptions | undefined = options;
 
     if (target === "notion") {
-      const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select("+notionApiKey");
+      const bruker = await User.findOne({ _id: userId, deletedAt: { $exists: false } }).select(
+        "+notionApiKey",
+      );
       if (!bruker?.notionApiKey) {
         return apiError.badRequest(
           res,
@@ -125,7 +123,10 @@ kiExportRouter.post("/export", exportRateLimit, async (req, res) => {
       // Logg detaljert feil server-side, send generisk melding til klient
       logger.warn({ err: error, target: req.body?.target }, "Eksportfeil");
       if (normalizedErrorMessage.includes("notion")) {
-        return apiError.badRequest(res, "Kunne ikke eksportere til Notion. Sjekk innstillingene og prøv igjen.");
+        return apiError.badRequest(
+          res,
+          "Kunne ikke eksportere til Notion. Sjekk innstillingene og prøv igjen.",
+        );
       }
       if (normalizedErrorMessage.includes("ikke konfigurert")) {
         return apiError.serviceUnavailable(res, "Eksporttjenesten");

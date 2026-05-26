@@ -19,8 +19,7 @@ import { getApiErrorCode, lagBrukervennligFeilmelding } from "@/app/lib/errorUti
 import { useTurnstileScript } from "@/app/hooks/useTurnstileScript";
 import { turnstileEnabled } from "@/app/lib/validateEnv";
 
-const AUTH_TURNSTILE_SITE_KEY =
-  process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
+const AUTH_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_AUTH_TURNSTILE_SITE_KEY ?? "";
 
 // Når Turnstile er deaktivert i miljøet skal modalen aldri vises
 const TURNSTILE_ACTIVE = turnstileEnabled && !!AUTH_TURNSTILE_SITE_KEY;
@@ -63,30 +62,35 @@ export function TurnstileReChallenge() {
   // reset deklareres lenger ned (TDZ) — bruk ref for å holde deps ærlige.
   const resetRef = useRef<(() => void) | null>(null);
 
-  const onTurnstileSuccess = useCallback(async (token: string) => {
-    if (isVerifying) return;
-    setIsVerifying(true);
-    try {
-      await verifyAuthTurnstile(token);
-      onVerified();
-    } catch (error) {
-      const message = lagBrukervennligFeilmelding(
-        error instanceof Error ? error : null,
-        { auth: true },
-        t("errors.generic.default"),
-        t,
-      );
-      showToast.error(t("auth.humanCheck.title"), message);
-      resetRef.current?.();
-    } finally {
-      setIsVerifying(false);
-    }
-  }, [isVerifying, onVerified, t]);
+  const onTurnstileSuccess = useCallback(
+    async (token: string) => {
+      if (isVerifying) return;
+      setIsVerifying(true);
+      try {
+        await verifyAuthTurnstile(token);
+        onVerified();
+      } catch (error) {
+        const message = lagBrukervennligFeilmelding(
+          error instanceof Error ? error : null,
+          { auth: true },
+          t("errors.generic.default"),
+          t,
+        );
+        showToast.error(t("auth.humanCheck.title"), message);
+        resetRef.current?.();
+      } finally {
+        setIsVerifying(false);
+      }
+    },
+    [isVerifying, onVerified, t],
+  );
 
   const { containerRef, reset } = useTurnstileScript({
     siteKey: AUTH_TURNSTILE_SITE_KEY,
     action: AUTH_TURNSTILE_ACTION,
-    onSuccess: (token) => { void onTurnstileSuccess(token); },
+    onSuccess: (token) => {
+      void onTurnstileSuccess(token);
+    },
     onError: () => {
       showToast.error(t("auth.humanCheck.title"), t("auth.humanCheck.widgetError"));
     },

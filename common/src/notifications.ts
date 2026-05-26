@@ -1,7 +1,6 @@
 /*
-* Zod typer og skjemaer for Varsler og push-notifikasjoner
-*/
-
+ * Zod typer og skjemaer for Varsler og push-notifikasjoner
+ */
 
 import { z } from "zod";
 
@@ -76,7 +75,8 @@ const ALLOWED_PUSH_ENDPOINT_PATTERNS = [
   /^https:\/\/push\.services\.mozilla\.com\//,
 ];
 
-const WebPushEndpointSchema = z.url("Ugyldig endpoint")
+const WebPushEndpointSchema = z
+  .url("Ugyldig endpoint")
   .max(2000, "Endpoint for lang")
   .refine((v) => v.startsWith("https://"), "Endpoint må bruke HTTPS")
   .refine(
@@ -115,18 +115,10 @@ export const SendTestWebPushResponseSchema = z.object({
   delivered: z.boolean(),
 });
 
-export type SaveWebPushSubscriptionRequest = z.infer<
-  typeof SaveWebPushSubscriptionRequestSchema
->;
+export type SaveWebPushSubscriptionRequest = z.infer<typeof SaveWebPushSubscriptionRequestSchema>;
 export type DeleteWebPushSubscriptionRequest = z.infer<
   typeof DeleteWebPushSubscriptionRequestSchema
 >;
-export type WebPushSubscriptionResponse = z.infer<
-  typeof WebPushSubscriptionResponseSchema
->;
-export type WebPushClientConfigResponse = z.infer<
-  typeof WebPushClientConfigResponseSchema
->;
-export type SendTestWebPushResponse = z.infer<
-  typeof SendTestWebPushResponseSchema
->;
+export type WebPushSubscriptionResponse = z.infer<typeof WebPushSubscriptionResponseSchema>;
+export type WebPushClientConfigResponse = z.infer<typeof WebPushClientConfigResponseSchema>;
+export type SendTestWebPushResponse = z.infer<typeof SendTestWebPushResponseSchema>;

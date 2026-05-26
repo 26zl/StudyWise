@@ -48,10 +48,7 @@ function Floating({ children, position, rotate = "", delay = 0, duration = 8 }: 
 
 export function LandingBackdrop() {
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-    >
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       {/* Subtilt prikkemønster i bakgrunnen */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgb(148_163_184/0.18)_1px,transparent_0)] bg-size-[32px_32px] dark:bg-[radial-gradient(circle_at_1px_1px,rgb(148_163_184/0.08)_1px,transparent_0)]" />
 

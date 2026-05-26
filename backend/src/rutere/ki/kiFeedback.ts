@@ -6,11 +6,7 @@
 import { Router } from "express";
 import { ChatFeedback } from "../../database/models/ChatFeedback.js";
 import { logger } from "../../utils/logger.js";
-import {
-  sendZodError,
-  sendUnknownError,
-  requireUserId,
-} from "../../utils/apiError.js";
+import { sendZodError, sendUnknownError, requireUserId } from "../../utils/apiError.js";
 import { ChatFeedbackRequestSchema, ChatFeedbackResponseSchema } from "common/ki";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import mongoose from "mongoose";

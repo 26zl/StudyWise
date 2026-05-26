@@ -4,7 +4,11 @@
  */
 import type { Request } from "express";
 import { Router } from "express";
-import { AdminAuditItemSchema, AdminAuditQuerySchema, AdminAuditResponseSchema } from "common/admin";
+import {
+  AdminAuditItemSchema,
+  AdminAuditQuerySchema,
+  AdminAuditResponseSchema,
+} from "common/admin";
 import { AuditLog } from "../../database/models/AuditLog.js";
 import { apiError, sendZodError } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
@@ -20,26 +24,70 @@ const VALID_CATEGORIES = new Set<string>(AUDIT_CATEGORIES);
 
 /** Trygge nøkler tillatt i revisjonsliste-metadata (ingen PII eller rå request-data). */
 const ALLOWED_METADATA_KEYS = new Set([
-  "subAction", "messageCount", "limit", "offset", "category",
-  "shareType", "chatId", "model", "tokens", "fileType", "type",
-  "tekstLengde", "assignmentId", "subtaskCount", "blockCount", "assignmentCount",
-  "actorUserId", "targetUserId", "from", "to", "rowCount", "status",
-  "queue", "jobId", "prefix", "deletedCount", "revoked", "gammelRolle",
-  "nyRolle", "securityAlert", "scannedFiles", "updatedFiles",
+  "subAction",
+  "messageCount",
+  "limit",
+  "offset",
+  "category",
+  "shareType",
+  "chatId",
+  "model",
+  "tokens",
+  "fileType",
+  "type",
+  "tekstLengde",
+  "assignmentId",
+  "subtaskCount",
+  "blockCount",
+  "assignmentCount",
+  "actorUserId",
+  "targetUserId",
+  "from",
+  "to",
+  "rowCount",
+  "status",
+  "queue",
+  "jobId",
+  "prefix",
+  "deletedCount",
+  "revoked",
+  "gammelRolle",
+  "nyRolle",
+  "securityAlert",
+  "scannedFiles",
+  "updatedFiles",
   // Vedlikehold
-  "resultCount", "stateCount", "scannedChunks", "reembeddedChunks", "failedChunks",
-  "usersInvalidated", "keysDeleted", "structuresDeleted", "pineconeFailures",
-  "samtaler", "oppgaveoppdelinger", "dokumentfragmenter", "arbeidsplaner",
-  "canvasStrukturer", "canvasBrukere", "delingslenker", "kunnskapsbaser", "kbChunks",
-  "deletedChats", "deletedShares", "dager", "cutoffDate",
-  "processed", "reencrypted", "alreadyCurrent", "failed", "collectionCount",
+  "resultCount",
+  "stateCount",
+  "scannedChunks",
+  "reembeddedChunks",
+  "failedChunks",
+  "usersInvalidated",
+  "keysDeleted",
+  "structuresDeleted",
+  "pineconeFailures",
+  "samtaler",
+  "oppgaveoppdelinger",
+  "dokumentfragmenter",
+  "arbeidsplaner",
+  "canvasStrukturer",
+  "canvasBrukere",
+  "delingslenker",
+  "kunnskapsbaser",
+  "kbChunks",
+  "deletedChats",
+  "deletedShares",
+  "dager",
+  "cutoffDate",
+  "processed",
+  "reencrypted",
+  "alreadyCurrent",
+  "failed",
+  "collectionCount",
   "rating",
 ]);
 
-function parseAdminDato(
-  raw: string | undefined,
-  boundary: "start" | "end",
-): Date | null {
+function parseAdminDato(raw: string | undefined, boundary: "start" | "end"): Date | null {
   if (!raw) return null;
 
   const trimmed = raw.trim();
@@ -68,9 +116,7 @@ function shapeAuditItem(raw: {
   const meta = raw.metadata;
   const safeMeta =
     meta && typeof meta === "object"
-      ? Object.fromEntries(
-          Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)),
-        )
+      ? Object.fromEntries(Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)))
       : undefined;
   return AdminAuditItemSchema.parse({
     id: String(raw._id),
@@ -169,10 +215,10 @@ router.get("/audit", async (req, res) => {
 
     return res.json(
       AdminAuditResponseSchema.parse({
-      items: items.map((item) => shapeAuditItem(item as Parameters<typeof shapeAuditItem>[0])),
-      total,
-      limit,
-      offset,
+        items: items.map((item) => shapeAuditItem(item as Parameters<typeof shapeAuditItem>[0])),
+        total,
+        limit,
+        offset,
       }),
     );
   } catch (err) {
@@ -198,9 +244,10 @@ router.get("/audit/export.csv", async (req, res) => {
     rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
   const fromRaw = typeof req.query.from === "string" ? req.query.from : undefined;
   const toRaw = typeof req.query.to === "string" ? req.query.to : undefined;
-  const outcomeRaw = req.query.outcome === "success" || req.query.outcome === "failure"
-    ? req.query.outcome
-    : undefined;
+  const outcomeRaw =
+    req.query.outcome === "success" || req.query.outcome === "failure"
+      ? req.query.outcome
+      : undefined;
   // Sanitisering: kun alfanumeriske tegn og kolon (MongoDB ObjectId / Clerk-ID-format).
   // Forhindrer NoSQL-injection via query-parameter-manipulering ($ne, $gt osv.).
   // Array.from().join() bryter CodeQL taint-tracking slik at verdien ikke lenger
@@ -208,7 +255,7 @@ router.get("/audit/export.csv", async (req, res) => {
   const sanitizeIdParam = (v: unknown): string | undefined => {
     if (typeof v !== "string") return undefined;
     const trimmed = v.trim();
-    if (trimmed.length === 0 || !(/^[\w:.-]+$/).test(trimmed)) return undefined;
+    if (trimmed.length === 0 || !/^[\w:.-]+$/.test(trimmed)) return undefined;
     return Array.from(trimmed).join("");
   };
   const actorUserIdRaw = sanitizeIdParam(req.query.actorUserId);
@@ -240,10 +287,7 @@ router.get("/audit/export.csv", async (req, res) => {
   const MAX_EXPORT_ROWS = 10_000;
 
   try {
-    const rows = await AuditLog.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(MAX_EXPORT_ROWS)
-      .lean();
+    const rows = await AuditLog.find(filter).sort({ createdAt: -1 }).limit(MAX_EXPORT_ROWS).lean();
 
     // CSV-escape: quote felt med komma, quote eller newline; escape quotes ved å doble dem
     const csvEscape = (value: unknown): string => {
@@ -272,9 +316,7 @@ router.get("/audit/export.csv", async (req, res) => {
       const meta = r.metadata;
       const safeMeta =
         meta && typeof meta === "object"
-          ? Object.fromEntries(
-              Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)),
-            )
+          ? Object.fromEntries(Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)))
           : undefined;
       lines.push(
         [
@@ -337,9 +379,10 @@ router.get("/audit/export.txt", async (req, res) => {
     rawCategory && VALID_CATEGORIES.has(rawCategory) ? (rawCategory as AuditCategory) : undefined;
   const fromRaw = typeof req.query.from === "string" ? req.query.from : undefined;
   const toRaw = typeof req.query.to === "string" ? req.query.to : undefined;
-  const outcomeRaw = req.query.outcome === "success" || req.query.outcome === "failure"
-    ? req.query.outcome
-    : undefined;
+  const outcomeRaw =
+    req.query.outcome === "success" || req.query.outcome === "failure"
+      ? req.query.outcome
+      : undefined;
   // Sanitisering: kun alfanumeriske tegn og kolon (MongoDB ObjectId / Clerk-ID-format).
   // Forhindrer NoSQL-injection via query-parameter-manipulering ($ne, $gt osv.).
   // Array.from().join() bryter CodeQL taint-tracking slik at verdien ikke lenger
@@ -347,7 +390,7 @@ router.get("/audit/export.txt", async (req, res) => {
   const sanitizeIdParam = (v: unknown): string | undefined => {
     if (typeof v !== "string") return undefined;
     const trimmed = v.trim();
-    if (trimmed.length === 0 || !(/^[\w:.-]+$/).test(trimmed)) return undefined;
+    if (trimmed.length === 0 || !/^[\w:.-]+$/.test(trimmed)) return undefined;
     return Array.from(trimmed).join("");
   };
   const actorUserIdRaw = sanitizeIdParam(req.query.actorUserId);
@@ -379,10 +422,7 @@ router.get("/audit/export.txt", async (req, res) => {
   const MAX_EXPORT_ROWS = 10_000;
 
   try {
-    const rows = await AuditLog.find(filter)
-      .sort({ createdAt: -1 })
-      .limit(MAX_EXPORT_ROWS)
-      .lean();
+    const rows = await AuditLog.find(filter).sort({ createdAt: -1 }).limit(MAX_EXPORT_ROWS).lean();
 
     const lines: string[] = [
       `StudyWise Audit Log Export`,
@@ -398,9 +438,7 @@ router.get("/audit/export.txt", async (req, res) => {
       const meta = r.metadata;
       const safeMeta =
         meta && typeof meta === "object"
-          ? Object.fromEntries(
-              Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)),
-            )
+          ? Object.fromEntries(Object.entries(meta).filter(([k]) => ALLOWED_METADATA_KEYS.has(k)))
           : undefined;
 
       lines.push(

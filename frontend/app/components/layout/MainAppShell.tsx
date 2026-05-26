@@ -41,7 +41,8 @@ import {
 } from "@/app/lib/devClerkCookieCheck";
 
 const TelemetryConsent = lazy(() =>
-  import("@/app/components/layout/TelemetryConsent").then((m) => ({ default: m.TelemetryConsent })));
+  import("@/app/components/layout/TelemetryConsent").then((m) => ({ default: m.TelemetryConsent })),
+);
 
 function SkipToContentLink() {
   const { t } = useLanguage();
@@ -111,7 +112,10 @@ function BackupCodesBanner() {
   return (
     <div className="border-b border-amber-200 bg-amber-50/95 px-4 py-3 text-amber-950 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/90 dark:text-amber-50">
       <div className="mx-auto flex max-w-7xl items-start gap-3">
-        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden="true" />
+        <ShieldAlert
+          className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300"
+          aria-hidden="true"
+        />
         <div className="min-w-0 flex-1 text-sm leading-6">
           <span className="font-semibold">{t("security.backupCodesBanner.title")}</span>{" "}
           <span className="text-amber-900 dark:text-amber-100">
@@ -256,7 +260,10 @@ function PersistentSidebarShell({ children }: { children: React.ReactNode }) {
         avklarerBruker={avklarerBruker}
         kanLoggUt={!!clerkUserId}
       />
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col" aria-label={t("chat.appContentLabel")}>
+      <section
+        className="flex min-h-0 min-w-0 flex-1 flex-col"
+        aria-label={t("chat.appContentLabel")}
+      >
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-y-contain [-webkit-overflow-scrolling:touch]">
           {children}
         </div>
@@ -303,9 +310,15 @@ export function MainAppShell({
     pathname.startsWith("/account/");
 
   return (
-    <Providers clerkPublishableKey={clerkPublishableKey} initialLanguage={initialLanguage} nonce={nonce}>
+    <Providers
+      clerkPublishableKey={clerkPublishableKey}
+      initialLanguage={initialLanguage}
+      nonce={nonce}
+    >
       <LandingBackdrop />
-      <div className={`relative z-10 flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}>
+      <div
+        className={`relative z-10 flex flex-col ${usesSidebarShell ? "h-dvh overflow-hidden" : "min-h-dvh"}`}
+      >
         <SkipToContentLink />
         <SystemAnnouncementBanner />
         <CriticalServiceBanner />

@@ -12,11 +12,7 @@ import type { Job } from "bullmq";
 import { getUnifiedQueue } from "./connection.js";
 import { deleteClerkUserById } from "../rutere/auth/clerkAuth.js";
 import { logger } from "../utils/logger.js";
-import {
-  audit,
-  AUDIT_ACTIONS,
-  getDeletedAuditActorId,
-} from "../utils/auditLog.js";
+import { audit, AUDIT_ACTIONS, getDeletedAuditActorId } from "../utils/auditLog.js";
 
 export const CLERK_DELETION_JOB_NAME = "clerk-deletion";
 const MAX_ATTEMPTS = 20;
@@ -71,7 +67,10 @@ export async function processClerkDeletionJob(job: Job<ClerkDeletionJobData>): P
   }
 }
 
-export function handleClerkDeletionFailure(job: Job<ClerkDeletionJobData> | undefined, err: Error): void {
+export function handleClerkDeletionFailure(
+  job: Job<ClerkDeletionJobData> | undefined,
+  err: Error,
+): void {
   if (!job) return;
   logger.warn(
     {

@@ -6,21 +6,14 @@
 import { useMemo, useCallback } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  AUTH_ME_QUERY_KEY,
-  useMeg,
-  useOppdaterManuellInnleveringState,
-} from "@/app/auth/auth-api";
+import { AUTH_ME_QUERY_KEY, useMeg, useOppdaterManuellInnleveringState } from "@/app/auth/auth-api";
 import type { MeResponse } from "common/auth";
 import {
   createDefaultManuellInnleveringState,
   normalizeManuellInnleveringState,
 } from "common/auth";
 
-function byggNesteState(
-  ferdigeIds: readonly number[],
-  assignmentId: number,
-) {
+function byggNesteState(ferdigeIds: readonly number[], assignmentId: number) {
   const finnes = ferdigeIds.includes(assignmentId);
   return normalizeManuellInnleveringState({
     ferdigeIds: finnes
@@ -46,24 +39,22 @@ export function useManuellInnlevering() {
       if (!userId) return;
 
       const currentState = normalizeManuellInnleveringState(
-        queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY)?.user
-          ?.manuellInnleveringState ?? manuellInnleveringState,
+        queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY)?.user?.manuellInnleveringState ??
+          manuellInnleveringState,
       );
       const nesteState = byggNesteState(currentState.ferdigeIds, assignmentId);
       const forrigeMe = queryClient.getQueryData<MeResponse>(AUTH_ME_QUERY_KEY);
 
-      queryClient.setQueryData<MeResponse | undefined>(
-        AUTH_ME_QUERY_KEY,
-        (current) =>
-          current
-            ? {
-                ...current,
-                user: {
-                  ...current.user,
-                  manuellInnleveringState: nesteState,
-                },
-              }
-            : current,
+      queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) =>
+        current
+          ? {
+              ...current,
+              user: {
+                ...current.user,
+                manuellInnleveringState: nesteState,
+              },
+            }
+          : current,
       );
 
       mutate(nesteState, {

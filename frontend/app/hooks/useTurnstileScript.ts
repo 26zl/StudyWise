@@ -46,14 +46,10 @@ interface UseTurnstileScriptOptions {
 const TURNSTILE_CLIENT_MAX_RETRIES = 2;
 const TURNSTILE_CLIENT_RETRY_BASE_DELAY_MS = 1500;
 
-export function shouldRetryTurnstileClientError(
-  errorCode: TurnstileClientErrorCode,
-): boolean {
+export function shouldRetryTurnstileClientError(errorCode: TurnstileClientErrorCode): boolean {
   const normalized = String(errorCode ?? "").trim();
   const numericCode = Number(normalized);
-  const family = Number.isFinite(numericCode)
-    ? Math.floor(numericCode / 1000)
-    : null;
+  const family = Number.isFinite(numericCode) ? Math.floor(numericCode / 1000) : null;
 
   return (
     normalized === "110600" ||
@@ -167,8 +163,7 @@ export function useTurnstileScript({
       }
 
       retryCountRef.current += 1;
-      const delay =
-        TURNSTILE_CLIENT_RETRY_BASE_DELAY_MS * retryCountRef.current;
+      const delay = TURNSTILE_CLIENT_RETRY_BASE_DELAY_MS * retryCountRef.current;
       clearRetryTimer();
       retryTimerRef.current = setTimeout(() => {
         retryTimerRef.current = null;

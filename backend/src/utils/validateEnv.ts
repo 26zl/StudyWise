@@ -215,9 +215,7 @@ export const validateEnv = (): void => {
         logger.error(
           "REDIS_URL peker ikke mot Redis Cloud - forventet '*.cloud.redislabs.com' hostname",
         );
-        manglende.push(
-          "REDIS_URL (hostname må slutte med '.cloud.redislabs.com')",
-        );
+        manglende.push("REDIS_URL (hostname må slutte med '.cloud.redislabs.com')");
       }
     } catch {
       // URL parsing feilet - allerede håndtert av validateUrl() over
@@ -227,14 +225,14 @@ export const validateEnv = (): void => {
   // Valider NODE_ENV er gyldig verdi
   const nodeEnv = process.env.NODE_ENV;
   if (nodeEnv && !["development", "production", "test"].includes(nodeEnv)) {
-    manglende.push(
-      `NODE_ENV (må være 'development', 'production' eller 'test', fikk: ${nodeEnv})`,
-    );
+    manglende.push(`NODE_ENV (må være 'development', 'production' eller 'test', fikk: ${nodeEnv})`);
   }
 
   const apiHost = process.env.API_HOST?.trim().toLowerCase();
   if (nodeEnv === "production" && !apiHost) {
-    manglende.push("API_HOST (påkrevd i produksjon for å blokkere direkte tilgang til backend-origin)");
+    manglende.push(
+      "API_HOST (påkrevd i produksjon for å blokkere direkte tilgang til backend-origin)",
+    );
   } else if (apiHost && !isValidHostname(apiHost)) {
     manglende.push(`API_HOST (må være et gyldig hostname uten protokoll, fikk: ${apiHost})`);
   }
@@ -256,9 +254,7 @@ export const validateEnv = (): void => {
   } else if (trustProxyHopsRaw) {
     const trustProxyHops = Number.parseInt(trustProxyHopsRaw, 10);
     if (!Number.isInteger(trustProxyHops) || trustProxyHops < 1) {
-      manglende.push(
-        `TRUST_PROXY_HOPS (må være et heltall >= 1, fikk: ${trustProxyHopsRaw})`,
-      );
+      manglende.push(`TRUST_PROXY_HOPS (må være et heltall >= 1, fikk: ${trustProxyHopsRaw})`);
     }
   }
 
@@ -270,21 +266,11 @@ export const validateEnv = (): void => {
 
   // Valider LOG_LEVEL er gyldig Pino-nivå (påkrevd)
   const logLevel = process.env.LOG_LEVEL;
-  const gyldigeNivaer = [
-    "trace",
-    "debug",
-    "info",
-    "warn",
-    "error",
-    "fatal",
-    "silent",
-  ];
+  const gyldigeNivaer = ["trace", "debug", "info", "warn", "error", "fatal", "silent"];
   if (!logLevel || !logLevel.trim()) {
     manglende.push("LOG_LEVEL (må være satt)");
   } else if (!gyldigeNivaer.includes(logLevel)) {
-    manglende.push(
-      `LOG_LEVEL (må være en av: ${gyldigeNivaer.join(", ")}, fikk: ${logLevel})`,
-    );
+    manglende.push(`LOG_LEVEL (må være en av: ${gyldigeNivaer.join(", ")}, fikk: ${logLevel})`);
   }
 
   // Valider Pinecone (påkrevd for vektor-søk og embeddings)
@@ -350,9 +336,7 @@ export const validateEnv = (): void => {
     if (sampleRate) {
       const rate = Number(sampleRate);
       if (isNaN(rate) || rate < 0 || rate > 1) {
-        manglende.push(
-          `DD_TRACE_SAMPLE_RATE (må være mellom 0 og 1, fikk: ${sampleRate})`,
-        );
+        manglende.push(`DD_TRACE_SAMPLE_RATE (må være mellom 0 og 1, fikk: ${sampleRate})`);
       }
     }
   }
@@ -401,12 +385,12 @@ export const validateEnv = (): void => {
     if (process.env.NODE_ENV === "production") {
       manglende.push(
         "CLERK_WEBHOOK_SECRET (påkrevd i produksjon — user.deleted-opprydding " +
-        "vil feile med 500 uten den)",
+          "vil feile med 500 uten den)",
       );
     } else {
       logger.warn(
         "CLERK_WEBHOOK_SECRET er ikke satt — Clerk webhook for user.deleted vil ikke fungere. " +
-        "Sett variabelen og registrer webhook-URL i Clerk Dashboard.",
+          "Sett variabelen og registrer webhook-URL i Clerk Dashboard.",
       );
     }
   }

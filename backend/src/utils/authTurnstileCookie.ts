@@ -5,10 +5,7 @@
 
 import crypto from "crypto";
 import type { Response, CookieOptions } from "express";
-import {
-  AUTH_TURNSTILE_COOKIE_NAME,
-  AUTH_TURNSTILE_COOKIE_VERSION,
-} from "common/auth";
+import { AUTH_TURNSTILE_COOKIE_NAME, AUTH_TURNSTILE_COOKIE_VERSION } from "common/auth";
 import { parseAuthTurnstileCookie } from "common/auth-server";
 import { isProd } from "./env.js";
 import { setCacheNX, isRedisReady } from "../cache/redis.js";
@@ -121,7 +118,10 @@ export async function isValidAuthTurnstileCookieValue(
     // Redis nede — bruk in-memory fallback (per dyno)
     const localTs = localNonceCache.get(nonce);
     if (localTs && Date.now() - localTs < TURNSTILE_NONCE_TTL_S * 1000) {
-      logger.warn({ nonce: nonce.slice(0, 8) }, "Turnstile-cookie nonce allerede forbrukt (lokal fallback)");
+      logger.warn(
+        { nonce: nonce.slice(0, 8) },
+        "Turnstile-cookie nonce allerede forbrukt (lokal fallback)",
+      );
       return false;
     }
     localNonceCache.set(nonce, Date.now());

@@ -25,20 +25,14 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import pLimit from "p-limit";
 import { logger } from "../utils/logger.js";
-import {
-  CanvasStructureModel,
-  type ICanvasStructure,
-} from "../database/models/CanvasStructure.js";
+import { CanvasStructureModel, type ICanvasStructure } from "../database/models/CanvasStructure.js";
 import { createChunksFromContent } from "./chunk.service.js";
 import {
   upsertStoredFileContent,
   isEmbeddingAvailable,
   deleteStoredFileContent,
 } from "./embedding.service.js";
-import {
-  parseDocumentInWorker,
-  getParseWorkerRuntimeError,
-} from "./documentParserWorker.js";
+import { parseDocumentInWorker, getParseWorkerRuntimeError } from "./documentParserWorker.js";
 
 // Konstanter
 /** Timeout for HTTP-forespørsler (ms) */
@@ -134,7 +128,14 @@ const LOGIN_REQUIRED_PATTERNS: Array<{ hostname: string; pathPrefix?: string }> 
  */
 const DOMAIN_CONTENT_SELECTORS: Record<string, string[]> = {
   // Lovdata (gratis/åpen del) — lovtekst, forskrifter, dommer
-  "lovdata.no": [".444markup", ".444markup-markup", "#LovtekstDiv", "#markup", "article", ".markup"],
+  "lovdata.no": [
+    ".444markup",
+    ".444markup-markup",
+    "#LovtekstDiv",
+    "#markup",
+    "article",
+    ".markup",
+  ],
   // Regjeringen.no — proposisjoner, NOUer, meldinger
   "regjeringen.no": [".article-body", ".rich-text", "article .content", "article"],
   // Stortinget.no — innstillinger, debatter, vedtak
@@ -299,20 +300,27 @@ class BodyTooLargeError extends Error {
  * Forhindrer SSRF mot lokale tjenester og vanlige AWS metadata-endepunkter.
  */
 function normalizeHostname(hostname: string): string {
-  return hostname.replace(/^\[(.*)\]$/, "$1").trim().toLowerCase();
+  return hostname
+    .replace(/^\[(.*)\]$/, "$1")
+    .trim()
+    .toLowerCase();
 }
 
 function isSafeExternalUrlFormat(urlStr: string): boolean {
   try {
     const url = new URL(urlStr);
-    
+
     // Tillat kun http og https
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
 
     const hostname = normalizeHostname(url.hostname);
-    
+
     // Blokker opplagt localhost
-    if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+    if (
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname.endsWith(".local")
+    ) {
       return false;
     }
 
@@ -320,7 +328,7 @@ function isSafeExternalUrlFormat(urlStr: string): boolean {
     if (net.isIP(hostname)) {
       if (isBlockedIpAddress(hostname)) return false;
     }
-    
+
     return true;
   } catch {
     return false;
@@ -519,10 +527,7 @@ function createPinnedLookup(addresses: ResolvedAddress[]): PinnedLookup {
       family?: number,
     ) => void,
   ): void => {
-    const family =
-      typeof options === "number"
-        ? options
-        : normalizeLookupFamily(options?.family);
+    const family = typeof options === "number" ? options : normalizeLookupFamily(options?.family);
     const selected = selectResolvedAddress(addresses, family);
     if (!selected) {
       callback(new Error("Ingen trygg DNS-adresse tilgjengelig"));
@@ -530,7 +535,9 @@ function createPinnedLookup(addresses: ResolvedAddress[]): PinnedLookup {
     }
 
     if (typeof options === "object" && options?.all) {
-      callback(null, [{ address: selected.address, family: selected.family } satisfies LookupAddress]);
+      callback(null, [
+        { address: selected.address, family: selected.family } satisfies LookupAddress,
+      ]);
       return;
     }
 
@@ -560,7 +567,9 @@ async function performPinnedRequest(
           },
           lookup: createPinnedLookup(resolvedAddresses) as never,
           signal: controller.signal,
-          ...(parsedUrl.protocol === "https:" ? { servername: normalizeHostname(parsedUrl.hostname) } : {}),
+          ...(parsedUrl.protocol === "https:"
+            ? { servername: normalizeHostname(parsedUrl.hostname) }
+            : {}),
         },
         (response) => {
           resolve({
@@ -588,7 +597,10 @@ async function performPinnedRequest(
   }
 }
 
-async function fetchWithSafeRedirects(url: string, timeoutMs: number): Promise<SafeFetchResponse | null> {
+async function fetchWithSafeRedirects(
+  url: string,
+  timeoutMs: number,
+): Promise<SafeFetchResponse | null> {
   let currentUrl = url;
 
   for (let attempt = 0; attempt <= MAX_REDIRECTS; attempt++) {
@@ -631,7 +643,10 @@ async function fetchWithSafeRedirects(url: string, timeoutMs: number): Promise<S
   return null;
 }
 
-async function readResponseBodyWithLimit(response: SafeFetchResponse, maxBytes: number): Promise<Buffer> {
+async function readResponseBodyWithLimit(
+  response: SafeFetchResponse,
+  maxBytes: number,
+): Promise<Buffer> {
   if (!response.body) {
     return Buffer.alloc(0);
   }
@@ -671,10 +686,7 @@ export async function fetchExternalContent(url: string): Promise<FetchExternalRe
   try {
     if (!response.ok) {
       discardResponseBody(response);
-      logger.warn(
-        { url, status: response.status },
-        "ExternalUrl henting feilet",
-      );
+      logger.warn({ url, status: response.status }, "ExternalUrl henting feilet");
       return { kind: "failed" };
     }
 
@@ -685,10 +697,7 @@ export async function fetchExternalContent(url: string): Promise<FetchExternalRe
     }
     if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
       discardResponseBody(response);
-      logger.info(
-        { url, contentType },
-        "ExternalUrl er ikke HTML — hopper over",
-      );
+      logger.info({ url, contentType }, "ExternalUrl er ikke HTML — hopper over");
       return { kind: "skip" };
     }
 
@@ -786,19 +795,23 @@ function findPdfLinks(html: string, baseUrl: string): Array<{ url: string; title
 
   const looksLikePdfUrl = (url: string): boolean => {
     const lower = url.toLowerCase();
-    return lower.endsWith(".pdf")
-      || lower.includes(".pdf?")
-      || lower.includes("format=pdf")
-      || lower.includes("type=pdf")
-      || lower.includes("mime=application/pdf")
-      || lower.includes("contenttype=application/pdf");
+    return (
+      lower.endsWith(".pdf") ||
+      lower.includes(".pdf?") ||
+      lower.includes("format=pdf") ||
+      lower.includes("type=pdf") ||
+      lower.includes("mime=application/pdf") ||
+      lower.includes("contenttype=application/pdf")
+    );
   };
 
   const looksLikePdfLabel = (label: string): boolean => {
     const lower = label.toLowerCase();
-    return /\b(pdf|last\s*ned\s*pdf|download\s*pdf)\b/.test(lower)
-      || lower.includes("presentasjon (pdf)")
-      || lower.includes("presentation (pdf)");
+    return (
+      /\b(pdf|last\s*ned\s*pdf|download\s*pdf)\b/.test(lower) ||
+      lower.includes("presentasjon (pdf)") ||
+      lower.includes("presentation (pdf)")
+    );
   };
 
   const extractCandidateUrls = ($el: ReturnType<typeof $>): string[] => {
@@ -817,7 +830,11 @@ function findPdfLinks(html: string, baseUrl: string): Array<{ url: string; title
       for (const match of quotedUrlMatches) {
         const candidate = match[1]?.trim();
         if (!candidate) continue;
-        if (candidate.startsWith("/") || candidate.startsWith("http://") || candidate.startsWith("https://")) {
+        if (
+          candidate.startsWith("/") ||
+          candidate.startsWith("http://") ||
+          candidate.startsWith("https://")
+        ) {
           candidates.add(candidate);
         }
       }
@@ -876,10 +893,7 @@ async function downloadAndProcessPdf(
   try {
     if (!response.ok) {
       discardResponseBody(response);
-      logger.warn(
-        { url: pdfUrl, status: response.status },
-        "PDF-nedlasting feilet",
-      );
+      logger.warn({ url: pdfUrl, status: response.status }, "PDF-nedlasting feilet");
       return null;
     }
 
@@ -887,10 +901,7 @@ async function downloadAndProcessPdf(
     const contentLength = getHeaderValue(response.headers, "content-length");
     if (contentLength && parseInt(contentLength, 10) > MAX_PDF_SIZE_BYTES) {
       discardResponseBody(response);
-      logger.warn(
-        { url: pdfUrl, size: contentLength },
-        "PDF for stor — hopper over",
-      );
+      logger.warn({ url: pdfUrl, size: contentLength }, "PDF for stor — hopper over");
       return null;
     }
 
@@ -898,10 +909,7 @@ async function downloadAndProcessPdf(
 
     // Dobbeltsjekk størrelse etter nedlasting
     if (buffer.length > MAX_PDF_SIZE_BYTES) {
-      logger.warn(
-        { url: pdfUrl, size: buffer.length },
-        "PDF for stor — hopper over",
-      );
+      logger.warn({ url: pdfUrl, size: buffer.length }, "PDF for stor — hopper over");
       return null;
     }
 
@@ -1019,10 +1027,7 @@ export async function crawlCourseExternalUrls(
   }
 
   if (externalItems.length === 0) {
-    logger.info(
-      { courseId: courseDoc.courseId },
-      "Ingen ExternalUrl-items å crawle",
-    );
+    logger.info({ courseId: courseDoc.courseId }, "Ingen ExternalUrl-items å crawle");
     return result;
   }
 
@@ -1074,12 +1079,44 @@ const EXCLUDED_PATH_PATTERNS = [
 
 /** Filendelser som ikke er HTML-sider */
 const NON_HTML_EXTENSIONS = new Set([
-  ".pdf", ".zip", ".gz", ".tar", ".rar", ".7z",
-  ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".webp",
-  ".mp4", ".mp3", ".avi", ".mov", ".wmv", ".flv",
-  ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
-  ".exe", ".msi", ".dmg", ".deb", ".rpm",
-  ".css", ".js", ".json", ".xml", ".woff", ".woff2", ".ttf", ".eot",
+  ".pdf",
+  ".zip",
+  ".gz",
+  ".tar",
+  ".rar",
+  ".7z",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".svg",
+  ".ico",
+  ".webp",
+  ".mp4",
+  ".mp3",
+  ".avi",
+  ".mov",
+  ".wmv",
+  ".flv",
+  ".doc",
+  ".docx",
+  ".xls",
+  ".xlsx",
+  ".ppt",
+  ".pptx",
+  ".exe",
+  ".msi",
+  ".dmg",
+  ".deb",
+  ".rpm",
+  ".css",
+  ".js",
+  ".json",
+  ".xml",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".eot",
 ]);
 
 const CONTENT_HINT_PATTERNS = [
@@ -1088,8 +1125,25 @@ const CONTENT_HINT_PATTERNS = [
 ];
 
 const STOPWORDS = new Set([
-  "www", "com", "html", "php", "index", "page", "node", "about", "home",
-  "the", "and", "for", "til", "med", "som", "fra", "hos", "hvem", "vi",
+  "www",
+  "com",
+  "html",
+  "php",
+  "index",
+  "page",
+  "node",
+  "about",
+  "home",
+  "the",
+  "and",
+  "for",
+  "til",
+  "med",
+  "som",
+  "fra",
+  "hos",
+  "hvem",
+  "vi",
 ]);
 
 function extractUrlTokens(pathOrTitle: string): string[] {
@@ -1144,7 +1198,14 @@ function findContentLinks(html: string, baseUrl: string): Array<{ url: string; t
 
     // Blokker farlige URI-skjemaer (case-insensitivt for å unngå bypass via "JavaScript:" osv.)
     const hrefLower = href.toLowerCase();
-    if (hrefLower.startsWith("#") || hrefLower.startsWith("mailto:") || hrefLower.startsWith("javascript:") || hrefLower.startsWith("data:") || hrefLower.startsWith("vbscript:")) return;
+    if (
+      hrefLower.startsWith("#") ||
+      hrefLower.startsWith("mailto:") ||
+      hrefLower.startsWith("javascript:") ||
+      hrefLower.startsWith("data:") ||
+      hrefLower.startsWith("vbscript:")
+    )
+      return;
 
     let absoluteUrl: URL;
     try {
@@ -1158,7 +1219,11 @@ function findContentLinks(html: string, baseUrl: string): Array<{ url: string; t
 
     // Kun samme domene (tillat også www-variant)
     const linkHost = absoluteUrl.hostname.toLowerCase();
-    if (linkHost !== baseHostname && linkHost !== `www.${baseHostname}` && `www.${linkHost}` !== baseHostname) {
+    if (
+      linkHost !== baseHostname &&
+      linkHost !== `www.${baseHostname}` &&
+      `www.${linkHost}` !== baseHostname
+    ) {
       return;
     }
 
@@ -1241,10 +1306,7 @@ async function fetchGitHubReadme(repoUrl: string): Promise<string | null> {
         const buffer = await readResponseBodyWithLimit(response, MAX_TEXT_CONTENT_SIZE_BYTES);
         const text = buffer.toString("utf8").trim();
         if (text.length > 50) {
-          logger.info(
-            { repoUrl, readmeUrl },
-            "GitHub README hentet via raw.githubusercontent.com",
-          );
+          logger.info({ repoUrl, readmeUrl }, "GitHub README hentet via raw.githubusercontent.com");
           return text;
         }
       }
@@ -1367,10 +1429,7 @@ async function crawlExternalUrlItem(
   const domainSelectors = getDomainSelectors(item.externalUrl);
   const text = extractTextFromHtml(html, domainSelectors);
   if (!text.trim()) {
-    logger.info(
-      { url: item.externalUrl },
-      "ExternalUrl inneholder ingen lesbar tekst",
-    );
+    logger.info({ url: item.externalUrl }, "ExternalUrl inneholder ingen lesbar tekst");
     result.failed++;
     return result;
   }
@@ -1388,10 +1447,7 @@ async function crawlExternalUrlItem(
     return result;
   }
 
-  logger.info(
-    { userId, url: item.externalUrl },
-    "ExternalUrl innhold endret, re-indekserer",
-  );
+  logger.info({ userId, url: item.externalUrl }, "ExternalUrl innhold endret, re-indekserer");
 
   // Chunk og indekser teksten
   const chunks = createChunksFromContent(text, {
@@ -1430,33 +1486,13 @@ async function crawlExternalUrlItem(
 
   // Oppdater crawledHash/crawledAt før PDF-prosessering slik at HTML-indeksering
   // ikke kjøres på nytt hvis en senere PDF-lenke feiler.
-  await updateItemCrawlStatus(
-    userId,
-    courseId,
-    item.moduleId,
-    item.itemId,
-    contentHash,
-  );
+  await updateItemCrawlStatus(userId, courseId, item.moduleId, item.itemId, contentHash);
 
   // Prosesser PDF-lenker
-  await processPdfLinks(
-    html,
-    item,
-    userId,
-    courseId,
-    courseName,
-    result,
-  );
+  await processPdfLinks(html, item, userId, courseId, courseName, result);
 
   // Crawl undersider (shallow, 1 nivå dypt) for å hente faktisk faginnhold
-  await processSubpageLinks(
-    html,
-    item,
-    userId,
-    courseId,
-    courseName,
-    result,
-  );
+  await processSubpageLinks(html, item, userId, courseId, courseName, result);
 
   return result;
 }
@@ -1544,10 +1580,7 @@ async function processSubpageLinks(
               "Underside crawlet og indeksert",
             );
           } catch (error) {
-            logger.warn(
-              { err: error, url: link.url },
-              "Feil ved indeksering av underside",
-            );
+            logger.warn({ err: error, url: link.url }, "Feil ved indeksering av underside");
           }
         }
 
@@ -1613,15 +1646,13 @@ async function processSubpageLinks(
         "Fjernet chunks for underside som ikke lenger finnes på hovedsiden",
       );
     } catch (error) {
-      logger.warn(
-        { err: error, url: removedUrl },
-        "Feil ved opprydding av fjernet underside",
-      );
+      logger.warn({ err: error, url: removedUrl }, "Feil ved opprydding av fjernet underside");
     }
   }
 
   // Oppdater listen over indekserte undersider
-  const listChanged = newlyIndexed.length !== previouslyIndexed.size ||
+  const listChanged =
+    newlyIndexed.length !== previouslyIndexed.size ||
     !newlyIndexed.every((url) => previouslyIndexed.has(url));
   if (listChanged) {
     await updateItemCrawledSubpages(userId, courseId, item.moduleId, item.itemId, newlyIndexed);
@@ -1695,10 +1726,7 @@ async function processPdfLinks(
           "PDF fra ekstern side indeksert",
         );
       } catch (error) {
-        logger.warn(
-          { err: error, url: pdf.url },
-          "Feil ved Pinecone-upsert for PDF",
-        );
+        logger.warn({ err: error, url: pdf.url }, "Feil ved Pinecone-upsert for PDF");
       }
     }
   }
@@ -1718,24 +1746,16 @@ async function processPdfLinks(
         "Fjernet PDF-chunks for PDF som ikke lenger finnes på kildesiden",
       );
     } catch (error) {
-      logger.warn(
-        { err: error, url: removedUrl },
-        "Feil ved opprydding av fjernet PDF",
-      );
+      logger.warn({ err: error, url: removedUrl }, "Feil ved opprydding av fjernet PDF");
     }
   }
 
   // Oppdater listen over indekserte PDF-er
-  const listChanged = newlyIndexedPdfs.length !== previouslyIndexedPdfs.size ||
+  const listChanged =
+    newlyIndexedPdfs.length !== previouslyIndexedPdfs.size ||
     !newlyIndexedPdfs.every((url) => previouslyIndexedPdfs.has(url));
   if (listChanged) {
-    await updateItemCrawledPdfs(
-      userId,
-      courseId,
-      item.moduleId,
-      item.itemId,
-      newlyIndexedPdfs,
-    );
+    await updateItemCrawledPdfs(userId, courseId, item.moduleId, item.itemId, newlyIndexedPdfs);
   }
 }
 
@@ -1829,4 +1849,3 @@ async function updateItemCrawledSubpages(
     );
   }
 }
-

@@ -33,103 +33,109 @@ import { runMigrations } from "./migrations.js";
 
 // MongoDB klient opsjoner med connection pooling
 const clientOptions: mongoose.ConnectOptions = {
-    serverApi: {
-        version: '1' as const,
-        strict: true,
-        deprecationErrors: true,
-    },
-    // Connection pooling — tilpasset Heroku Standard-1x (512 MB)
-    // Hver tilkobling bruker ~1 MB, så 50 = opptil 50 MB unødvendig.
-    maxPoolSize: isProd ? 15 : 10,        // Maks samtidige tilkoblinger
-    minPoolSize: isProd ? 2 : 1,          // Minimum tilkoblinger (holdes åpne)
-    maxIdleTimeMS: 30000,                 // Lukk inaktive etter 30 sek
-    serverSelectionTimeoutMS: 5000,       // Timeout for servervalg
-    socketTimeoutMS: 45000,               // Socket timeout
-    // Retry-konfigurasjon
-    retryWrites: true,
-    retryReads: true,
-    autoIndex: false,
+  serverApi: {
+    version: "1" as const,
+    strict: true,
+    deprecationErrors: true,
+  },
+  // Connection pooling — tilpasset Heroku Standard-1x (512 MB)
+  // Hver tilkobling bruker ~1 MB, så 50 = opptil 50 MB unødvendig.
+  maxPoolSize: isProd ? 15 : 10, // Maks samtidige tilkoblinger
+  minPoolSize: isProd ? 2 : 1, // Minimum tilkoblinger (holdes åpne)
+  maxIdleTimeMS: 30000, // Lukk inaktive etter 30 sek
+  serverSelectionTimeoutMS: 5000, // Timeout for servervalg
+  socketTimeoutMS: 45000, // Socket timeout
+  // Retry-konfigurasjon
+  retryWrites: true,
+  retryReads: true,
+  autoIndex: false,
 };
 
 /** Indeksnavn som MÅ eksistere på User-samlingen for dataintegritet. */
 const REQUIRED_USER_INDEXES = [
-    "email_1",                                       // unique (non-sparse) via schema field
-    "clerk_id_unique",                               // unique sparse
-    "username_normalized_unique",                     // unique sparse
-    "oauth_accounts_provider_account_id_unique",     // unique sparse compound
+  "email_1", // unique (non-sparse) via schema field
+  "clerk_id_unique", // unique sparse
+  "username_normalized_unique", // unique sparse
+  "oauth_accounts_provider_account_id_unique", // unique sparse compound
 ] as const;
 
 async function ensureDatabaseIndexes() {
-    await Promise.all([
-        User.createIndexes(),
-        AuditLog.createIndexes(),
-        Arbeidsplan.createIndexes(),
-        CanvasUser.createIndexes(),
-        CanvasStructureModel.createIndexes(),
-        ChatHistory.createIndexes(),
-        ContentEmbedding.createIndexes(),
-        ChatFeedback.createIndexes(),
-        SharedChat.createIndexes(),
-        TaskBreakdown.createIndexes(),
-        DeletedUserTombstone.createIndexes(),
-        WebPushSubscriptionModel.createIndexes(),
-        ContactMessage.createIndexes(),
-        StudyContext.createIndexes(),
-        KnowledgeBase.createIndexes(),
-        KBContentChunk.createIndexes(),
-        ActivityLog.createIndexes(),
-    ]);
+  await Promise.all([
+    User.createIndexes(),
+    AuditLog.createIndexes(),
+    Arbeidsplan.createIndexes(),
+    CanvasUser.createIndexes(),
+    CanvasStructureModel.createIndexes(),
+    ChatHistory.createIndexes(),
+    ContentEmbedding.createIndexes(),
+    ChatFeedback.createIndexes(),
+    SharedChat.createIndexes(),
+    TaskBreakdown.createIndexes(),
+    DeletedUserTombstone.createIndexes(),
+    WebPushSubscriptionModel.createIndexes(),
+    ContactMessage.createIndexes(),
+    StudyContext.createIndexes(),
+    KnowledgeBase.createIndexes(),
+    KBContentChunk.createIndexes(),
+    ActivityLog.createIndexes(),
+  ]);
 
-    // Verifiser at alle påkrevde unike indekser faktisk finnes på User-samlingen.
-    // Fanger opp stille createIndexes-feil, manuelle index-slettinger eller migreringsproblemer.
-    const userIndexes = await User.collection.indexes();
-    const existingNames = new Set(userIndexes.map((idx) => idx.name));
-    const missing = REQUIRED_USER_INDEXES.filter((name) => !existingNames.has(name));
+  // Verifiser at alle påkrevde unike indekser faktisk finnes på User-samlingen.
+  // Fanger opp stille createIndexes-feil, manuelle index-slettinger eller migreringsproblemer.
+  const userIndexes = await User.collection.indexes();
+  const existingNames = new Set(userIndexes.map((idx) => idx.name));
+  const missing = REQUIRED_USER_INDEXES.filter((name) => !existingNames.has(name));
 
-    if (missing.length > 0) {
-        logger.fatal(
-            { missing, existing: [...existingNames] },
-            "KRITISK: Påkrevde unike indekser mangler på User-collection — serveren kan ikke starte trygt",
-        );
-        throw new Error(`Missing required User indexes: ${missing.join(", ")}`);
-    }
+  if (missing.length > 0) {
+    logger.fatal(
+      { missing, existing: [...existingNames] },
+      "KRITISK: Påkrevde unike indekser mangler på User-collection — serveren kan ikke starte trygt",
+    );
+    throw new Error(`Missing required User indexes: ${missing.join(", ")}`);
+  }
 
-    logger.info("MongoDB-indekser verifisert (inkl. unike User-indekser)");
+  logger.info("MongoDB-indekser verifisert (inkl. unike User-indekser)");
 }
 
 // Funksjon for å koble til databasen
 export const connectToDatabase = async () => {
-    const mongoURI = process.env.MONGO_URI;
-    if (!mongoURI) {
-        throw new Error("MONGO_URI er ikke defineret i .env");
-    }
-    configureNodeDnsServersFromEnv();
-    try {
+  const mongoURI = process.env.MONGO_URI;
+  if (!mongoURI) {
+    throw new Error("MONGO_URI er ikke defineret i .env");
+  }
+  configureNodeDnsServersFromEnv();
+  try {
+    await mongoose.connect(mongoURI, clientOptions);
+    await runMigrations();
+    await ensureDatabaseIndexes();
+    logger.info(
+      {
+        maxPoolSize: clientOptions.maxPoolSize,
+        minPoolSize: clientOptions.minPoolSize,
+      },
+      "Tilkoblet til MongoDB",
+    );
+  } catch (error) {
+    if (isRefusedDnsSrvLookup(error) && configureDevDnsFallback()) {
+      try {
         await mongoose.connect(mongoURI, clientOptions);
         await runMigrations();
         await ensureDatabaseIndexes();
-        logger.info({
+        logger.info(
+          {
             maxPoolSize: clientOptions.maxPoolSize,
             minPoolSize: clientOptions.minPoolSize,
-        }, "Tilkoblet til MongoDB");
-    } catch (error) {
-        if (isRefusedDnsSrvLookup(error) && configureDevDnsFallback()) {
-            try {
-                await mongoose.connect(mongoURI, clientOptions);
-                await runMigrations();
-                await ensureDatabaseIndexes();
-                logger.info({
-                    maxPoolSize: clientOptions.maxPoolSize,
-                    minPoolSize: clientOptions.minPoolSize,
-                }, "Tilkoblet til MongoDB etter DNS fallback");
-                return;
-            } catch (retryError) {
-                logger.error({ err: retryError }, "Kunne ikke koble til MongoDB etter DNS fallback");
-                process.exit(1);
-            }
-        }
-
-        logger.error({ err: error }, "Kunne ikke koble til MongoDB");
+          },
+          "Tilkoblet til MongoDB etter DNS fallback",
+        );
+        return;
+      } catch (retryError) {
+        logger.error({ err: retryError }, "Kunne ikke koble til MongoDB etter DNS fallback");
         process.exit(1);
+      }
     }
+
+    logger.error({ err: error }, "Kunne ikke koble til MongoDB");
+    process.exit(1);
+  }
 };

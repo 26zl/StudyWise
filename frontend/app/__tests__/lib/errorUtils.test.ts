@@ -27,7 +27,9 @@ describe("erFatalUserDataFeilmelding", () => {
   });
 
   it("gjenkjenner 'allerede en konto'", () => {
-    expect(erFatalUserDataFeilmelding("Det finnes allerede en konto med denne e-posten")).toBe(true);
+    expect(erFatalUserDataFeilmelding("Det finnes allerede en konto med denne e-posten")).toBe(
+      true,
+    );
   });
 
   it("gjenkjenner brukernavn-konflikt", () => {
@@ -35,7 +37,9 @@ describe("erFatalUserDataFeilmelding", () => {
   });
 
   it("gjenkjenner 'allerede koblet til en annen studywise-bruker'", () => {
-    expect(erFatalUserDataFeilmelding("Denne kontoen er allerede koblet til en annen StudyWise-bruker")).toBe(true);
+    expect(
+      erFatalUserDataFeilmelding("Denne kontoen er allerede koblet til en annen StudyWise-bruker"),
+    ).toBe(true);
   });
 
   it("gjenkjenner manglende oauth-identifikator", () => {
@@ -86,11 +90,9 @@ describe("strukturert fatal auth-klassifisering", () => {
 
 describe("apiRequestId-propagering (feil-ID for brukerrapport)", () => {
   it("tagger createApiError med apiRequestId når det sendes inn", () => {
-    const error = createApiError(
-      { melding: "Uventet feil" },
-      "API feil",
-      { apiRequestId: "abc-123-def" },
-    );
+    const error = createApiError({ melding: "Uventet feil" }, "API feil", {
+      apiRequestId: "abc-123-def",
+    });
     expect(getApiRequestId(error)).toBe("abc-123-def");
   });
 
@@ -111,12 +113,9 @@ describe("apiRequestId-propagering (feil-ID for brukerrapport)", () => {
   });
 
   it("propagerer apiRequestId via createAuthStatusError 403", () => {
-    const error = createAuthStatusError(
-      403,
-      { melding: "Ingen tilgang" },
-      "Forbudt",
-      { apiRequestId: "req-forbidden" },
-    );
+    const error = createAuthStatusError(403, { melding: "Ingen tilgang" }, "Forbudt", {
+      apiRequestId: "req-forbidden",
+    });
     expect(getApiRequestId(error)).toBe("req-forbidden");
     expect(error.name).toBe("ForbiddenError");
   });
@@ -136,11 +135,9 @@ describe("apiRequestId-propagering (feil-ID for brukerrapport)", () => {
 
 describe("getReportableErrorId", () => {
   it("foretrekker apiRequestId over Next.js digest", () => {
-    const error = createApiError(
-      { melding: "API-feil" },
-      "API-feil",
-      { apiRequestId: "req-current-error" },
-    ) as Error & { digest?: string };
+    const error = createApiError({ melding: "API-feil" }, "API-feil", {
+      apiRequestId: "req-current-error",
+    }) as Error & { digest?: string };
     error.digest = "next-digest";
 
     expect(getReportableErrorId(error)).toBe("req-current-error");

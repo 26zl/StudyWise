@@ -51,9 +51,20 @@ import { requireRecentAuth } from "../../middleware/auth.js";
 import { apiError, requireUserId } from "../../utils/apiError.js";
 import { audit, AUDIT_ACTIONS } from "../../utils/auditLog.js";
 import { logger } from "../../utils/logger.js";
-import { getCache, setCache, setCacheNX, deleteCacheKeys, invalidateCacheByPattern, isRedisReady } from "../../cache/redis.js";
+import {
+  getCache,
+  setCache,
+  setCacheNX,
+  deleteCacheKeys,
+  invalidateCacheByPattern,
+  isRedisReady,
+} from "../../cache/redis.js";
 import { encrypt, decrypt } from "../../utils/kryptering.js";
-import { pineconeDeleteByFilter, pineconeUpsert, isPineconeConfigured } from "../../services/pinecone.service.js";
+import {
+  pineconeDeleteByFilter,
+  pineconeUpsert,
+  isPineconeConfigured,
+} from "../../services/pinecone.service.js";
 import { backfillMissingFullText } from "../../services/embedding.service.js";
 
 const router = Router();
@@ -108,7 +119,10 @@ async function acquireLock(
     const agoMs = Date.now() - Number(lastRun);
     if (agoMs < cooldownSeconds * 1000) {
       const remainingMin = Math.ceil((cooldownSeconds * 1000 - agoMs) / 60_000);
-      apiError.rateLimited(res, `Operasjonen ble nylig kjørt. Prøv igjen om ~${remainingMin} minutt(er).`);
+      apiError.rateLimited(
+        res,
+        `Operasjonen ble nylig kjørt. Prøv igjen om ~${remainingMin} minutt(er).`,
+      );
       return false;
     }
   }
@@ -137,7 +151,11 @@ async function acquireLock(
  * hvis vi sletter running parallelt med resultatskrivingen kan admin få en
  * falsk "Kunne ikke hente resultat" selv om jobben var vellykket.
  */
-async function completeOperation(op: MaintenanceOp, cooldownSeconds: number, result: unknown): Promise<void> {
+async function completeOperation(
+  op: MaintenanceOp,
+  cooldownSeconds: number,
+  result: unknown,
+): Promise<void> {
   await setCache(resultKey(op), JSON.stringify(result), RESULT_TTL_SECONDS);
   await Promise.all([
     setCache(cooldownKey(op), Date.now().toString(), cooldownSeconds),
@@ -151,7 +169,11 @@ async function completeOperation(op: MaintenanceOp, cooldownSeconds: number, res
  * slettes, ellers ser frontend en tom "ferdig"-tilstand.
  */
 async function failOperation(op: MaintenanceOp, errorMessage: string): Promise<void> {
-  await setCache(resultKey(op), JSON.stringify({ suksess: false, error: errorMessage }), RESULT_TTL_SECONDS);
+  await setCache(
+    resultKey(op),
+    JSON.stringify({ suksess: false, error: errorMessage }),
+    RESULT_TTL_SECONDS,
+  );
   await deleteCacheKeys([runningKey(op)]);
 }
 
@@ -175,7 +197,10 @@ router.get("/maintenance/status", async (req, res) => {
       let cooldownUntil: string | null = null;
       if (cooldownVal) {
         const lastRunMs = Number(cooldownVal);
-        const ttl = op === "rebuild-embeddings" || op === "force-canvas-resync" || op === "reencrypt-tokens" ? 1800 : 600;
+        const ttl =
+          op === "rebuild-embeddings" || op === "force-canvas-resync" || op === "reencrypt-tokens"
+            ? 1800
+            : 600;
         const expiresMs = lastRunMs + ttl * 1000;
         if (expiresMs > Date.now()) {
           cooldownUntil = new Date(expiresMs).toISOString();
@@ -301,12 +326,22 @@ router.post("/maintenance/cleanup-orphaned", requireRecentAuth, async (req, res)
         kbChunks,
       ] = await Promise.all([
         ChatHistory.deleteMany({ user: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-        TaskBreakdown.deleteMany({ userId: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-        ContentEmbedding.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
+        TaskBreakdown.deleteMany({ userId: { $nin: alleBrukerObjectIds } }).then(
+          (r) => r.deletedCount,
+        ),
+        ContentEmbedding.deleteMany({ userId: { $nin: alleBrukerIds } }).then(
+          (r) => r.deletedCount,
+        ),
         Arbeidsplan.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-        CanvasStructureModel.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
-        CanvasUser.deleteMany({ localUser: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
-        SharedChat.deleteMany({ ownerId: { $nin: alleBrukerObjectIds } }).then((r) => r.deletedCount),
+        CanvasStructureModel.deleteMany({ userId: { $nin: alleBrukerIds } }).then(
+          (r) => r.deletedCount,
+        ),
+        CanvasUser.deleteMany({ localUser: { $nin: alleBrukerObjectIds } }).then(
+          (r) => r.deletedCount,
+        ),
+        SharedChat.deleteMany({ ownerId: { $nin: alleBrukerObjectIds } }).then(
+          (r) => r.deletedCount,
+        ),
         KnowledgeBase.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
         KBContentChunk.deleteMany({ userId: { $nin: alleBrukerIds } }).then((r) => r.deletedCount),
       ]);
@@ -342,10 +377,16 @@ router.post("/maintenance/cleanup-orphaned", requireRecentAuth, async (req, res)
       });
 
       if (pineconeFailures > 0) {
-        logger.warn({ pineconeFailures }, "Noen Pinecone-oppryddinger feilet under cleanup-orphaned");
+        logger.warn(
+          { pineconeFailures },
+          "Noen Pinecone-oppryddinger feilet under cleanup-orphaned",
+        );
       }
 
-      const payload = AdminMaintenanceCleanupOrphanedResponseSchema.parse({ suksess: true, deleted });
+      const payload = AdminMaintenanceCleanupOrphanedResponseSchema.parse({
+        suksess: true,
+        deleted,
+      });
       await completeOperation("cleanup-orphaned", 600, payload);
     } catch (err) {
       logger.error({ err }, "Admin cleanup-orphaned feilet");
@@ -405,7 +446,10 @@ router.post("/maintenance/rebuild-embeddings", requireRecentAuth, async (req, re
 
           reembeddedChunks += batch.length;
         } catch (err) {
-          logger.warn({ err, batchStart: i, batchSize: batch.length }, "Pinecone re-embed batch feilet");
+          logger.warn(
+            { err, batchStart: i, batchSize: batch.length },
+            "Pinecone re-embed batch feilet",
+          );
           failedChunks += batch.length;
         }
       }
@@ -416,7 +460,12 @@ router.post("/maintenance/rebuild-embeddings", requireRecentAuth, async (req, re
         category: "admin",
         outcome: "success",
         role: req.actorRole,
-        metadata: { subAction: "maintenance.rebuildEmbeddings", scannedChunks, reembeddedChunks, failedChunks },
+        metadata: {
+          subAction: "maintenance.rebuildEmbeddings",
+          scannedChunks,
+          reembeddedChunks,
+          failedChunks,
+        },
         req,
       });
 
@@ -515,7 +564,10 @@ router.post("/maintenance/clean-expired-shares", requireRecentAuth, async (req, 
         category: "admin",
         outcome: "success",
         role: req.actorRole,
-        metadata: { subAction: "maintenance.cleanExpiredShares", deletedCount: result.deletedCount },
+        metadata: {
+          subAction: "maintenance.cleanExpiredShares",
+          deletedCount: result.deletedCount,
+        },
         req,
       });
 
@@ -597,9 +649,12 @@ router.get("/maintenance/encryption-status", async (req, res) => {
   try {
     const previousKeyConfigured = Boolean(process.env.ENCRYPTION_KEY_PREV);
 
-    const usersWithToken = await User.find(
-      { canvasApiToken: { $exists: true, $ne: null }, ...ACTIVE_FILTER },
-    ).select("+canvasApiToken").lean();
+    const usersWithToken = await User.find({
+      canvasApiToken: { $exists: true, $ne: null },
+      ...ACTIVE_FILTER,
+    })
+      .select("+canvasApiToken")
+      .lean();
 
     let currentKeyOk = 0;
     let legacyFormat = 0;
@@ -658,9 +713,12 @@ router.post("/maintenance/reencrypt-tokens", requireRecentAuth, async (req, res)
 
   void (async () => {
     try {
-      const usersWithToken = await User.find(
-        { canvasApiToken: { $exists: true, $ne: null }, ...ACTIVE_FILTER },
-      ).select("+canvasApiToken").lean();
+      const usersWithToken = await User.find({
+        canvasApiToken: { $exists: true, $ne: null },
+        ...ACTIVE_FILTER,
+      })
+        .select("+canvasApiToken")
+        .lean();
 
       let processed = 0;
       let reencrypted = 0;
@@ -702,7 +760,13 @@ router.post("/maintenance/reencrypt-tokens", requireRecentAuth, async (req, res)
         category: "admin",
         outcome: "success",
         role: req.actorRole,
-        metadata: { subAction: "maintenance.reencryptTokens", processed, reencrypted, alreadyCurrent, failed },
+        metadata: {
+          subAction: "maintenance.reencryptTokens",
+          processed,
+          reencrypted,
+          alreadyCurrent,
+          failed,
+        },
         req,
       });
 
@@ -750,7 +814,10 @@ router.get("/maintenance/database-health", async (req, res) => {
         const collection = db.collection(coll.name);
         const [documentCount, indexes] = await Promise.all([
           collection.estimatedDocumentCount(),
-          collection.listIndexes().toArray().catch(() => []),
+          collection
+            .listIndexes()
+            .toArray()
+            .catch(() => []),
         ]);
 
         let sizeBytes = 0;
@@ -859,21 +926,19 @@ router.post("/maintenance/retry-failed-crawls", requireRecentAuth, async (req, r
             scannedItems++;
 
             const hasCrawl = Boolean(item.crawledHash);
-            const crawledAtMs = item.crawledAt
-              ? new Date(item.crawledAt).getTime()
-              : null;
+            const crawledAtMs = item.crawledAt ? new Date(item.crawledAt).getTime() : null;
             const pdfCount = item.crawledPdfs?.length ?? 0;
             const subpageCount = item.crawledSubpages?.length ?? 0;
             const isEmptyCrawl =
-              hasCrawl
-              && pdfCount === 0
-              && subpageCount === 0
-              && (crawledAtMs === null || now - crawledAtMs > CRAWL_EMPTY_RETRY_MS);
+              hasCrawl &&
+              pdfCount === 0 &&
+              subpageCount === 0 &&
+              (crawledAtMs === null || now - crawledAtMs > CRAWL_EMPTY_RETRY_MS);
             const isStale =
-              hasCrawl
-              && !isEmptyCrawl
-              && crawledAtMs !== null
-              && now - crawledAtMs > CRAWL_STALE_THRESHOLD_MS;
+              hasCrawl &&
+              !isEmptyCrawl &&
+              crawledAtMs !== null &&
+              now - crawledAtMs > CRAWL_STALE_THRESHOLD_MS;
             const needsReset = !hasCrawl || isEmptyCrawl || isStale;
             if (needsReset) {
               itemsToReset.push({ modIdx: mi, itemIdx: ii });
@@ -998,9 +1063,7 @@ router.post("/maintenance/reindex-missing-files", requireRecentAuth, async (req,
 
       const indexed = await ContentEmbedding.aggregate<{
         _id: { userId: string; courseId: string; fileId: number };
-      }>([
-        { $group: { _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" } } },
-      ]);
+      }>([{ $group: { _id: { userId: "$userId", courseId: "$courseId", fileId: "$fileId" } } }]);
       const indexedSet = new Set(
         indexed.map((row) => `${row._id.userId}:${row._id.courseId}:${row._id.fileId}`),
       );

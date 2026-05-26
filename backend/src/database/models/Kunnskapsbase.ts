@@ -125,7 +125,4 @@ KnowledgeBaseSchema.index({ userId: 1, createdAt: -1 });
 // Unikt basenavn per bruker (kan ikke ha to baser med samme navn)
 KnowledgeBaseSchema.index({ userId: 1, navn: 1 }, { unique: true });
 
-export const KnowledgeBase = mongoose.model<IKnowledgeBase>(
-  "KnowledgeBase",
-  KnowledgeBaseSchema,
-);
+export const KnowledgeBase = mongoose.model<IKnowledgeBase>("KnowledgeBase", KnowledgeBaseSchema);

@@ -91,11 +91,7 @@ async function buildApiRequestInit(
   init: RequestInit = {},
   options: ApiRequestOptions = {},
 ): Promise<RequestInit> {
-  const {
-    auth = true,
-    credentials = "include",
-    cache = "no-store",
-  } = options;
+  const { auth = true, credentials = "include", cache = "no-store" } = options;
 
   const protectedInit = withCsrfProtection(init);
   const authHeaders = auth ? await getClerkAuthHeaders() : undefined;
@@ -126,10 +122,7 @@ export async function fetchApi(
  * Top-level navigasjon (<a href> / window.open) sender ikke Bearer-header,
  * så filer må hentes som blob med fetchApi før de presenteres for brukeren.
  */
-export async function downloadAuthedFile(
-  url: string,
-  filnavn?: string,
-): Promise<void> {
+export async function downloadAuthedFile(url: string, filnavn?: string): Promise<void> {
   // Sikkerhetsguard: kun relative /api/-URL-er tillates — forhindrer open redirect
   // og at vilkårlig ekstern URL kan flyte inn i window.open / <a href>.
   if (typeof url !== "string" || !url.startsWith("/api/")) {
@@ -158,8 +151,8 @@ export async function downloadAuthedFile(
   // Saniter filnavn: fjern path-separatorer og kontrolltegn for å unngå
   // path-traversal i Save-As-dialogen.
   const trygtFilnavn = filnavn
-    // eslint-disable-next-line no-control-regex -- bevisst fjerning av kontrolltegn
-    ? filnavn.replace(/[\\/\x00-\x1f]/g, "_").slice(0, 255)
+    ? // eslint-disable-next-line no-control-regex -- bevisst fjerning av kontrolltegn
+      filnavn.replace(/[\\/\x00-\x1f]/g, "_").slice(0, 255)
     : undefined;
   try {
     // Bruker alltid <a>-element (aldri window.open) for å unngå open-redirect-mistanker.

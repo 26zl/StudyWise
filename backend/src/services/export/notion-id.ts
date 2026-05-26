@@ -18,11 +18,12 @@ export function normalizeNotionPageId(raw: string): string | null {
   }
 
   // Full Notion-lenke (slug-pageid, /{pageid}, querystrings, etc.)
-  const urlMatch = value.match(/[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  const urlMatch = value.match(
+    /[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/,
+  );
   if (urlMatch?.[0]) {
     return urlMatch[0].replace(/-/g, "").toLowerCase();
   }
 
   return null;
 }
-

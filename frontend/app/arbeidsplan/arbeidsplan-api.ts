@@ -21,7 +21,8 @@ export type { StudyBlock, Arbeidsplan } from "common/arbeidsplan";
 // Delte Tailwind-klasser for arbeidsplan-komponenter
 export const PRIORITY_COLORS = {
   high: "bg-red-100 dark:bg-red-900/20 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300",
-  medium: "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
+  medium:
+    "bg-yellow-100 dark:bg-yellow-900/20 border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-300",
   low: "bg-green-100 dark:bg-green-900/20 border-green-300 dark:border-green-700 text-green-700 dark:text-green-300",
 } as const;
 
@@ -64,7 +65,7 @@ async function createArbeidsplan(data: CreateArbeidsplan): Promise<Arbeidsplan> 
 async function updateBlock(
   planId: string,
   blockIndex: number,
-  completed: boolean
+  completed: boolean,
 ): Promise<Arbeidsplan> {
   const res = await fetchApi(`/api/arbeidsplan/${planId}/block`, {
     method: "PATCH",

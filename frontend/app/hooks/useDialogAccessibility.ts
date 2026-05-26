@@ -82,8 +82,7 @@ export function useDialogAccessibility<
 
     document.body.style.overflow = "hidden";
 
-    const focusTarget =
-      initialFocusRef?.current ?? getFocusableElements(container)[0] ?? container;
+    const focusTarget = initialFocusRef?.current ?? getFocusableElements(container)[0] ?? container;
 
     const focusTimeoutId = window.setTimeout(() => {
       focusTarget.focus();

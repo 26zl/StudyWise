@@ -5,18 +5,26 @@
 
 import PDFDocument from "pdfkit";
 import type { ExportProvider, ExportProviderResult } from "../export-types.js";
-import type { ExportDocument, ExportBlock, TextSegment, ListItem, ExportResponse } from "common/export";
+import type {
+  ExportDocument,
+  ExportBlock,
+  TextSegment,
+  ListItem,
+  ExportResponse,
+} from "common/export";
 
 /**
  * Fjerner emoji-tegn fra tekst — standard PDF-fonter (Helvetica, Courier) støtter ikke Unicode-emoji,
  * og de rendres som uleselige tegn (f.eks. "Ø>Ý"). Fjerner også eventuelle doble mellomrom som oppstår.
  */
 function stripEmoji(text: string): string {
-  return text
-    // eslint-disable-next-line no-misleading-character-class -- Bevisst: fjerner emoji + ZWJ + variation selector
-    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200D\uFE0F]/gu, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  return (
+    text
+      // eslint-disable-next-line no-misleading-character-class -- Bevisst: fjerner emoji + ZWJ + variation selector
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}\u200D\uFE0F]/gu, "")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+  );
 }
 
 const FONT_SIZES = {
@@ -158,11 +166,7 @@ export class PdfExportProvider implements ExportProvider {
     }
   }
 
-  private renderHeading(
-    doc: PDFKit.PDFDocument,
-    level: 1 | 2 | 3,
-    segments: TextSegment[],
-  ): void {
+  private renderHeading(doc: PDFKit.PDFDocument, level: 1 | 2 | 3, segments: TextSegment[]): void {
     const fontSize = level === 1 ? FONT_SIZES.h1 : level === 2 ? FONT_SIZES.h2 : FONT_SIZES.h3;
     doc.moveDown(level === 1 ? 1 : 0.5);
     // Sørg for at overskriften alltid starter på venstre marg med full
@@ -239,18 +243,11 @@ export class PdfExportProvider implements ExportProvider {
 
   private renderQuote(doc: PDFKit.PDFDocument, segments: TextSegment[]): void {
     const text = stripEmoji(segments.map((s) => s.text).join(""));
-    doc
-      .fontSize(FONT_SIZES.body)
-      .fillColor(COLORS.quote)
-      .text(`"${text}"`, { indent: 20 });
+    doc.fontSize(FONT_SIZES.body).fillColor(COLORS.quote).text(`"${text}"`, { indent: 20 });
     doc.moveDown(0.5);
   }
 
-  private renderCodeBlock(
-    doc: PDFKit.PDFDocument,
-    code: string,
-    _language?: string,
-  ): void {
+  private renderCodeBlock(doc: PDFKit.PDFDocument, code: string, _language?: string): void {
     doc
       .fontSize(FONT_SIZES.code)
       .fillColor(COLORS.code)
@@ -263,26 +260,14 @@ export class PdfExportProvider implements ExportProvider {
   private renderDivider(doc: PDFKit.PDFDocument): void {
     doc.moveDown(0.5);
     const y = doc.y;
-    doc
-      .strokeColor(COLORS.muted)
-      .lineWidth(0.5)
-      .moveTo(50, y)
-      .lineTo(545, y)
-      .stroke();
+    doc.strokeColor(COLORS.muted).lineWidth(0.5).moveTo(50, y).lineTo(545, y).stroke();
     doc.moveDown(0.5);
   }
 
-  private renderCallout(
-    doc: PDFKit.PDFDocument,
-    segments: TextSegment[],
-    _emoji?: string,
-  ): void {
+  private renderCallout(doc: PDFKit.PDFDocument, segments: TextSegment[], _emoji?: string): void {
     const text = stripEmoji(segments.map((s) => s.text).join(""));
     const prefix = "[!] ";
-    doc
-      .fontSize(FONT_SIZES.body)
-      .fillColor(COLORS.text)
-      .text(`${prefix}${text}`, { indent: 10 });
+    doc.fontSize(FONT_SIZES.body).fillColor(COLORS.text).text(`${prefix}${text}`, { indent: 10 });
     doc.moveDown(0.5);
   }
 
@@ -325,7 +310,8 @@ export class PdfExportProvider implements ExportProvider {
           doc.heightOfString(text, {
             width: colWidth - cellPadding * 2,
             lineBreak: true,
-          }) + cellPadding * 2;
+          }) +
+          cellPadding * 2;
         if (h > maxCellHeight) maxCellHeight = h;
       }
 
@@ -363,14 +349,21 @@ export class PdfExportProvider implements ExportProvider {
       doc.strokeColor("#CBD5E1").lineWidth(0.5);
       for (let c = 0; c <= colCount; c++) {
         const x = startX + c * colWidth;
-        doc.moveTo(x, cellY).lineTo(x, cellY + maxCellHeight).stroke();
+        doc
+          .moveTo(x, cellY)
+          .lineTo(x, cellY + maxCellHeight)
+          .stroke();
       }
-      doc.moveTo(startX, cellY + maxCellHeight)
+      doc
+        .moveTo(startX, cellY + maxCellHeight)
         .lineTo(startX + pageWidth, cellY + maxCellHeight)
         .stroke();
       if (r === 0) {
         // Topplinje på første rad
-        doc.moveTo(startX, cellY).lineTo(startX + pageWidth, cellY).stroke();
+        doc
+          .moveTo(startX, cellY)
+          .lineTo(startX + pageWidth, cellY)
+          .stroke();
       }
 
       // Flytt doc.y manuelt fordi vi bruker absolutt posisjonering

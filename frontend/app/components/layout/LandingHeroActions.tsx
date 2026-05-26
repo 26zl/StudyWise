@@ -62,10 +62,7 @@ function LandingHeroActionsInner({
   return <LandingHeroButtons labels={labels} erInnlogget={erInnlogget} />;
 }
 
-export function LandingHeroActions({
-  initialUser = null,
-  labels,
-}: LandingHeroActionsProps) {
+export function LandingHeroActions({ initialUser = null, labels }: LandingHeroActionsProps) {
   const { isLoaded, isSignedIn } = useSafeAuth();
   const hasQueryClient = useHasQueryClient();
 
@@ -106,13 +103,8 @@ function LandingHeroButtons({
         prefetch={false}
         className={`group inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm ${ctaWidth} bg-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-full font-medium transition-all hover:shadow-md hover:shadow-blue-500/25`}
       >
-        {erInnlogget
-          ? labels.continueToDashboard
-          : labels.goToDashboard}
-        <ArrowRight
-          size={18}
-          className="group-hover:translate-x-1 transition-transform"
-        />
+        {erInnlogget ? labels.continueToDashboard : labels.goToDashboard}
+        <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
       </Link>
       {/* Sekundær CTA: vis for alle som ikke vises som innlogget – i prod (treg server) vises knappen med én gang, ikke før auth er «avklart» */}
       {!erInnlogget && (

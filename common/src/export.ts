@@ -6,14 +6,7 @@
 import { z } from "zod";
 
 // Støttede eksportmål
-export const EXPORT_TARGETS = [
-  "markdown",
-  "pdf",
-  "text",
-  "word",
-  "excel",
-  "notion",
-] as const;
+export const EXPORT_TARGETS = ["markdown", "pdf", "text", "word", "excel", "notion"] as const;
 
 export const ExportTargetSchema = z.enum(EXPORT_TARGETS);
 export type ExportTarget = z.infer<typeof ExportTargetSchema>;
@@ -247,7 +240,8 @@ export type NotionSettingsResponse = z.infer<typeof NotionSettingsResponseSchema
 export const NotionSettingsRequestSchema = z.object({
   // .trim() må kjøre først så lagret verdi ikke inneholder whitespace, ellers har
   // refine-sjekken trim-et en midlertidig verdi uten at det fikk effekt på output.
-  apiKey: z.string()
+  apiKey: z
+    .string()
     .trim()
     .min(1, "API-nøkkel er påkrevd")
     .max(200, "API-nøkkel er for lang")

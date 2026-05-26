@@ -42,11 +42,12 @@ vi.mock("../../database/models/ContentEmbedding.js", () => {
           if (filter.fileId !== undefined && d.fileId !== filter.fileId) continue;
           if (typeof chunkIndexFilter === "number" && d.chunkIndex !== chunkIndexFilter) continue;
           if (
-            typeof chunkIndexFilter === "object"
-            && chunkIndexFilter !== null
-            && typeof chunkIndexFilter.$lt === "number"
-            && !(d.chunkIndex < chunkIndexFilter.$lt)
-          ) continue;
+            typeof chunkIndexFilter === "object" &&
+            chunkIndexFilter !== null &&
+            typeof chunkIndexFilter.$lt === "number" &&
+            !(d.chunkIndex < chunkIndexFilter.$lt)
+          )
+            continue;
           store.splice(i, 1);
         }
         return { deletedCount: before - store.length };
@@ -62,11 +63,12 @@ vi.mock("../../database/models/ContentEmbedding.js", () => {
           if (filter.courseId && d.courseId !== filter.courseId) return false;
           if (filter.fileId !== undefined && d.fileId !== filter.fileId) return false;
           if (
-            typeof chunkIndexFilter === "object"
-            && chunkIndexFilter !== null
-            && typeof chunkIndexFilter.$lt === "number"
-            && !(d.chunkIndex < chunkIndexFilter.$lt)
-          ) return false;
+            typeof chunkIndexFilter === "object" &&
+            chunkIndexFilter !== null &&
+            typeof chunkIndexFilter.$lt === "number" &&
+            !(d.chunkIndex < chunkIndexFilter.$lt)
+          )
+            return false;
           return true;
         });
         return {
@@ -129,8 +131,8 @@ describe("upsertStoredFullText → getStoredFullDocumentForFile round-trip", () 
   });
 
   it("large text (3x part-size) round-tripper uten tap", async () => {
-    const { upsertStoredFullText, getStoredFullDocumentForFile, FULL_TEXT_PART_SIZE }
-      = await loadModule();
+    const { upsertStoredFullText, getStoredFullDocumentForFile, FULL_TEXT_PART_SIZE } =
+      await loadModule();
     const totalLength = FULL_TEXT_PART_SIZE * 3 + 12_345;
     // Ikke bruk kun "a" — bruk ulike tegn per part-grense så vi oppdager
     // hvis partene kommer i feil rekkefølge ved lesing.
@@ -163,8 +165,8 @@ describe("upsertStoredFullText → getStoredFullDocumentForFile round-trip", () 
   });
 
   it("re-upsert med kortere tekst sletter orphan-parter", async () => {
-    const { upsertStoredFullText, getStoredFullDocumentForFile, FULL_TEXT_PART_SIZE }
-      = await loadModule();
+    const { upsertStoredFullText, getStoredFullDocumentForFile, FULL_TEXT_PART_SIZE } =
+      await loadModule();
 
     // Første lagring: 3 parter
     await upsertStoredFullText({
@@ -237,8 +239,8 @@ describe("upsertStoredFullText → getStoredFullDocumentForFile round-trip", () 
   });
 
   it("ingen silent truncation selv ved 5 MB tekst (eliminerer hele feilmodus)", async () => {
-    const { upsertStoredFullText, getStoredFullDocumentForFile, FULL_TEXT_PART_SIZE }
-      = await loadModule();
+    const { upsertStoredFullText, getStoredFullDocumentForFile, FULL_TEXT_PART_SIZE } =
+      await loadModule();
     const hugeLength = FULL_TEXT_PART_SIZE * 10; // 5 MB tekst
     const text = "z".repeat(hugeLength);
 

@@ -42,8 +42,14 @@ export function getCurrentClerkEnv(): ClerkEnv {
   const key = process.env.CLERK_SECRET_KEY ?? "";
   if (cachedClerkEnvKey === key && cachedClerkEnv) return cachedClerkEnv;
   cachedClerkEnvKey = key;
-  if (key.startsWith("sk_test_")) { cachedClerkEnv = "test"; return "test"; }
-  if (key.startsWith("sk_live_")) { cachedClerkEnv = "live"; return "live"; }
+  if (key.startsWith("sk_test_")) {
+    cachedClerkEnv = "test";
+    return "test";
+  }
+  if (key.startsWith("sk_live_")) {
+    cachedClerkEnv = "live";
+    return "live";
+  }
   cachedClerkEnv = "unknown";
   return "unknown";
 }

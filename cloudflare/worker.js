@@ -74,13 +74,10 @@ export default {
         // Logg detaljer til worker-konsoll (Cloudflare dashboard) for feilsøking,
         // men returner generisk melding slik at Resend-feilformat ikke lekker videre.
         console.error("Resend API feilet", { status: res.status, errorText });
-        return new Response(
-          JSON.stringify({ error: "email_provider_failed" }),
-          {
-            status: 502,
-            headers: { "Content-Type": "application/json" },
-          },
-        );
+        return new Response(JSON.stringify({ error: "email_provider_failed" }), {
+          status: 502,
+          headers: { "Content-Type": "application/json" },
+        });
       }
 
       return new Response(JSON.stringify({ success: true }), {
@@ -90,13 +87,10 @@ export default {
     } catch (e) {
       // Ikke returner rå exception-message (kan inneholde stack/URL/miljødetaljer).
       console.error("Contact-worker unntak", { err: e });
-      return new Response(
-        JSON.stringify({ error: "internal_error" }),
-        {
-          status: 500,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
+      return new Response(JSON.stringify({ error: "internal_error" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
     }
   },
 };

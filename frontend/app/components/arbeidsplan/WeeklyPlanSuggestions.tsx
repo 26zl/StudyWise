@@ -19,10 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { parseTimerStreng } from "common/dateUtils";
-import type {
-  WeeklyPlanAssignment,
-  WeeklyPlanSuggestionResponse,
-} from "common/ki";
+import type { WeeklyPlanAssignment, WeeklyPlanSuggestionResponse } from "common/ki";
 import { FeilMelding } from "@/app/components/ui/FeilMelding";
 import { LoadingView } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
@@ -48,10 +45,7 @@ function beregnTimer(blocks: StudyBlock[]): number {
   }, 0);
 }
 
-export function WeeklyPlanSuggestions({
-  assignments,
-  onPlanCreated,
-}: WeeklyPlanSuggestionsProps) {
+export function WeeklyPlanSuggestions({ assignments, onPlanCreated }: WeeklyPlanSuggestionsProps) {
   const { t } = useLanguage();
   const [plan, setPlan] = useState<WeeklyPlanSuggestionResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,9 +68,7 @@ export function WeeklyPlanSuggestions({
       hydratedFromStoreRef.current = true;
       setPlan(bgJob.result);
       setError(null);
-      showToast.success(
-        t("weeklyPlan.generatedToast", { count: bgJob.result.blocks.length }),
-      );
+      showToast.success(t("weeklyPlan.generatedToast", { count: bgJob.result.blocks.length }));
       clearWeeklyPlan();
     } else if (bgJob.status === "error") {
       hydratedFromStoreRef.current = true;
@@ -122,9 +114,7 @@ export function WeeklyPlanSuggestions({
   const handleSavePlan = async () => {
     if (!plan || selectedBlocks.size === 0) return;
 
-    const selectedBlocksArray = plan.blocks.filter((_, index) =>
-      selectedBlocks.has(index),
-    );
+    const selectedBlocksArray = plan.blocks.filter((_, index) => selectedBlocks.has(index));
 
     try {
       await createMutation.mutateAsync({
@@ -181,10 +171,7 @@ export function WeeklyPlanSuggestions({
   if (isPending) {
     return (
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-12">
-        <LoadingView
-          text={t("weeklyPlan.generating")}
-          fullPage={false}
-        />
+        <LoadingView text={t("weeklyPlan.generating")} fullPage={false} />
       </div>
     );
   }
@@ -206,11 +193,14 @@ export function WeeklyPlanSuggestions({
 
   if (!plan) return null;
 
-  const blocksByDay = plan.blocks.reduce((acc, block, index) => {
-    if (!acc[block.day]) acc[block.day] = [];
-    acc[block.day].push({ ...block, index });
-    return acc;
-  }, {} as Record<string, Array<StudyBlock & { index: number }>>);
+  const blocksByDay = plan.blocks.reduce(
+    (acc, block, index) => {
+      if (!acc[block.day]) acc[block.day] = [];
+      acc[block.day].push({ ...block, index });
+      return acc;
+    },
+    {} as Record<string, Array<StudyBlock & { index: number }>>,
+  );
 
   const sortedDays = Object.keys(blocksByDay).sort(
     (a, b) => DAYS_ORDER.indexOf(a) - DAYS_ORDER.indexOf(b),
@@ -220,8 +210,7 @@ export function WeeklyPlanSuggestions({
   const anyDayExpanded = expandedDays.size > 0;
 
   const allSelected = selectedBlocks.size === plan.blocks.length;
-  const someSelected =
-    selectedBlocks.size > 0 && selectedBlocks.size < plan.blocks.length;
+  const someSelected = selectedBlocks.size > 0 && selectedBlocks.size < plan.blocks.length;
 
   return (
     <div className="space-y-4">
@@ -278,12 +267,8 @@ export function WeeklyPlanSuggestions({
                     : "border-slate-300 dark:border-slate-600"
               }`}
             >
-              {allSelected && (
-                <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
-              )}
-              {someSelected && !allSelected && (
-                <div className="w-2 h-2 bg-blue-600 rounded-sm" />
-              )}
+              {allSelected && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+              {someSelected && !allSelected && <div className="w-2 h-2 bg-blue-600 rounded-sm" />}
             </button>
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {selectedBlocks.size === 0
@@ -325,18 +310,19 @@ export function WeeklyPlanSuggestions({
             >
               <button
                 type="button"
-                onClick={() => setExpandedDays((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(day)) next.delete(day); else next.add(day);
-                  return next;
-                })}
+                onClick={() =>
+                  setExpandedDays((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(day)) next.delete(day);
+                    else next.add(day);
+                    return next;
+                  })
+                }
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <Calendar className="w-5 h-5 text-slate-400" />
-                  <span className="font-semibold text-slate-900 dark:text-white">
-                    {day}
-                  </span>
+                  <span className="font-semibold text-slate-900 dark:text-white">{day}</span>
                   <span className="text-sm text-slate-500 dark:text-slate-400">
                     {dayBlocks.length === 1
                       ? t("weeklyPlan.taskCount", { count: dayBlocks.length })

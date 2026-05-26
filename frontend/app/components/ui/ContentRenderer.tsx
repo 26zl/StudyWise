@@ -92,7 +92,10 @@ function CodeBlock({ className, children }: CodeBlockProps) {
             <span className="w-3 h-3 rounded-full bg-yellow-400 dark:bg-yellow-500" />
             <span className="w-3 h-3 rounded-full bg-green-400 dark:bg-green-500" />
           </div>
-          <span aria-hidden="true" className="text-xs font-medium text-slate-600 dark:text-slate-300 ml-1 uppercase tracking-wide">
+          <span
+            aria-hidden="true"
+            className="text-xs font-medium text-slate-600 dark:text-slate-300 ml-1 uppercase tracking-wide"
+          >
             {sprakLabel}
           </span>
         </div>
@@ -229,10 +232,7 @@ function MarkdownTr({ children, ...props }: React.ComponentProps<"tr">) {
 
 function MarkdownTd({ children, ...props }: React.ComponentProps<"td">) {
   return (
-    <td
-      className="px-4 py-2.5 text-slate-700 dark:text-slate-300 whitespace-normal"
-      {...props}
-    >
+    <td className="px-4 py-2.5 text-slate-700 dark:text-slate-300 whitespace-normal" {...props}>
       {children}
     </td>
   );
@@ -240,21 +240,94 @@ function MarkdownTd({ children, ...props }: React.ComponentProps<"td">) {
 
 // Blockquote / Callout
 // Gjenkjenner callout-prefixer: "> **Definisjon:**", "> **NB:**", "> **Eksempel:**" osv.
-const CALLOUT_PATTERNS: Record<string, { border: string; bg: string; darkBorder: string; darkBg: string }> = {
-  definisjon: { border: "border-blue-400", bg: "bg-blue-50", darkBorder: "dark:border-blue-500", darkBg: "dark:bg-blue-950/30" },
-  definition: { border: "border-blue-400", bg: "bg-blue-50", darkBorder: "dark:border-blue-500", darkBg: "dark:bg-blue-950/30" },
-  eksempel:   { border: "border-green-400", bg: "bg-green-50", darkBorder: "dark:border-green-500", darkBg: "dark:bg-green-950/30" },
-  example:    { border: "border-green-400", bg: "bg-green-50", darkBorder: "dark:border-green-500", darkBg: "dark:bg-green-950/30" },
-  nb:         { border: "border-amber-400", bg: "bg-amber-50", darkBorder: "dark:border-amber-500", darkBg: "dark:bg-amber-950/30" },
-  note:       { border: "border-amber-400", bg: "bg-amber-50", darkBorder: "dark:border-amber-500", darkBg: "dark:bg-amber-950/30" },
-  merk:       { border: "border-amber-400", bg: "bg-amber-50", darkBorder: "dark:border-amber-500", darkBg: "dark:bg-amber-950/30" },
-  viktig:     { border: "border-red-400", bg: "bg-red-50", darkBorder: "dark:border-red-500", darkBg: "dark:bg-red-950/30" },
-  important:  { border: "border-red-400", bg: "bg-red-50", darkBorder: "dark:border-red-500", darkBg: "dark:bg-red-950/30" },
-  advarsel:   { border: "border-red-400", bg: "bg-red-50", darkBorder: "dark:border-red-500", darkBg: "dark:bg-red-950/30" },
-  warning:    { border: "border-red-400", bg: "bg-red-50", darkBorder: "dark:border-red-500", darkBg: "dark:bg-red-950/30" },
-  tips:       { border: "border-purple-400", bg: "bg-purple-50", darkBorder: "dark:border-purple-500", darkBg: "dark:bg-purple-950/30" },
-  tip:        { border: "border-purple-400", bg: "bg-purple-50", darkBorder: "dark:border-purple-500", darkBg: "dark:bg-purple-950/30" },
-  hint:       { border: "border-purple-400", bg: "bg-purple-50", darkBorder: "dark:border-purple-500", darkBg: "dark:bg-purple-950/30" },
+const CALLOUT_PATTERNS: Record<
+  string,
+  { border: string; bg: string; darkBorder: string; darkBg: string }
+> = {
+  definisjon: {
+    border: "border-blue-400",
+    bg: "bg-blue-50",
+    darkBorder: "dark:border-blue-500",
+    darkBg: "dark:bg-blue-950/30",
+  },
+  definition: {
+    border: "border-blue-400",
+    bg: "bg-blue-50",
+    darkBorder: "dark:border-blue-500",
+    darkBg: "dark:bg-blue-950/30",
+  },
+  eksempel: {
+    border: "border-green-400",
+    bg: "bg-green-50",
+    darkBorder: "dark:border-green-500",
+    darkBg: "dark:bg-green-950/30",
+  },
+  example: {
+    border: "border-green-400",
+    bg: "bg-green-50",
+    darkBorder: "dark:border-green-500",
+    darkBg: "dark:bg-green-950/30",
+  },
+  nb: {
+    border: "border-amber-400",
+    bg: "bg-amber-50",
+    darkBorder: "dark:border-amber-500",
+    darkBg: "dark:bg-amber-950/30",
+  },
+  note: {
+    border: "border-amber-400",
+    bg: "bg-amber-50",
+    darkBorder: "dark:border-amber-500",
+    darkBg: "dark:bg-amber-950/30",
+  },
+  merk: {
+    border: "border-amber-400",
+    bg: "bg-amber-50",
+    darkBorder: "dark:border-amber-500",
+    darkBg: "dark:bg-amber-950/30",
+  },
+  viktig: {
+    border: "border-red-400",
+    bg: "bg-red-50",
+    darkBorder: "dark:border-red-500",
+    darkBg: "dark:bg-red-950/30",
+  },
+  important: {
+    border: "border-red-400",
+    bg: "bg-red-50",
+    darkBorder: "dark:border-red-500",
+    darkBg: "dark:bg-red-950/30",
+  },
+  advarsel: {
+    border: "border-red-400",
+    bg: "bg-red-50",
+    darkBorder: "dark:border-red-500",
+    darkBg: "dark:bg-red-950/30",
+  },
+  warning: {
+    border: "border-red-400",
+    bg: "bg-red-50",
+    darkBorder: "dark:border-red-500",
+    darkBg: "dark:bg-red-950/30",
+  },
+  tips: {
+    border: "border-purple-400",
+    bg: "bg-purple-50",
+    darkBorder: "dark:border-purple-500",
+    darkBg: "dark:bg-purple-950/30",
+  },
+  tip: {
+    border: "border-purple-400",
+    bg: "bg-purple-50",
+    darkBorder: "dark:border-purple-500",
+    darkBg: "dark:bg-purple-950/30",
+  },
+  hint: {
+    border: "border-purple-400",
+    bg: "bg-purple-50",
+    darkBorder: "dark:border-purple-500",
+    darkBg: "dark:bg-purple-950/30",
+  },
 };
 
 function extractCalloutType(children: React.ReactNode): string | null {
@@ -328,9 +401,7 @@ function MarkdownSection({ children, ...props }: React.ComponentProps<"section">
  * - Beholder `target="_blank"` for ikke-download-lenker så brukeren ikke mister
  *   chat-konteksten.
  */
-function MarkdownAnchor(
-  props: React.AnchorHTMLAttributes<HTMLAnchorElement>,
-): React.ReactElement {
+function MarkdownAnchor(props: React.AnchorHTMLAttributes<HTMLAnchorElement>): React.ReactElement {
   const { href, children, ...rest } = props;
   const hrefStr = typeof href === "string" ? href : "";
   const erCanvasDownload = hrefStr.includes("/download?download_frd=1");

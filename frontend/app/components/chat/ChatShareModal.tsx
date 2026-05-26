@@ -5,7 +5,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, Copy, ExternalLink, Link2, MessageSquare, ShieldAlert, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Copy,
+  ExternalLink,
+  Link2,
+  MessageSquare,
+  ShieldAlert,
+  X,
+} from "lucide-react";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
 import { useLanguage } from "@/app/i18n";
@@ -78,15 +86,29 @@ export function ChatShareModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6" onClick={handleBackdropClick} role="presentation">
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="share-modal-title" tabIndex={-1} className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl outline-none dark:border-slate-700 dark:bg-slate-950">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-6"
+      onClick={handleBackdropClick}
+      role="presentation"
+    >
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-modal-title"
+        tabIndex={-1}
+        className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl outline-none dark:border-slate-700 dark:bg-slate-950"
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5 dark:border-slate-800">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
               <Link2 className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="share-modal-title" className="text-xl font-semibold text-slate-900 dark:text-white">
+              <h2
+                id="share-modal-title"
+                className="text-xl font-semibold text-slate-900 dark:text-white"
+              >
                 {t("shareModal.title")}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -140,7 +162,9 @@ export function ChatShareModal({
 
           {shareUrl ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-800 dark:bg-slate-900">
-              <p className="mb-2 text-sm font-medium text-slate-900 dark:text-white">{t("shareModal.linkLabel")}</p>
+              <p className="mb-2 text-sm font-medium text-slate-900 dark:text-white">
+                {t("shareModal.linkLabel")}
+              </p>
               <div className="flex flex-col gap-2 md:flex-row md:items-center">
                 <input
                   value={shareUrl}
@@ -187,7 +211,11 @@ export function ChatShareModal({
             disabled={isPending}
             className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
           >
-            {isPending ? t("shareModal.savingButton") : (shareUrl ? t("shareModal.createNewButton") : t("shareModal.createButton"))}
+            {isPending
+              ? t("shareModal.savingButton")
+              : shareUrl
+                ? t("shareModal.createNewButton")
+                : t("shareModal.createButton")}
           </button>
         </div>
       </div>

@@ -70,9 +70,7 @@ export interface MarkExtractionInput {
  * Upsert status for en fil som ikke kunne ekstraheres. Øker attemptCount
  * hvis raden finnes fra før.
  */
-export async function markExtractionFailure(
-  input: MarkExtractionInput,
-): Promise<void> {
+export async function markExtractionFailure(input: MarkExtractionInput): Promise<void> {
   try {
     await FileExtractionStatus.findOneAndUpdate(
       {
@@ -155,10 +153,7 @@ export async function clearAllExtractionFailuresForCourse(
   try {
     await FileExtractionStatus.deleteMany({ userId, courseId });
   } catch (err) {
-    logger.warn(
-      { err, userId, courseId },
-      "Klarte ikke å slette FileExtractionStatus for kurs",
-    );
+    logger.warn({ err, userId, courseId }, "Klarte ikke å slette FileExtractionStatus for kurs");
   }
 }
 

@@ -69,7 +69,11 @@ export function setupSSE(req: Request, res: Response, socketTimeoutMs = 120_000)
     deadlineController.abort();
     clearKeepalive();
     if (!res.writableEnded) {
-      try { res.end(); } catch { /* allerede lukket */ }
+      try {
+        res.end();
+      } catch {
+        /* allerede lukket */
+      }
     }
   }, socketTimeoutMs);
 

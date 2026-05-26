@@ -4,11 +4,7 @@
  */
 
 import { cookies, headers } from "next/headers";
-import {
-  getPreferredLanguageFromAcceptLanguage,
-  isLanguage,
-  LANGUAGE_COOKIE_KEY,
-} from "./core";
+import { getPreferredLanguageFromAcceptLanguage, isLanguage, LANGUAGE_COOKIE_KEY } from "./core";
 import type { Language } from "./types";
 
 // Henter gjeldende språk fra cookie eller Accept-Language-header.

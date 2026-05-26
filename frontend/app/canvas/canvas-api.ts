@@ -95,10 +95,7 @@ function shouldRetryCanvasQuery(failureCount: number, error: unknown): boolean {
 }
 
 function shouldIgnoreAssignmentError(error: unknown): boolean {
-  return (
-    error instanceof CanvasPermissionError ||
-    error instanceof CanvasResourceError
-  );
+  return error instanceof CanvasPermissionError || error instanceof CanvasResourceError;
 }
 
 // Marker token som ugyldig i global state
@@ -113,9 +110,7 @@ export function resetCanvasTokenStatus() {
 
 // Felles feilhåndtering for Canvas API-responser
 // Håndterer 401, 403, 404, 429, 5xx og generelle feil
-async function håndterFeilRespons(
-  res: Response,
-): Promise<void> {
+async function håndterFeilRespons(res: Response): Promise<void> {
   if (res.status === 401) {
     const { errorMessage, errorCode } = await parseApiErrorBody(res, "Ikke autentisert");
     // Skiller Clerk-sesjonsutløp fra Canvas-token-feil. Tre kodepatater regnes
@@ -145,16 +140,16 @@ async function håndterFeilRespons(
     defaultCode: CanvasErrorCode,
   ): Promise<{ errorMessage: string; errorCode: CanvasErrorCode }> => {
     const parsed = await parseApiErrorBody(res, defaultMessage, defaultCode);
-    return { errorMessage: parsed.errorMessage, errorCode: (parsed.errorCode ?? defaultCode) as CanvasErrorCode };
+    return {
+      errorMessage: parsed.errorMessage,
+      errorCode: (parsed.errorCode ?? defaultCode) as CanvasErrorCode,
+    };
   };
 
   // Håndter 403 - skille mellom "token mangler" (vår backend) og "permission denied" (Canvas)
   if (res.status === 403) {
     const { errorMessage, errorCode } = await parseErrorBody("Ingen tilgang", "permission_denied");
-    if (
-      errorCode === "token_missing" ||
-      errorMessage.toLowerCase().includes("token mangler")
-    ) {
+    if (errorCode === "token_missing" || errorMessage.toLowerCase().includes("token mangler")) {
       markTokenInvalid();
       throw new CanvasTokenMissingError(errorMessage);
     }
@@ -163,8 +158,13 @@ async function håndterFeilRespons(
 
   // Håndter 404 - ressurs deaktivert eller ikke funnet
   if (res.status === 404) {
-    const { errorMessage, errorCode } = await parseErrorBody("Ressursen ble ikke funnet", "resource_not_found");
-    const resolvedCode = errorMessage.toLowerCase().includes("deaktivert") ? "resource_disabled" : errorCode;
+    const { errorMessage, errorCode } = await parseErrorBody(
+      "Ressursen ble ikke funnet",
+      "resource_not_found",
+    );
+    const resolvedCode = errorMessage.toLowerCase().includes("deaktivert")
+      ? "resource_disabled"
+      : errorCode;
     throw new CanvasResourceError(
       resolvedCode as "resource_disabled" | "resource_not_found",
       errorMessage,
@@ -173,7 +173,10 @@ async function håndterFeilRespons(
 
   // Håndter 429 - rate limited
   if (res.status === 429) {
-    const { errorMessage, errorCode } = await parseErrorBody("For mange forespørsler", "rate_limited");
+    const { errorMessage, errorCode } = await parseErrorBody(
+      "For mange forespørsler",
+      "rate_limited",
+    );
     throw new CanvasApiError(errorCode, errorMessage, 429);
   }
 
@@ -197,11 +200,12 @@ async function håndterFeilRespons(
     ) {
       const headerRetry = res.headers.get("Retry-After");
       const headerSeconds = headerRetry ? parseInt(headerRetry, 10) : NaN;
-      const retryAfterSeconds = Number.isFinite(headerSeconds) && headerSeconds > 0
-        ? headerSeconds
-        : (typeof payload.retryAfter === "number" && payload.retryAfter > 0
-          ? payload.retryAfter
-          : undefined);
+      const retryAfterSeconds =
+        Number.isFinite(headerSeconds) && headerSeconds > 0
+          ? headerSeconds
+          : typeof payload.retryAfter === "number" && payload.retryAfter > 0
+            ? payload.retryAfter
+            : undefined;
       throw new CanvasOutageError({
         message: errorMessage,
         outageStatus: payload.status,
@@ -219,14 +223,9 @@ async function håndterFeilRespons(
 }
 
 // API funksjoner
-export async function fetchCanvas<T>(
-  endpoint: string,
-  schema: ZodType<T>,
-): Promise<T> {
+export async function fetchCanvas<T>(endpoint: string, schema: ZodType<T>): Promise<T> {
   if (useUIStore.getState().canvasTokenInvalid) {
-    throw new CanvasTokenInvalidError(
-      "Canvas-token er ugyldig. Oppdater tokenet i innstillinger.",
-    );
+    throw new CanvasTokenInvalidError("Canvas-token er ugyldig. Oppdater tokenet i innstillinger.");
   }
 
   // deepcode ignore DOMXSS: Ingen DOM-skriving — responsen valideres med Zod og returneres som typede data.
@@ -239,14 +238,9 @@ export async function fetchCanvas<T>(
 }
 
 // Variant som tillater null-respons (for 204 No Content)
-async function fetchCanvasNullable<T>(
-  endpoint: string,
-  schema: ZodType<T>,
-): Promise<T | null> {
+async function fetchCanvasNullable<T>(endpoint: string, schema: ZodType<T>): Promise<T | null> {
   if (useUIStore.getState().canvasTokenInvalid) {
-    throw new CanvasTokenInvalidError(
-      "Canvas-token er ugyldig. Oppdater tokenet i innstillinger.",
-    );
+    throw new CanvasTokenInvalidError("Canvas-token er ugyldig. Oppdater tokenet i innstillinger.");
   }
 
   const res = await fetchApi(`/api/canvas${endpoint}`);
@@ -319,18 +313,11 @@ export function useCanvasAnnouncements(enabled = true) {
   });
 }
 
-export function useCanvasCourseAnnouncements(
-  courseId: number | null,
-  enabled = true,
-) {
+export function useCanvasCourseAnnouncements(courseId: number | null, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "course-announcements", courseId],
-    queryFn: () =>
-      fetchCanvas(
-        `/emner/${courseId}/announcements`,
-        AnnouncementsResponseSchema,
-      ),
+    queryFn: () => fetchCanvas(`/emner/${courseId}/announcements`, AnnouncementsResponseSchema),
     enabled: !!courseId && isEnabled,
     ...canvasQueryOptions,
   });
@@ -341,8 +328,7 @@ export function useCanvasModules(courseId: number | null, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "modules", courseId],
-    queryFn: () =>
-      fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema),
+    queryFn: () => fetchCanvas(`/emner/${courseId}/modules`, ModulesResponseSchema),
     enabled: !!courseId && isEnabled,
     ...canvasQueryOptions,
   });
@@ -353,8 +339,7 @@ export function useCanvasUpcomingEvents(enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "upcoming_events"],
-    queryFn: () =>
-      fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
+    queryFn: () => fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
     enabled: isEnabled,
     ...canvasQueryOptions,
   });
@@ -388,10 +373,7 @@ function createConcurrencyLimit(concurrency: number) {
 }
 
 // Hent ALLE oppgaver på tvers av emner
-export function useCanvasAllAssignments(options?: {
-  enabled?: boolean;
-  courses?: CanvasCourse[];
-}) {
+export function useCanvasAllAssignments(options?: { enabled?: boolean; courses?: CanvasCourse[] }) {
   const isEnabled = useCanvasEnabled(options?.enabled ?? true);
   const providedCourses = options?.courses;
   const coursesQuery = useCanvasCourses(isEnabled && !providedCourses);
@@ -453,16 +435,11 @@ export function useCanvasAllAssignments(options?: {
 }
 
 // Hent wiki page
-export function useCanvasPage(
-  courseId: number,
-  pageId: string | number,
-  enabled = true,
-) {
+export function useCanvasPage(courseId: number, pageId: string | number, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "page", courseId, pageId],
-    queryFn: () =>
-      fetchCanvas(`/emner/${courseId}/pages/${pageId}`, CanvasPageSchema),
+    queryFn: () => fetchCanvas(`/emner/${courseId}/pages/${pageId}`, CanvasPageSchema),
     enabled: !!courseId && !!pageId && isEnabled,
     ...canvasQueryOptions,
   });
@@ -473,11 +450,7 @@ export function useCanvasFiles(courseId: number | null, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "files", courseId],
-    queryFn: () =>
-      fetchCanvas(
-        `/emner/${courseId}/files`,
-        FilesResponseSchema,
-      ),
+    queryFn: () => fetchCanvas(`/emner/${courseId}/files`, FilesResponseSchema),
     select: (res) => res.files,
     enabled: !!courseId && isEnabled,
     ...canvasQueryOptions,
@@ -489,11 +462,7 @@ export function useCanvasPages(courseId: number | null, enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "pages", courseId],
-    queryFn: () =>
-      fetchCanvas(
-        `/emner/${courseId}/pages`,
-        PagesResponseSchema,
-      ),
+    queryFn: () => fetchCanvas(`/emner/${courseId}/pages`, PagesResponseSchema),
     select: (res) => res.pages,
     enabled: !!courseId && isEnabled,
     ...canvasQueryOptions,
@@ -532,17 +501,14 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   // Metadata for emner (frontpage/modules/files tilgjengelighet)
   queryClient.prefetchQuery({
     queryKey: ["canvas", "courses-metadata"],
-    queryFn: () =>
-      fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
+    queryFn: () => fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
     staleTime: 1000 * 60 * 30,
   });
   // Kalenderdata (frister, forelesninger, hendelser)
   queryClient.prefetchQuery({
     queryKey: ["canvas", "calendar"],
     queryFn: async () => {
-      const { fetchAllCalendarItems, mapCalendarItems } = await import(
-        "../calendar/calendar-api"
-      );
+      const { fetchAllCalendarItems, mapCalendarItems } = await import("../calendar/calendar-api");
       const data = await fetchAllCalendarItems();
       return { ...mapCalendarItems(data.items), meta: data.meta };
     },
@@ -561,8 +527,7 @@ export function prefetchCanvasData(queryClient: QueryClient) {
   // Kommende hendelser (brukes av AI Canvas-kontekst i innstillinger)
   queryClient.prefetchQuery({
     queryKey: ["canvas", "upcoming_events"],
-    queryFn: () =>
-      fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
+    queryFn: () => fetchCanvas("/users/self/upcoming_events", UpcomingEventsResponseSchema),
   });
 }
 
@@ -572,8 +537,7 @@ export function useCoursesMetadata(enabled = true) {
   const isEnabled = useCanvasEnabled(enabled);
   return useQuery({
     queryKey: ["canvas", "courses-metadata"],
-    queryFn: () =>
-      fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
+    queryFn: () => fetchCanvas("/emner/metadata", CoursesMetadataResponseSchema),
     enabled: isEnabled,
     staleTime: 1000 * 60 * 30, // 30 minutter - metadata endres sjelden
     refetchOnWindowFocus: false,

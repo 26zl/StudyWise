@@ -76,20 +76,14 @@ export async function verifyTurnstileToken(
       });
 
       if (!response.ok) {
-        logger.error(
-          { status: response.status },
-          "Turnstile API feilet",
-        );
+        logger.error({ status: response.status }, "Turnstile API feilet");
         return { success: false, errorCodes: ["api-error"] };
       }
 
       const result = (await response.json()) as TurnstileVerifyResponse;
 
       if (!result.success) {
-        logger.info(
-          { errorCodes: result["error-codes"] },
-          "Turnstile-verifisering feilet",
-        );
+        logger.info({ errorCodes: result["error-codes"] }, "Turnstile-verifisering feilet");
       }
 
       return {

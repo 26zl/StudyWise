@@ -8,5 +8,5 @@ import type { AssignmentMedEmne } from "./canvas-api";
 
 /** Sjekk om en oppgave er innlevert (submitted, graded eller pending_review) */
 export function erInnlevert(oppgave: AssignmentMedEmne): boolean {
-    return isCanvasAssignmentSubmitted(oppgave);
+  return isCanvasAssignmentSubmitted(oppgave);
 }

@@ -153,9 +153,7 @@ function buildContextLine(metadata?: SummarizationMetadata): string {
   if (metadata?.courseName) parts.push(`- Emne: ${metadata.courseName}`);
   if (metadata?.moduleName) parts.push(`- Modul: ${metadata.moduleName}`);
   if (metadata?.fileName) parts.push(`- Fil: ${metadata.fileName}`);
-  return parts.length > 0
-    ? `Kontekst (hvis tilgjengelig):\n${parts.join("\n")}`
-    : "";
+  return parts.length > 0 ? `Kontekst (hvis tilgjengelig):\n${parts.join("\n")}` : "";
 }
 
 function buildPrompt(text: string, metadata?: SummarizationMetadata): string {
@@ -201,10 +199,7 @@ async function streamAnthropicResponse(
   });
 
   for await (const event of stream) {
-    if (
-      event.type === "content_block_delta" &&
-      event.delta.type === "text_delta"
-    ) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
       const delta = event.delta.text;
       accumulated += delta;
       onStream(delta);
@@ -224,9 +219,7 @@ async function streamAnthropicResponse(
  *
  * Alltid én enkelt API-kall. Feiler aldri med ubehandlet unntak.
  */
-export async function summarizeContent(
-  options: SummarizationOptions,
-): Promise<string> {
+export async function summarizeContent(options: SummarizationOptions): Promise<string> {
   const words = countWords(options.text);
   const needsExtraction = options.text.length > EXTRACT_THRESHOLD_CHARS;
 
@@ -249,9 +242,7 @@ export async function summarizeContent(
     }
 
     // Ekstraher relevante deler hvis teksten er for lang, ellers bruk hele
-    const contextText = needsExtraction
-      ? extractRelevantContent(options.text)
-      : options.text;
+    const contextText = needsExtraction ? extractRelevantContent(options.text) : options.text;
 
     if (needsExtraction) {
       logger.info(
@@ -294,8 +285,7 @@ export async function summarizeContent(
       "summarizeContent feilet",
     );
 
-    const fallback =
-      "Oppsummeringen kunne ikke genereres på grunn av en intern feil. Prøv igjen.";
+    const fallback = "Oppsummeringen kunne ikke genereres på grunn av en intern feil. Prøv igjen.";
     if (options.onStream) {
       options.onStream(fallback);
     }
@@ -318,10 +308,7 @@ export async function summarizeIfNeeded(
   }
 
   const words = countWords(text);
-  logger.info(
-    { words, source, ...metadata },
-    "Tekst over terskel — pre-oppsummerer (single-call)",
-  );
+  logger.info({ words, source, ...metadata }, "Tekst over terskel — pre-oppsummerer (single-call)");
 
   try {
     const result = await summarizeContent({ text, source, metadata });

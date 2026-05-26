@@ -30,15 +30,11 @@ describe("ChatMessageSchema", () => {
   });
 
   it("avviser tom innhold", () => {
-    expect(
-      ChatMessageSchema.safeParse({ rolle: "user", innhold: "" }).success,
-    ).toBe(false);
+    expect(ChatMessageSchema.safeParse({ rolle: "user", innhold: "" }).success).toBe(false);
   });
 
   it("avviser innhold med bare mellomrom", () => {
-    expect(
-      ChatMessageSchema.safeParse({ rolle: "user", innhold: "   " }).success,
-    ).toBe(false);
+    expect(ChatMessageSchema.safeParse({ rolle: "user", innhold: "   " }).success).toBe(false);
   });
 
   it("avviser innhold over 50000 tegn", () => {
@@ -60,9 +56,7 @@ describe("ChatMessageSchema", () => {
   });
 
   it("avviser ugyldig rolle", () => {
-    expect(
-      ChatMessageSchema.safeParse({ rolle: "system", innhold: "Hei" }).success,
-    ).toBe(false);
+    expect(ChatMessageSchema.safeParse({ rolle: "system", innhold: "Hei" }).success).toBe(false);
   });
 });
 
@@ -131,9 +125,7 @@ describe("ChatShareCreateSchema", () => {
   });
 
   it("avviser ekstra felter (strict)", () => {
-    expect(
-      ChatShareCreateSchema.safeParse({ extra: true }).success,
-    ).toBe(false);
+    expect(ChatShareCreateSchema.safeParse({ extra: true }).success).toBe(false);
   });
 });
 
@@ -163,9 +155,7 @@ describe("ChatTopicUpdateSchema", () => {
   });
 
   it("avviser topic over 40 tegn", () => {
-    expect(
-      ChatTopicUpdateSchema.safeParse({ topic: "a".repeat(41) }).success,
-    ).toBe(false);
+    expect(ChatTopicUpdateSchema.safeParse({ topic: "a".repeat(41) }).success).toBe(false);
   });
 });
 
@@ -190,14 +180,10 @@ describe("ChatTitleUpdateSchema", () => {
   });
 
   it("godtar tittel med nøyaktig 120 tegn", () => {
-    expect(
-      ChatTitleUpdateSchema.safeParse({ title: "a".repeat(120) }).success,
-    ).toBe(true);
+    expect(ChatTitleUpdateSchema.safeParse({ title: "a".repeat(120) }).success).toBe(true);
   });
 
   it("avviser tittel over 120 tegn", () => {
-    expect(
-      ChatTitleUpdateSchema.safeParse({ title: "a".repeat(121) }).success,
-    ).toBe(false);
+    expect(ChatTitleUpdateSchema.safeParse({ title: "a".repeat(121) }).success).toBe(false);
   });
 });

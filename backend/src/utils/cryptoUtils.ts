@@ -26,9 +26,6 @@ export function timingSafeHexEqual(
   const a = aValid ? storedHash : "0".repeat(64);
   const b = bValid ? candidateHash : "1".repeat(64);
 
-  const equal = crypto.timingSafeEqual(
-    Buffer.from(a, "hex"),
-    Buffer.from(b, "hex"),
-  );
+  const equal = crypto.timingSafeEqual(Buffer.from(a, "hex"), Buffer.from(b, "hex"));
   return equal && aValid && bValid;
 }

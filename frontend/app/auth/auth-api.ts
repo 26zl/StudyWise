@@ -29,7 +29,12 @@ import {
 } from "common/auth";
 import { type BrowserPushPreferences } from "common/notifications";
 import { CanvasErrorCodeSchema } from "common/canvasErrors";
-import { AppError, CanvasApiError, CanvasTokenConflictError, UsernameConflictError } from "../lib/errors";
+import {
+  AppError,
+  CanvasApiError,
+  CanvasTokenConflictError,
+  UsernameConflictError,
+} from "../lib/errors";
 import { fetchApi } from "../lib/apiClient";
 import { forceRefreshClerkToken } from "../lib/clerkTokenForApi";
 import { broadcastLogout, clearClientAuthState } from "../hooks/use-auth-sync";
@@ -64,19 +69,13 @@ function mergeCachedUserPreferences(
     user: {
       ...current.user,
       canvasContextPreferences:
-        updated.canvasContextPreferences ??
-        current.user.canvasContextPreferences,
+        updated.canvasContextPreferences ?? current.user.canvasContextPreferences,
       varslerState: updated.varslerState ?? current.user.varslerState,
       manuellInnleveringState:
         updated.manuellInnleveringState ?? current.user.manuellInnleveringState,
-      browserPushPreferences:
-        updated.browserPushPreferences ?? current.user.browserPushPreferences,
-      uiPreferences: mergeUIPreferences(
-        current.user.uiPreferences,
-        updated.uiPreferences,
-      ),
-      hiddenCourseIds:
-        updated.hiddenCourseIds ?? current.user.hiddenCourseIds,
+      browserPushPreferences: updated.browserPushPreferences ?? current.user.browserPushPreferences,
+      uiPreferences: mergeUIPreferences(current.user.uiPreferences, updated.uiPreferences),
+      hiddenCourseIds: updated.hiddenCourseIds ?? current.user.hiddenCourseIds,
     },
   });
 }
@@ -89,11 +88,7 @@ function erReauthFeil(error: unknown): boolean {
   return message.includes("401") || message.includes("Ikke autentisert");
 }
 
-function lagCanvasTokenFeil(
-  json: unknown,
-  status: number,
-  fallback: string,
-): Error {
+function lagCanvasTokenFeil(json: unknown, status: number, fallback: string): Error {
   const payload = extractApiErrorPayload(json);
   const melding = extractApiErrorMessage(json, fallback);
 
@@ -126,7 +121,10 @@ const ME_REQUEST_TIMEOUT_MS = 10_000;
 
 // Hent info om innlogget bruker (Clerk token i Authorization header).
 // Signal fra React Query brukes; 25s timeout unngår evig venting ved kald backend i prod.
-async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }): Promise<MeResponse> {
+async function hentMeg(
+  signal?: AbortSignal,
+  options?: { forceSync?: boolean },
+): Promise<MeResponse> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), ME_REQUEST_TIMEOUT_MS);
   if (signal) {
@@ -175,11 +173,9 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
       // Frontend må logge ut fra Clerk og vise en tydelig melding.
       // Varsle andre faner slik at de også rydder opp.
       broadcastLogout();
-      throw createApiError(
-        json,
-        "Denne kontoen er slettet. Opprett en ny konto for å fortsette.",
-        { fatalUserDataReason: "user_deleted" },
-      );
+      throw createApiError(json, "Denne kontoen er slettet. Opprett en ny konto for å fortsette.", {
+        fatalUserDataReason: "user_deleted",
+      });
     }
     // Turnstile-verifisering utløpt: kast feil slik at TurnstileReChallenge kan vise
     // re-verifikasjonsmodal. Ikke logg ut — brukeren kan fullføre re-challenge inline.
@@ -200,10 +196,7 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
     }
     if (res.status === 409) {
       const payload = json && typeof json === "object" ? json : {};
-      const errorType =
-        "error" in payload
-          ? (payload as Record<string, unknown>).error
-          : undefined;
+      const errorType = "error" in payload ? (payload as Record<string, unknown>).error : undefined;
 
       // Alle konflikter: logg ut og vis melding.
       broadcastLogout();
@@ -219,10 +212,7 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
           { fatalUserDataReason: "username_conflict" },
         );
       }
-      if (
-        errorType === "oauth_account_conflict" ||
-        errorType === "oauth_metadata_missing"
-      ) {
+      if (errorType === "oauth_account_conflict" || errorType === "oauth_metadata_missing") {
         throw createApiError(
           json,
           "Denne innloggingskontoen er allerede koblet til en annen StudyWise-bruker. " +
@@ -244,8 +234,7 @@ async function hentMeg(signal?: AbortSignal, options?: { forceSync?: boolean }):
     if (err instanceof Error && err.name === "AbortError") {
       throw createApiError(
         {
-          melding:
-            "Forespørselen tok for lang tid. Backend kan være kald – prøv igjen.",
+          melding: "Forespørselen tok for lang tid. Backend kan være kald – prøv igjen.",
         },
         "Kunne ikke hente brukerdata",
       );
@@ -269,9 +258,7 @@ export async function forceSyncMe(queryClient: QueryClient): Promise<void> {
 }
 
 /** Avvis en synkroniseringskonflikt (bruker har sett og bekreftet). */
-export async function dismissSyncConflict(
-  type: SyncConflictType,
-): Promise<void> {
+export async function dismissSyncConflict(type: SyncConflictType): Promise<void> {
   const res = await fetchApi("/api/user/sync-conflicts/dismiss", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -287,11 +274,7 @@ async function loggUt(): Promise<LogoutResponse> {
   const res = await fetchApi("/api/user/logout", { method: "POST" });
   const json = await parseApiJson(res);
   if (res.status === 401 || res.status === 403) {
-    throw createAuthStatusError(
-      res.status,
-      json,
-      "Sesjonen er allerede utløpt.",
-    );
+    throw createAuthStatusError(res.status, json, "Sesjonen er allerede utløpt.");
   }
   if (!res.ok) {
     throw createApiError(json, "Kunne ikke logge ut");
@@ -307,12 +290,8 @@ interface SaveCanvasTokenInput {
   canvasBaseUrl: string;
 }
 
-async function lagreCanvasToken(
-  input: SaveCanvasTokenInput,
-): Promise<CanvasTokenResponse> {
-  const url = input.forceRelink
-    ? "/api/user/token?force=true"
-    : "/api/user/token";
+async function lagreCanvasToken(input: SaveCanvasTokenInput): Promise<CanvasTokenResponse> {
+  const url = input.forceRelink ? "/api/user/token?force=true" : "/api/user/token";
   const res = await fetchApi(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -333,10 +312,7 @@ async function lagreCanvasToken(
 
 // Hook for å hente info om innlogget bruker
 // initialData: kun MeResponse ved bekrevet innlogget – aldri null (unngår at SSR-feil caches som "gjest" i 5 min)
-export function useMeg(options?: {
-  initialData?: MeResponse;
-  enabled?: boolean;
-}) {
+export function useMeg(options?: { initialData?: MeResponse; enabled?: boolean }) {
   return useQuery({
     queryKey: AUTH_ME_QUERY_KEY,
     queryFn: ({ signal }) => hentMeg(signal),
@@ -352,10 +328,7 @@ export function useMeg(options?: {
         return false;
       }
       const msg = error instanceof Error ? error.message : "";
-      if (
-        msg.includes("kontoen er slettet") ||
-        msg.includes("Denne kontoen er slettet")
-      )
+      if (msg.includes("kontoen er slettet") || msg.includes("Denne kontoen er slettet"))
         return false;
       // Maks 2 retries ved nettverksfeil — unngår lang ventetid
       return failureCount < 2;
@@ -370,9 +343,7 @@ export function useMeg(options?: {
   });
 }
 // Oppdater brukerprofil (fornavn, etternavn, brukernavn)
-async function oppdaterProfil(
-  data: ProfileUpdateWithUsername,
-): Promise<ProfileUpdateResponse> {
+async function oppdaterProfil(data: ProfileUpdateWithUsername): Promise<ProfileUpdateResponse> {
   const res = await fetchApi("/api/user/profile", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -387,10 +358,7 @@ async function oppdaterProfil(
   // Strukturert håndtering av brukernavn-konflikt (409)
   if (res.status === 409) {
     const payload = json && typeof json === "object" ? json : {};
-    const errorType =
-      "error" in payload
-        ? (payload as Record<string, unknown>).error
-        : undefined;
+    const errorType = "error" in payload ? (payload as Record<string, unknown>).error : undefined;
     if (errorType === "username_conflict") {
       const username =
         typeof (payload as Record<string, unknown>).username === "string"
@@ -415,33 +383,24 @@ export function useOppdaterProfil() {
     mutationFn: oppdaterProfil,
     onMutate: async (updates) => {
       await queryClient.cancelQueries({ queryKey: AUTH_ME_QUERY_KEY });
-      const previous = queryClient.getQueryData<MeResponse | undefined>(
-        AUTH_ME_QUERY_KEY,
-      );
+      const previous = queryClient.getQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY);
 
-      queryClient.setQueryData<MeResponse | undefined>(
-        AUTH_ME_QUERY_KEY,
-        (current) => {
-          if (!current) return current;
+      queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) => {
+        if (!current) return current;
 
-          const nextUser = {
-            ...current.user,
-            ...(updates.firstName !== undefined
-              ? { firstName: updates.firstName || undefined }
-              : {}),
-            ...(updates.lastName !== undefined
-              ? { lastName: updates.lastName || undefined }
-              : {}),
-            ...("username" in updates && updates.username !== undefined
-              ? { username: updates.username || undefined }
-              : {}),
-          };
+        const nextUser = {
+          ...current.user,
+          ...(updates.firstName !== undefined ? { firstName: updates.firstName || undefined } : {}),
+          ...(updates.lastName !== undefined ? { lastName: updates.lastName || undefined } : {}),
+          ...("username" in updates && updates.username !== undefined
+            ? { username: updates.username || undefined }
+            : {}),
+        };
 
-          return MeResponseSchema.parse({
-            user: nextUser,
-          });
-        },
-      );
+        return MeResponseSchema.parse({
+          user: nextUser,
+        });
+      });
 
       return { previous };
     },
@@ -452,15 +411,12 @@ export function useOppdaterProfil() {
     },
     onSuccess: (data) => {
       // Oppdater cached /me-data med ny profilinfo
-      queryClient.setQueryData<MeResponse | undefined>(
-        AUTH_ME_QUERY_KEY,
-        (current) => {
-          if (!current) return current;
-          return MeResponseSchema.parse({
-            user: { ...current.user, ...data.user },
-          });
-        },
-      );
+      queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) => {
+        if (!current) return current;
+        return MeResponseSchema.parse({
+          user: { ...current.user, ...data.user },
+        });
+      });
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: AUTH_ME_QUERY_KEY });
@@ -497,10 +453,7 @@ export function useLoggUtWithRedirect() {
       await loggUt.mutateAsync();
     } catch (error) {
       if (!AppError.isAppError(error) || !error.requiresReauth()) {
-        showToast.warning(
-          t("auth.logoutFailedTitle"),
-          t("auth.logoutFailedDescription"),
-        );
+        showToast.warning(t("auth.logoutFailedTitle"), t("auth.logoutFailedDescription"));
       }
     }
 
@@ -603,16 +556,13 @@ async function oppdaterBrukerPreferanser(
 }
 
 // Generisk hook for oppdatering av brukerpreferanser. Tar en funksjon som mapper input til UserPreferencesUpdate, og håndterer cache-oppdatering av /me data ved suksess.
-function useOppdaterBrukerPreferanser<TValue>(
-  toUpdate: (value: TValue) => UserPreferencesUpdate,
-) {
+function useOppdaterBrukerPreferanser<TValue>(toUpdate: (value: TValue) => UserPreferencesUpdate) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (value: TValue) => oppdaterBrukerPreferanser(toUpdate(value)),
     onSuccess: (data) => {
-      queryClient.setQueryData<MeResponse | undefined>(
-        AUTH_ME_QUERY_KEY,
-        (current) => mergeCachedUserPreferences(current, data),
+      queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) =>
+        mergeCachedUserPreferences(current, data),
       );
     },
   });
@@ -620,11 +570,9 @@ function useOppdaterBrukerPreferanser<TValue>(
 
 // Hook for oppdatering av Canvas-kontekst preferanser
 function useOppdaterPreferanser() {
-  return useOppdaterBrukerPreferanser(
-    (canvasContextPreferences: CanvasContextPreferences) => ({
-      canvasContextPreferences,
-    }),
-  );
+  return useOppdaterBrukerPreferanser((canvasContextPreferences: CanvasContextPreferences) => ({
+    canvasContextPreferences,
+  }));
 }
 
 // Hook for oppdatering av varslingspreferanser
@@ -636,19 +584,15 @@ export function useOppdaterVarslerState() {
 
 // Hook for oppdatering av manuell innlevering (database er autoritativ)
 export function useOppdaterManuellInnleveringState() {
-  return useOppdaterBrukerPreferanser(
-    (manuellInnleveringState: ManuellInnleveringState) => ({
-      manuellInnleveringState,
-    }),
-  );
+  return useOppdaterBrukerPreferanser((manuellInnleveringState: ManuellInnleveringState) => ({
+    manuellInnleveringState,
+  }));
 }
 
 export function useOppdaterBrowserPushPreferanser() {
-  return useOppdaterBrukerPreferanser(
-    (browserPushPreferences: BrowserPushPreferences) => ({
-      browserPushPreferences,
-    }),
-  );
+  return useOppdaterBrukerPreferanser((browserPushPreferences: BrowserPushPreferences) => ({
+    browserPushPreferences,
+  }));
 }
 
 // Hook for oppdatering av UI-preferanser (språk, tema, cookie-samtykke)

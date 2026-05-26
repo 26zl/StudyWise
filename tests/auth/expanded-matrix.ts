@@ -125,7 +125,15 @@ interface ScenarioEvidence {
   group: string;
   kind: string;
   description: string;
-  status: "executed" | "manual_required" | "setup_failed" | "skipped" | "e2e_required" | "oauth_required" | "admin_required" | "race_condition";
+  status:
+    | "executed"
+    | "manual_required"
+    | "setup_failed"
+    | "skipped"
+    | "e2e_required"
+    | "oauth_required"
+    | "admin_required"
+    | "race_condition";
   startedAt: string;
   finishedAt: string;
   durationMs: number;
@@ -241,25 +249,41 @@ function parseClerkCreateError(error: unknown): ClerkCreateErrorInfo {
   return {
     message,
     status,
-    codes: errors.map((item) => item.code).filter((code): code is string => typeof code === "string"),
-    longMessages: errors.map((item) => item.longMessage ?? item.message).filter((text): text is string => typeof text === "string"),
+    codes: errors
+      .map((item) => item.code)
+      .filter((code): code is string => typeof code === "string"),
+    longMessages: errors
+      .map((item) => item.longMessage ?? item.message)
+      .filter((text): text is string => typeof text === "string"),
   };
 }
 
 function hasDuplicateEmailSignal(error: ClerkCreateErrorInfo): boolean {
   const blob = [error.message, ...error.codes, ...error.longMessages].join(" ").toLowerCase();
-  return blob.includes("email") && (blob.includes("exist") || blob.includes("taken") || blob.includes("already"));
+  return (
+    blob.includes("email") &&
+    (blob.includes("exist") || blob.includes("taken") || blob.includes("already"))
+  );
 }
 
 function hasDuplicateUsernameSignal(error: ClerkCreateErrorInfo): boolean {
   const blob = [error.message, ...error.codes, ...error.longMessages].join(" ").toLowerCase();
-  return blob.includes("username") && (blob.includes("exist") || blob.includes("taken") || blob.includes("already"));
+  return (
+    blob.includes("username") &&
+    (blob.includes("exist") || blob.includes("taken") || blob.includes("already"))
+  );
 }
 
 function hasValidationError(error: ClerkCreateErrorInfo): boolean {
   const blob = [error.message, ...error.codes, ...error.longMessages].join(" ").toLowerCase();
-  return blob.includes("invalid") || blob.includes("validation") || blob.includes("format") || 
-         blob.includes("too short") || blob.includes("too long") || blob.includes("character");
+  return (
+    blob.includes("invalid") ||
+    blob.includes("validation") ||
+    blob.includes("format") ||
+    blob.includes("too short") ||
+    blob.includes("too long") ||
+    blob.includes("character")
+  );
 }
 
 // ============================================================================
@@ -291,13 +315,21 @@ function parseFlowResponse(status: number, body: unknown): FlowResponseEvidence 
   }
 
   const rawClassification =
-    typeof body === "object" && body !== null && typeof (body as { classification?: unknown }).classification === "string"
+    typeof body === "object" &&
+    body !== null &&
+    typeof (body as { classification?: unknown }).classification === "string"
       ? (body as { classification: string }).classification
       : null;
 
-  const result = typeof body === "object" && body !== null ? (body as { result?: unknown }).result : null;
+  const result =
+    typeof body === "object" && body !== null ? (body as { result?: unknown }).result : null;
 
-  if (rawClassification?.startsWith("success") && typeof result === "object" && result !== null && "_id" in result) {
+  if (
+    rawClassification?.startsWith("success") &&
+    typeof result === "object" &&
+    result !== null &&
+    "_id" in result
+  ) {
     const user = result as { _id?: unknown; email?: unknown; username?: unknown };
     return {
       httpStatus: status,
@@ -324,11 +356,13 @@ function parseFlowResponse(status: number, body: unknown): FlowResponseEvidence 
     };
   }
 
-  const conflictType = detectConflictType(result) ?? (() => {
-    if (!rawClassification) return null;
-    const match = rawClassification.match(/type:\s*([a-zA-Z0-9_]+)/);
-    return match ? match[1] : null;
-  })();
+  const conflictType =
+    detectConflictType(result) ??
+    (() => {
+      if (!rawClassification) return null;
+      const match = rawClassification.match(/type:\s*([a-zA-Z0-9_]+)/);
+      return match ? match[1] : null;
+    })();
 
   if (conflictType) {
     return {
@@ -364,7 +398,8 @@ function normalizeDbUserRow(doc: Record<string, unknown>): DbUserRow {
     _id: String(doc._id ?? ""),
     email: typeof doc.email === "string" ? doc.email : undefined,
     username: typeof doc.username === "string" ? doc.username : undefined,
-    usernameNormalized: typeof doc.usernameNormalized === "string" ? doc.usernameNormalized : undefined,
+    usernameNormalized:
+      typeof doc.usernameNormalized === "string" ? doc.usernameNormalized : undefined,
     clerkId: typeof doc.clerkId === "string" ? doc.clerkId : undefined,
     authProviders: Array.isArray(doc.authProviders) ? doc.authProviders : undefined,
     deletedAt: doc.deletedAt instanceof Date ? doc.deletedAt.toISOString() : undefined,
@@ -402,7 +437,12 @@ async function findDuplicateUsernames(): Promise<string[]> {
   return results.map((r: MongoDocument) => String(r.username));
 }
 
-async function collectDbSnapshot(emails: string[], usernames: string[], clerkIds: string[], usersBefore: number): Promise<DbSnapshotEvidence> {
+async function collectDbSnapshot(
+  emails: string[],
+  usernames: string[],
+  clerkIds: string[],
+  usersBefore: number,
+): Promise<DbSnapshotEvidence> {
   if (!usersCollection) {
     return {
       available: false,
@@ -418,16 +458,38 @@ async function collectDbSnapshot(emails: string[], usernames: string[], clerkIds
   }
 
   const projection = {
-    _id: 1, email: 1, username: 1, usernameNormalized: 1, clerkId: 1,
-    authProviders: 1, deletedAt: 1, oauthAccounts: 1, syncConflict: 1,
+    _id: 1,
+    email: 1,
+    username: 1,
+    usernameNormalized: 1,
+    clerkId: 1,
+    authProviders: 1,
+    deletedAt: 1,
+    oauthAccounts: 1,
+    syncConflict: 1,
   };
 
   const normalizedUsernames = usernames.map((u) => u.toLowerCase().trim()).filter(Boolean);
 
-  const [emailMatchesRaw, usernameMatchesRaw, clerkIdMatchesRaw, usersAfter, duplicateEmails, duplicateUsernames] = await Promise.all([
-    emails.length ? usersCollection.find({ email: { $in: emails } }, { projection }).toArray() : Promise.resolve([]),
-    normalizedUsernames.length ? usersCollection.find({ usernameNormalized: { $in: normalizedUsernames } }, { projection }).toArray() : Promise.resolve([]),
-    clerkIds.length ? usersCollection.find({ clerkId: { $in: clerkIds } }, { projection }).toArray() : Promise.resolve([]),
+  const [
+    emailMatchesRaw,
+    usernameMatchesRaw,
+    clerkIdMatchesRaw,
+    usersAfter,
+    duplicateEmails,
+    duplicateUsernames,
+  ] = await Promise.all([
+    emails.length
+      ? usersCollection.find({ email: { $in: emails } }, { projection }).toArray()
+      : Promise.resolve([]),
+    normalizedUsernames.length
+      ? usersCollection
+          .find({ usernameNormalized: { $in: normalizedUsernames } }, { projection })
+          .toArray()
+      : Promise.resolve([]),
+    clerkIds.length
+      ? usersCollection.find({ clerkId: { $in: clerkIds } }, { projection }).toArray()
+      : Promise.resolve([]),
     countUsers(),
     findDuplicateEmails(),
     findDuplicateUsernames(),
@@ -437,9 +499,15 @@ async function collectDbSnapshot(emails: string[], usernames: string[], clerkIds
     available: true,
     usersBefore,
     usersAfter,
-    emailMatches: emailMatchesRaw.map((doc: MongoDocument) => normalizeDbUserRow(doc as Record<string, unknown>)),
-    usernameMatches: usernameMatchesRaw.map((doc: MongoDocument) => normalizeDbUserRow(doc as Record<string, unknown>)),
-    clerkIdMatches: clerkIdMatchesRaw.map((doc: MongoDocument) => normalizeDbUserRow(doc as Record<string, unknown>)),
+    emailMatches: emailMatchesRaw.map((doc: MongoDocument) =>
+      normalizeDbUserRow(doc as Record<string, unknown>),
+    ),
+    usernameMatches: usernameMatchesRaw.map((doc: MongoDocument) =>
+      normalizeDbUserRow(doc as Record<string, unknown>),
+    ),
+    clerkIdMatches: clerkIdMatchesRaw.map((doc: MongoDocument) =>
+      normalizeDbUserRow(doc as Record<string, unknown>),
+    ),
     duplicateEmails,
     duplicateUsernames,
   };
@@ -466,7 +534,9 @@ async function createEmailUser(
       skipPasswordChecks: true,
     });
 
-    const primaryEmail = user.emailAddresses.find((entry) => entry.id === user.primaryEmailAddressId);
+    const primaryEmail = user.emailAddresses.find(
+      (entry) => entry.id === user.primaryEmailAddressId,
+    );
 
     const evidence: CreateAttemptEvidence = {
       ok: true,
@@ -478,7 +548,12 @@ async function createEmailUser(
         email: primaryEmail?.emailAddress ?? email,
         username: user.username,
         externalAccountsCount: user.externalAccounts?.length ?? 0,
-        primaryEmailVerified: primaryEmail?.verification?.status === "verified" ? true : primaryEmail?.verification?.status ? false : null,
+        primaryEmailVerified:
+          primaryEmail?.verification?.status === "verified"
+            ? true
+            : primaryEmail?.verification?.status
+              ? false
+              : null,
       },
     };
 
@@ -497,7 +572,10 @@ async function createEmailUser(
   }
 }
 
-async function deleteUserSafe(clerk: ReturnType<typeof createClerkClient>, userId: string): Promise<boolean> {
+async function deleteUserSafe(
+  clerk: ReturnType<typeof createClerkClient>,
+  userId: string,
+): Promise<boolean> {
   try {
     await clerk.users.deleteUser(userId);
     return true;
@@ -509,7 +587,10 @@ async function deleteUserSafe(clerk: ReturnType<typeof createClerkClient>, userI
   }
 }
 
-async function callTestAuthFlow(clerkId: string, flowId: string): Promise<{ status: number; body: unknown }> {
+async function callTestAuthFlow(
+  clerkId: string,
+  flowId: string,
+): Promise<{ status: number; body: unknown }> {
   logger.step("Calling auth flow endpoint", `flowId=${flowId}`);
   logger.setFlowId(flowId);
 
@@ -560,10 +641,16 @@ async function callTestUpdateProfile(
   logger.logAuthFlow("update-profile response", { status: response.status, body });
 
   const conflict = response.status === 409;
-  const success = response.status === 200 && typeof body === "object" && body !== null && "success" in body && body.success === true;
-  const detectionPhase = conflict && typeof body === "object" && body !== null && "detectionPhase" in body
-    ? (body.detectionPhase as "early_check" | "db_fallback")
-    : undefined;
+  const success =
+    response.status === 200 &&
+    typeof body === "object" &&
+    body !== null &&
+    "success" in body &&
+    body.success === true;
+  const detectionPhase =
+    conflict && typeof body === "object" && body !== null && "detectionPhase" in body
+      ? (body.detectionPhase as "early_check" | "db_fallback")
+      : undefined;
 
   return { status: response.status, body, success, conflict, detectionPhase };
 }
@@ -614,7 +701,7 @@ function classifyScenario(
       }
       return `USERNAME_UPDATE_FAILED_HTTP_${updateResult.httpStatus}`;
     }
-    
+
     // Enkeltidentitet-scenario (f.eks. valideringstest)
     if (flowA.outcome === "success") {
       return "SINGLE_USER_SUCCESS";
@@ -645,8 +732,10 @@ function classifyScenario(
   if (flowB?.outcome === "conflict") {
     if (flowB.conflictType === "usernameConflict") return "BACKEND_BLOCKED_USERNAME_CONFLICT";
     if (flowB.conflictType === "accountConflict") return "BACKEND_BLOCKED_ACCOUNT_CONFLICT";
-    if (flowB.conflictType === "oauthAccountConflict") return "BACKEND_BLOCKED_OAUTH_ACCOUNT_CONFLICT";
-    if (flowB.conflictType === "oauthMetadataMissing") return "BACKEND_BLOCKED_OAUTH_METADATA_MISSING";
+    if (flowB.conflictType === "oauthAccountConflict")
+      return "BACKEND_BLOCKED_OAUTH_ACCOUNT_CONFLICT";
+    if (flowB.conflictType === "oauthMetadataMissing")
+      return "BACKEND_BLOCKED_OAUTH_METADATA_MISSING";
     if (flowB.conflictType === "userDeleted") return "BACKEND_BLOCKED_DELETED_USER";
     return "BACKEND_BLOCKED_UNKNOWN_CONFLICT";
   }
@@ -664,8 +753,12 @@ function classifyScenario(
     const updateResult = updateResults[0];
     if (updateResult.conflict) {
       // Brukernavn-oppdatering ble korrekt blokkert
-      const phase = updateResult.detectionPhase === "early_check" ? "EARLY_CHECK" : 
-                    updateResult.detectionPhase === "db_fallback" ? "DB_FALLBACK" : "UNKNOWN";
+      const phase =
+        updateResult.detectionPhase === "early_check"
+          ? "EARLY_CHECK"
+          : updateResult.detectionPhase === "db_fallback"
+            ? "DB_FALLBACK"
+            : "UNKNOWN";
       return `USERNAME_UPDATE_BLOCKED_${phase}`;
     }
     if (updateResult.success) {
@@ -683,7 +776,8 @@ function classifyScenario(
 
   // Begge lyktes
   if (flowA?.outcome === "success" && flowB?.outcome === "success") {
-    const sameLocal = flowA.localUserId && flowB.localUserId && flowA.localUserId === flowB.localUserId;
+    const sameLocal =
+      flowA.localUserId && flowB.localUserId && flowA.localUserId === flowB.localUserId;
     if (sameLocal) {
       return "SAME_LOCAL_USER_REUSED";
     }
@@ -743,8 +837,15 @@ async function runExecutableScenario(
   try {
     if (!firstCreate.ok || !firstCreate.user) {
       const classification = classifyScenario(scenario, createAttempts, flowResponses, {
-        available: false, reason: "First identity failed", usersBefore: -1, usersAfter: -1,
-        emailMatches: [], usernameMatches: [], clerkIdMatches: [], duplicateEmails: [], duplicateUsernames: [],
+        available: false,
+        reason: "First identity failed",
+        usersBefore: -1,
+        usersAfter: -1,
+        emailMatches: [],
+        usernameMatches: [],
+        clerkIdMatches: [],
+        duplicateEmails: [],
+        duplicateUsernames: [],
       });
 
       return {
@@ -763,7 +864,17 @@ async function runExecutableScenario(
         clerkUsers,
         createAttempts,
         flowResponses,
-        dbSnapshot: { available: false, reason: "First identity failed", usersBefore, usersAfter: -1, emailMatches: [], usernameMatches: [], clerkIdMatches: [], duplicateEmails: [], duplicateUsernames: [] },
+        dbSnapshot: {
+          available: false,
+          reason: "First identity failed",
+          usersBefore,
+          usersAfter: -1,
+          emailMatches: [],
+          usernameMatches: [],
+          clerkIdMatches: [],
+          duplicateEmails: [],
+          duplicateUsernames: [],
+        },
         notes,
         cleanup,
       };
@@ -800,15 +911,18 @@ async function runExecutableScenario(
       // For oppdateringsscenarioer med to brukere, prøv å oppdatere den andre brukerens brukernavn til den første brukerens brukernavn
       const updateFlowId = `${scenario.id}-UPDATE-${Date.now()}`;
       flowIds.push(updateFlowId);
-      
-      logger.step("Username update test", `Attempting to change ${scenario.second.username} → ${scenario.first.username}`);
-      
+
+      logger.step(
+        "Username update test",
+        `Attempting to change ${scenario.second.username} → ${scenario.first.username}`,
+      );
+
       const updateResult = await callTestUpdateProfile(
         secondCreate.user.id,
         scenario.first.username, // Prøv å bruke den første brukerens brukernavn
         updateFlowId,
       );
-      
+
       updateResults.push({
         attempted: true,
         clerkId: secondCreate.user.id,
@@ -827,15 +941,20 @@ async function runExecutableScenario(
       } else {
         notes.push(`Username update failed with status ${updateResult.status}`);
       }
-    } else if (scenario.action === "update" && !scenario.second && firstCreate.ok && firstCreate.user) {
+    } else if (
+      scenario.action === "update" &&
+      !scenario.second &&
+      firstCreate.ok &&
+      firstCreate.user
+    ) {
       // Enkeltbruker-oppdateringsscenarioer (G02-G04): test store/små bokstaver, mellomrom eller ugyldig format
       const updateFlowId = `${scenario.id}-UPDATE-${Date.now()}`;
       flowIds.push(updateFlowId);
-      
+
       // Bestem hvilket brukernavn som skal testes basert på scenario-ID
       let testUsername: string;
       const baseUsername = scenario.first.username;
-      
+
       if (scenario.id.includes("same-casing")) {
         // G02: Test store/små bokstaver - konverter til store bokstaver
         testUsername = baseUsername.toUpperCase();
@@ -843,7 +962,10 @@ async function runExecutableScenario(
       } else if (scenario.id.includes("whitespace")) {
         // G03: Test mellomrom - legg til ledende/etterfølgende mellomrom
         testUsername = `  ${baseUsername}  `;
-        logger.step("Username update test (whitespace)", `"${baseUsername}" → "  ${baseUsername}  "`);
+        logger.step(
+          "Username update test (whitespace)",
+          `"${baseUsername}" → "  ${baseUsername}  "`,
+        );
       } else if (scenario.id.includes("invalid-format")) {
         // G04: Test ugyldig format
         testUsername = "@#$%!";
@@ -853,13 +975,13 @@ async function runExecutableScenario(
         testUsername = baseUsername;
         logger.step("Username update test", `${baseUsername} → ${testUsername}`);
       }
-      
+
       const updateResult = await callTestUpdateProfile(
         firstCreate.user.id,
         testUsername,
         updateFlowId,
       );
-      
+
       updateResults.push({
         attempted: true,
         clerkId: firstCreate.user.id,
@@ -896,27 +1018,39 @@ async function runExecutableScenario(
     logger.logDbSnapshot(dbSnapshot);
 
     // Klassifiser
-    const classification = classifyScenario(scenario, createAttempts, flowResponses, dbSnapshot, updateResults);
+    const classification = classifyScenario(
+      scenario,
+      createAttempts,
+      flowResponses,
+      dbSnapshot,
+      updateResults,
+    );
     logger.logClassification(classification);
 
-    const outcomeMatch = classification === scenario.expectedOutcome || 
-      (scenario.expectedOutcome.includes("OR") && scenario.expectedOutcome.split("_OR_").some(exp => classification.includes(exp))) ||
+    const outcomeMatch =
+      classification === scenario.expectedOutcome ||
+      (scenario.expectedOutcome.includes("OR") &&
+        scenario.expectedOutcome.split("_OR_").some((exp) => classification.includes(exp))) ||
       // Håndter USERNAME_UPDATE_BLOCKED med vilkårlig deteksjonsfase
-      (scenario.expectedOutcome === "USERNAME_UPDATE_BLOCKED" && classification.startsWith("USERNAME_UPDATE_BLOCKED")) ||
+      (scenario.expectedOutcome === "USERNAME_UPDATE_BLOCKED" &&
+        classification.startsWith("USERNAME_UPDATE_BLOCKED")) ||
       // Håndter EARLY_BLOCK_OR_DB_FALLBACK som matcher begge
-      (scenario.expectedOutcome === "EARLY_BLOCK_OR_DB_FALLBACK" && 
-       (classification === "USERNAME_UPDATE_BLOCKED_EARLY_CHECK" || classification === "USERNAME_UPDATE_BLOCKED_DB_FALLBACK")) ||
+      (scenario.expectedOutcome === "EARLY_BLOCK_OR_DB_FALLBACK" &&
+        (classification === "USERNAME_UPDATE_BLOCKED_EARLY_CHECK" ||
+          classification === "USERNAME_UPDATE_BLOCKED_DB_FALLBACK")) ||
       // Håndter ALLOWED_OR_NORMALIZED (G02: endring av store/små bokstaver)
-      (scenario.expectedOutcome === "ALLOWED_OR_NORMALIZED" && classification === "USERNAME_UPDATE_ALLOWED") ||
+      (scenario.expectedOutcome === "ALLOWED_OR_NORMALIZED" &&
+        classification === "USERNAME_UPDATE_ALLOWED") ||
       // Håndter VALIDATION_ERROR_OR_TRIMMED (G03: mellomrom - enten tillatt+trimmet eller valideringsfeil)
-      (scenario.expectedOutcome === "VALIDATION_ERROR_OR_TRIMMED" && 
-       (classification === "USERNAME_UPDATE_ALLOWED" || classification === "USERNAME_UPDATE_VALIDATION_ERROR")) ||
+      (scenario.expectedOutcome === "VALIDATION_ERROR_OR_TRIMMED" &&
+        (classification === "USERNAME_UPDATE_ALLOWED" ||
+          classification === "USERNAME_UPDATE_VALIDATION_ERROR")) ||
       // Håndter VALIDATION_ERROR (G04: ugyldig format - backend validerer ikke tegn, så kan tillate eller kollidere)
       // MERK: sanitizeUsername() trimmer bare mellomrom, validerer ikke tegn. Reell validering skjer ved Clerk-registrering.
-      (scenario.expectedOutcome === "VALIDATION_ERROR" && 
-       (classification === "USERNAME_UPDATE_VALIDATION_ERROR" || 
-        classification === "USERNAME_UPDATE_ALLOWED" || 
-        classification === "USERNAME_UPDATE_SELF_CONFLICT"));
+      (scenario.expectedOutcome === "VALIDATION_ERROR" &&
+        (classification === "USERNAME_UPDATE_VALIDATION_ERROR" ||
+          classification === "USERNAME_UPDATE_ALLOWED" ||
+          classification === "USERNAME_UPDATE_SELF_CONFLICT"));
 
     if (!outcomeMatch) {
       logger.warn(`Outcome mismatch: expected=${scenario.expectedOutcome}, got=${classification}`);
@@ -959,13 +1093,19 @@ async function runExecutableScenario(
   }
 }
 
-function createManualEvidence(scenario: ManualScenario | E2eScenario | RaceScenario): ScenarioEvidence {
-  const status = 
-    scenario.kind === "e2e_browser" ? "e2e_required" :
-    scenario.kind === "e2e_oauth" ? "oauth_required" :
-    scenario.kind === "admin_only" ? "admin_required" :
-    scenario.kind === "race_condition" ? "race_condition" :
-    "manual_required";
+function createManualEvidence(
+  scenario: ManualScenario | E2eScenario | RaceScenario,
+): ScenarioEvidence {
+  const status =
+    scenario.kind === "e2e_browser"
+      ? "e2e_required"
+      : scenario.kind === "e2e_oauth"
+        ? "oauth_required"
+        : scenario.kind === "admin_only"
+          ? "admin_required"
+          : scenario.kind === "race_condition"
+            ? "race_condition"
+            : "manual_required";
 
   return {
     id: scenario.id,
@@ -983,7 +1123,17 @@ function createManualEvidence(scenario: ManualScenario | E2eScenario | RaceScena
     clerkUsers: [],
     createAttempts: [],
     flowResponses: [],
-    dbSnapshot: { available: false, reason: "Manual scenario", usersBefore: -1, usersAfter: -1, emailMatches: [], usernameMatches: [], clerkIdMatches: [], duplicateEmails: [], duplicateUsernames: [] },
+    dbSnapshot: {
+      available: false,
+      reason: "Manual scenario",
+      usersBefore: -1,
+      usersAfter: -1,
+      emailMatches: [],
+      usernameMatches: [],
+      clerkIdMatches: [],
+      duplicateEmails: [],
+      duplicateUsernames: [],
+    },
     notes: [],
     cleanup: { deletedUserIds: [], failedDeletes: [] },
     manualSteps: "manualSteps" in scenario ? scenario.manualSteps : undefined,
@@ -1022,13 +1172,38 @@ async function connectMongoIfAvailable(): Promise<string | null> {
   }
 }
 
-type ModeArg = "full" | "basic" | "update" | "delete" | "race" | "session" | "oauth" | ScenarioGroup;
+type ModeArg =
+  | "full"
+  | "basic"
+  | "update"
+  | "delete"
+  | "race"
+  | "session"
+  | "oauth"
+  | ScenarioGroup;
 
 function parseMode(arg: string | undefined): { mode: ModeArg; scenarios: ScenarioDefinition[] } {
   const value = (arg ?? "full").toUpperCase();
 
   // Enkeltgruppe
-  const groups: ScenarioGroup[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P"];
+  const groups: ScenarioGroup[] = [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+  ];
   if (groups.includes(value as ScenarioGroup)) {
     return { mode: value as ScenarioGroup, scenarios: buildGroupByName(value as ScenarioGroup) };
   }
@@ -1038,9 +1213,15 @@ function parseMode(arg: string | undefined): { mode: ModeArg; scenarios: Scenari
 
   switch (value.toLowerCase()) {
     case "basic":
-      return { mode: "basic", scenarios: fullMatrix.filter((s) => s.group === "A" || s.group === "B") };
+      return {
+        mode: "basic",
+        scenarios: fullMatrix.filter((s) => s.group === "A" || s.group === "B"),
+      };
     case "update":
-      return { mode: "update", scenarios: fullMatrix.filter((s) => s.group === "G" || s.group === "H") };
+      return {
+        mode: "update",
+        scenarios: fullMatrix.filter((s) => s.group === "G" || s.group === "H"),
+      };
     case "delete":
       return { mode: "delete", scenarios: fullMatrix.filter((s) => s.group === "I") };
     case "race":
@@ -1069,7 +1250,9 @@ async function main(): Promise<void> {
   logger.info(`Scenarios loaded: ${scenarios.length}`);
 
   const stats = getScenarioStats(scenarios);
-  logger.info(`Stats: executable=${stats.executable}, e2e=${stats.e2e}, oauth=${stats.oauth}, manual=${stats.manual}, race=${stats.race}`);
+  logger.info(
+    `Stats: executable=${stats.executable}, e2e=${stats.e2e}, oauth=${stats.oauth}, manual=${stats.manual}, race=${stats.race}`,
+  );
 
   // Verifiser miljø
   const secretKey = process.env.CLERK_SECRET_KEY;
@@ -1197,7 +1380,9 @@ async function main(): Promise<void> {
   logger.info(`JSON events: ${matrixEvidence.jsonEventsPath}`);
 
   logger.header("CLASSIFICATION SUMMARY");
-  for (const [classification, count] of Object.entries(classifications).sort((a, b) => b[1] - a[1])) {
+  for (const [classification, count] of Object.entries(classifications).sort(
+    (a, b) => b[1] - a[1],
+  )) {
     logger.info(`${classification}: ${count}`);
   }
 

@@ -36,17 +36,16 @@ export function TermsReacceptModal() {
   // ikke har akseptert noe versjon enda (legacy-kontoer fra før vi begynte å
   // logge dette) eller har en eldre versjon enn gjeldende.
   const mustReaccept =
-    isLoaded &&
-    !!userId &&
-    megQuery.data?.user !== undefined &&
-    acceptedVersion !== TERMS_VERSION;
+    isLoaded && !!userId && megQuery.data?.user !== undefined && acceptedVersion !== TERMS_VERSION;
 
   useDialogAccessibility({
     open: mustReaccept,
     containerRef: dialogRef,
     initialFocusRef: acceptButtonRef,
     // Escape er bevisst no-op: brukeren må eksplisitt godta eller logge ut.
-    onClose: () => { /* no-op */ },
+    onClose: () => {
+      /* no-op */
+    },
   });
 
   // Lås body-scroll mens modalen er åpen

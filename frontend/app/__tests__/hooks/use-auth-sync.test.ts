@@ -65,8 +65,9 @@ describe("broadcastLogout", () => {
     const originalBC = globalThis.BroadcastChannel;
 
     // Mock BroadcastChannel som en enkel klasse
-    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel =
-      vi.fn().mockImplementation((name: string) => {
+    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel = vi
+      .fn()
+      .mockImplementation((name: string) => {
         expect(name).toBe(AUTH_CHANNEL_NAME);
         return { postMessage: postMessageMock, close: closeMock };
       });
@@ -76,21 +77,20 @@ describe("broadcastLogout", () => {
     expect(postMessageMock).toHaveBeenCalledWith("logout");
     expect(closeMock).toHaveBeenCalledTimes(1);
 
-    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel =
-      originalBC;
+    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel = originalBC;
   });
 
   it("feiler stille hvis BroadcastChannel-konstruktøren kaster", () => {
     const originalBC = globalThis.BroadcastChannel;
-    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel =
-      vi.fn().mockImplementation(() => {
+    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel = vi
+      .fn()
+      .mockImplementation(() => {
         throw new Error("not supported");
       });
 
     expect(() => broadcastLogout()).not.toThrow();
 
-    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel =
-      originalBC;
+    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel = originalBC;
   });
 
   it("er no-op når BroadcastChannel ikke finnes", () => {
@@ -99,7 +99,6 @@ describe("broadcastLogout", () => {
 
     expect(() => broadcastLogout()).not.toThrow();
 
-    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel =
-      originalBC;
+    (globalThis as unknown as { BroadcastChannel: unknown }).BroadcastChannel = originalBC;
   });
 });

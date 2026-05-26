@@ -22,22 +22,12 @@ import { LoadingView } from "@/app/components/ui/Loading";
 import { StatCard } from "@/app/components/ui/StatCard";
 import { useAuth } from "@clerk/nextjs";
 import { useMeg, useHiddenCourseIds } from "@/app/auth/auth-api";
-import {
-  skalRedirecteTilAuth,
-  useAuthRedirect,
-  useFatalAuthSignOut,
-} from "@/app/auth/authUtils";
-import {
-  useCanvasAllAssignments,
-  type AssignmentMedEmne,
-} from "@/app/canvas/canvas-api";
+import { skalRedirecteTilAuth, useAuthRedirect, useFatalAuthSignOut } from "@/app/auth/authUtils";
+import { useCanvasAllAssignments, type AssignmentMedEmne } from "@/app/canvas/canvas-api";
 import { erInnlevert } from "@/app/canvas/canvasUtils";
 import { useManuellInnlevering } from "@/app/hooks/useManuellInnlevering";
 import { formaterDatoLong } from "@/app/lib/dato";
-import {
-  getBrukerdataFeilmelding,
-  lagBrukervennligFeilmelding,
-} from "@/app/lib/errorUtils";
+import { getBrukerdataFeilmelding, lagBrukervennligFeilmelding } from "@/app/lib/errorUtils";
 import { useLanguage } from "@/app/i18n";
 
 function sorterOppgaver(oppgaver: AssignmentMedEmne[]): AssignmentMedEmne[] {
@@ -77,9 +67,14 @@ export function AIBreakdownPage() {
 
   const aktiveOppgaver = useMemo(
     () =>
-      sorterOppgaver((assignmentsQuery.data ?? []).filter((assignment) =>
-        !erInnlevert(assignment) && !ferdigeIdSet.has(assignment.id) && (!assignment.course_id || !hiddenSet.has(assignment.course_id))
-      )),
+      sorterOppgaver(
+        (assignmentsQuery.data ?? []).filter(
+          (assignment) =>
+            !erInnlevert(assignment) &&
+            !ferdigeIdSet.has(assignment.id) &&
+            (!assignment.course_id || !hiddenSet.has(assignment.course_id)),
+        ),
+      ),
     [assignmentsQuery.data, ferdigeIdSet, hiddenSet],
   );
 
@@ -95,7 +90,9 @@ export function AIBreakdownPage() {
     const nesteVerdi = neste.length > 0 ? neste : null;
     const erLik =
       (nesteVerdi === null && nåværende.length === 0) ||
-      (nesteVerdi !== null && nesteVerdi.length === nåværende.length && nesteVerdi.every((id, i) => id === nåværende[i]));
+      (nesteVerdi !== null &&
+        nesteVerdi.length === nåværende.length &&
+        nesteVerdi.every((id, i) => id === nåværende[i]));
     if (!erLik) {
       void setExpandedAssignmentIdsInUrl(nesteVerdi);
     }
@@ -108,7 +105,8 @@ export function AIBreakdownPage() {
   const forsinkedeOppgaver = useMemo(
     () =>
       oppgaverMedFrist.filter(
-        (assignment) => assignment.due_at != null && new Date(assignment.due_at).getTime() < Date.now(),
+        (assignment) =>
+          assignment.due_at != null && new Date(assignment.due_at).getTime() < Date.now(),
       ),
     [oppgaverMedFrist],
   );
@@ -131,7 +129,9 @@ export function AIBreakdownPage() {
         <FeilMelding melding={getBrukerdataFeilmelding(megQuery.error, t)} />
         <button
           type="button"
-          onClick={() => { void megQuery.refetch(); }}
+          onClick={() => {
+            void megQuery.refetch();
+          }}
           className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
         >
           {t("common.actions.retry")}
@@ -141,220 +141,234 @@ export function AIBreakdownPage() {
   }
 
   return (
-      <div className="min-h-full">
-          <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-            <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center shrink-0">
-                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white truncate">
-                      {t("aiBreakdown.title")}
-                    </h1>
-                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-                      {t("aiBreakdown.subtitle")}
-                    </p>
-                  </div>
-                </div>
+    <div className="min-h-full">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-linear-to-br from-purple-500 to-blue-500 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-900 dark:text-white truncate">
+                  {t("aiBreakdown.title")}
+                </h1>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  {t("aiBreakdown.subtitle")}
+                </p>
+              </div>
+            </div>
 
-                {aktiveOppgaver.length > 0 && (
-                  <div className="flex gap-2 shrink-0">
+            {aktiveOppgaver.length > 0 && (
+              <div className="flex gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpandedAssignmentIdsInUrl(
+                      aktiveOppgaver.map((assignment) => assignment.id.toString()),
+                    )
+                  }
+                  className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                >
+                  {t("aiBreakdown.expandAll")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExpandedAssignmentIdsInUrl(null)}
+                  className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                >
+                  {t("aiBreakdown.collapseAll")}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <StatCard
+            icon={BookOpen}
+            label={t("aiBreakdown.stats.activeAssignments")}
+            value={aktiveOppgaver.length}
+            color="blue"
+          />
+          <StatCard
+            icon={CalendarClock}
+            label={t("aiBreakdown.stats.withDeadline")}
+            value={oppgaverMedFrist.length}
+            color="purple"
+          />
+          <StatCard
+            icon={AlertCircle}
+            label={t("aiBreakdown.stats.overdue")}
+            value={forsinkedeOppgaver.length}
+            color="yellow"
+          />
+          <StatCard
+            icon={Clock}
+            label={t("aiBreakdown.stats.withoutDeadline")}
+            value={oppgaverUtenFrist}
+            color="green"
+          />
+        </div>
+
+        {!harCanvasToken && (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
+            <CanvasTokenNotice />
+          </div>
+        )}
+
+        {harCanvasToken && assignmentsQuery.isLoading && (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-10">
+            <LoadingView translationKey="common.loading.assignments" fullPage={false} />
+          </div>
+        )}
+
+        {harCanvasToken && assignmentsQuery.isError && (
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
+            <FeilMelding
+              melding={lagBrukervennligFeilmelding(
+                assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
+                { canvas: true },
+                t("aiBreakdown.errors.loadAssignments"),
+                t,
+              )}
+            />
+          </div>
+        )}
+
+        {harCanvasToken &&
+          !assignmentsQuery.isLoading &&
+          !assignmentsQuery.isError &&
+          aktiveOppgaver.length === 0 && (
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
+              <div className="flex flex-col items-center justify-center text-center space-y-3">
+                <BookOpen className="w-12 h-12 text-slate-400 dark:text-slate-500" />
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
+                    {t("aiBreakdown.empty.title")}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl">
+                    {t("aiBreakdown.empty.description")}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+        {harCanvasToken &&
+          !assignmentsQuery.isLoading &&
+          !assignmentsQuery.isError &&
+          aktiveOppgaver.length > 0 && (
+            <div className="space-y-6">
+              {aktiveOppgaver.map((assignment) => {
+                const assignmentId = assignment.id.toString();
+                const isExpanded = expandedAssignmentIds.has(assignmentId);
+                const assignmentKontekst = [
+                  t("aiBreakdown.assignmentContext.course", { course: assignment.course_name }),
+                  assignment.due_at
+                    ? t("aiBreakdown.assignmentContext.dueDate", {
+                        date: formaterDatoLong(assignment.due_at, language),
+                      })
+                    : null,
+                  assignment.points_possible != null
+                    ? t("aiBreakdown.assignmentContext.points", {
+                        points: assignment.points_possible,
+                      })
+                    : null,
+                ]
+                  .filter((value): value is string => value != null)
+                  .join(" ");
+
+                return (
+                  <div
+                    key={assignmentId}
+                    className="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-all"
+                  >
                     <button
                       type="button"
                       onClick={() =>
-                        setExpandedAssignmentIdsInUrl(
-                          aktiveOppgaver.map((assignment) => assignment.id.toString()),
-                        )
+                        setExpandedAssignmentIdsInUrl((current) => {
+                          const neste = new Set(current ?? []);
+                          if (neste.has(assignmentId)) {
+                            neste.delete(assignmentId);
+                          } else {
+                            neste.add(assignmentId);
+                          }
+                          const expanded = Array.from(neste);
+                          return expanded.length > 0 ? expanded : null;
+                        })
                       }
-                      className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+                      className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
                     >
-                      {t("aiBreakdown.expandAll")}
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
+                          <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h2 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
+                            {assignment.name}
+                          </h2>
+                          <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-500 dark:text-slate-400">
+                            <span>{assignment.course_name}</span>
+                            {assignment.due_at && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  {t("aiBreakdown.assignmentMeta.dueDate", {
+                                    date: formaterDatoLong(assignment.due_at, language),
+                                  })}
+                                </span>
+                              </>
+                            )}
+                            {assignment.points_possible != null && (
+                              <>
+                                <span>•</span>
+                                <span>
+                                  {t("aiBreakdown.assignmentMeta.points", {
+                                    points: assignment.points_possible,
+                                  })}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 ml-4">
+                        {isExpanded ? (
+                          <ChevronUp className="w-5 h-5 text-slate-400" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-slate-400" />
+                        )}
+                      </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setExpandedAssignmentIdsInUrl(null)}
-                      className="px-3 py-2 text-sm rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
-                    >
-                      {t("aiBreakdown.collapseAll")}
-                    </button>
+
+                    {isExpanded && (
+                      <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 border-t border-slate-100 dark:border-slate-800 pt-4">
+                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                            {t("aiBreakdown.assignmentContext.title")}
+                          </p>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+                            {assignmentKontekst}
+                          </p>
+                        </div>
+
+                        <AITaskBreakdown
+                          assignmentId={assignmentId}
+                          assignmentTitle={assignment.name}
+                          assignmentDescription={assignmentKontekst}
+                          dueDate={assignment.due_at ? new Date(assignment.due_at) : undefined}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+                );
+              })}
             </div>
-          </div>
-
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <StatCard
-                icon={BookOpen}
-                label={t("aiBreakdown.stats.activeAssignments")}
-                value={aktiveOppgaver.length}
-                color="blue"
-              />
-              <StatCard
-                icon={CalendarClock}
-                label={t("aiBreakdown.stats.withDeadline")}
-                value={oppgaverMedFrist.length}
-                color="purple"
-              />
-              <StatCard
-                icon={AlertCircle}
-                label={t("aiBreakdown.stats.overdue")}
-                value={forsinkedeOppgaver.length}
-                color="yellow"
-              />
-              <StatCard
-                icon={Clock}
-                label={t("aiBreakdown.stats.withoutDeadline")}
-                value={oppgaverUtenFrist}
-                color="green"
-              />
-            </div>
-
-            {!harCanvasToken && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
-                <CanvasTokenNotice />
-              </div>
-            )}
-
-            {harCanvasToken && assignmentsQuery.isLoading && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-10">
-                <LoadingView translationKey="common.loading.assignments" fullPage={false} />
-              </div>
-            )}
-
-            {harCanvasToken && assignmentsQuery.isError && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6">
-                <FeilMelding
-                  melding={lagBrukervennligFeilmelding(
-                    assignmentsQuery.error instanceof Error ? assignmentsQuery.error : null,
-                    { canvas: true },
-                    t("aiBreakdown.errors.loadAssignments"),
-                    t,
-                  )}
-                />
-              </div>
-            )}
-
-            {harCanvasToken && !assignmentsQuery.isLoading && !assignmentsQuery.isError && aktiveOppgaver.length === 0 && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-8">
-                <div className="flex flex-col items-center justify-center text-center space-y-3">
-                  <BookOpen className="w-12 h-12 text-slate-400 dark:text-slate-500" />
-                  <div>
-                    <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-1">
-                      {t("aiBreakdown.empty.title")}
-                    </h2>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xl">
-                      {t("aiBreakdown.empty.description")}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {harCanvasToken && !assignmentsQuery.isLoading && !assignmentsQuery.isError && aktiveOppgaver.length > 0 && (
-              <div className="space-y-6">
-                {aktiveOppgaver.map((assignment) => {
-                  const assignmentId = assignment.id.toString();
-                  const isExpanded = expandedAssignmentIds.has(assignmentId);
-                  const assignmentKontekst = [
-                    t("aiBreakdown.assignmentContext.course", { course: assignment.course_name }),
-                    assignment.due_at
-                      ? t("aiBreakdown.assignmentContext.dueDate", {
-                          date: formaterDatoLong(assignment.due_at, language),
-                        })
-                      : null,
-                    assignment.points_possible != null
-                      ? t("aiBreakdown.assignmentContext.points", {
-                          points: assignment.points_possible,
-                        })
-                      : null,
-                  ]
-                    .filter((value): value is string => value != null)
-                    .join(" ");
-
-                  return (
-                    <div
-                      key={assignmentId}
-                      className="bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden transition-all"
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedAssignmentIdsInUrl((current) => {
-                            const neste = new Set(current ?? []);
-                            if (neste.has(assignmentId)) {
-                              neste.delete(assignmentId);
-                            } else {
-                              neste.add(assignmentId);
-                            }
-                            const expanded = Array.from(neste);
-                            return expanded.length > 0 ? expanded : null;
-                          })
-                        }
-                        className="w-full p-4 sm:p-6 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors text-left"
-                      >
-                        <div className="flex items-center gap-4 flex-1 min-w-0">
-                          <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/20 flex items-center justify-center shrink-0">
-                            <Sparkles className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h2 className="text-lg font-semibold text-slate-900 dark:text-white truncate">
-                              {assignment.name}
-                            </h2>
-                            <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-slate-500 dark:text-slate-400">
-                              <span>{assignment.course_name}</span>
-                              {assignment.due_at && (
-                                <>
-                                  <span>•</span>
-                                  <span>{t("aiBreakdown.assignmentMeta.dueDate", { date: formaterDatoLong(assignment.due_at, language) })}</span>
-                                </>
-                              )}
-                              {assignment.points_possible != null && (
-                                <>
-                                  <span>•</span>
-                                  <span>{t("aiBreakdown.assignmentMeta.points", { points: assignment.points_possible })}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="shrink-0 ml-4">
-                          {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-slate-400" />
-                          ) : (
-                            <ChevronDown className="w-5 h-5 text-slate-400" />
-                          )}
-                        </div>
-                      </button>
-
-                      {isExpanded && (
-                        <div className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4 border-t border-slate-100 dark:border-slate-800 pt-4">
-                          <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                            <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
-                              {t("aiBreakdown.assignmentContext.title")}
-                            </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-                              {assignmentKontekst}
-                            </p>
-                          </div>
-
-                          <AITaskBreakdown
-                            assignmentId={assignmentId}
-                            assignmentTitle={assignment.name}
-                            assignmentDescription={assignmentKontekst}
-                            dueDate={assignment.due_at ? new Date(assignment.due_at) : undefined}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          )}
       </div>
+    </div>
   );
 }

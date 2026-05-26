@@ -1,7 +1,4 @@
-import {
-  AuthTurnstileVerifyResponseSchema,
-  type AuthTurnstileVerifyResponse,
-} from "common/auth";
+import { AuthTurnstileVerifyResponseSchema, type AuthTurnstileVerifyResponse } from "common/auth";
 import { fetchApi } from "@/app/lib/apiClient";
 import { createApiError, parseApiJson } from "@/app/lib/errorUtils";
 import { turnstileEnabled } from "@/app/lib/validateEnv";
@@ -17,11 +14,7 @@ export async function checkAuthTurnstileGate(): Promise<boolean> {
   if (!turnstileEnabled) return true;
 
   try {
-    const res = await fetchApi(
-      "/api/auth-turnstile/gate",
-      { method: "GET" },
-      { auth: false },
-    );
+    const res = await fetchApi("/api/auth-turnstile/gate", { method: "GET" }, { auth: false });
     return res.ok;
   } catch {
     return false;

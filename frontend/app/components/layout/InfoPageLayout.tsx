@@ -104,12 +104,7 @@ export function InfoPageLayout({
   );
 }
 
-export function InfoSection({
-  title,
-  className,
-  contentClassName,
-  children,
-}: InfoSectionProps) {
+export function InfoSection({ title, className, contentClassName, children }: InfoSectionProps) {
   return (
     <section
       className={cn(
@@ -123,10 +118,7 @@ export function InfoSection({
         </h2>
       ) : null}
       <div
-        className={cn(
-          "text-[15px] leading-7 text-slate-600 dark:text-slate-300",
-          contentClassName,
-        )}
+        className={cn("text-[15px] leading-7 text-slate-600 dark:text-slate-300", contentClassName)}
       >
         {children}
       </div>

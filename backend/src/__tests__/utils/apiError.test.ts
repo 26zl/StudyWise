@@ -46,25 +46,19 @@ describe("apiError", () => {
       const res = lagMockRes();
       apiError.unauthorized(res);
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ kode: "auth_error" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "auth_error" }));
     });
 
     it("bruker egendefinert melding når gitt", () => {
       const res = lagMockRes();
       apiError.unauthorized(res, "Token utløpt");
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ melding: "Token utløpt" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ melding: "Token utløpt" }));
     });
 
     it("bruker standardmelding når ingen melding er gitt", () => {
       const res = lagMockRes();
       apiError.unauthorized(res);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ feil: "Ikke autentisert" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ feil: "Ikke autentisert" }));
     });
   });
 
@@ -75,17 +69,13 @@ describe("apiError", () => {
       const res = lagMockRes();
       apiError.forbidden(res);
       expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ kode: "forbidden" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "forbidden" }));
     });
 
     it("bruker egendefinert melding", () => {
       const res = lagMockRes();
       apiError.forbidden(res, "Bare admin");
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ melding: "Bare admin" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ melding: "Bare admin" }));
     });
   });
 
@@ -108,9 +98,7 @@ describe("apiError", () => {
       const res = lagMockRes();
       const detaljer = { felt: "email", grunn: "format" };
       apiError.badRequest(res, "Valideringsfeil", detaljer);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ detaljer }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ detaljer }));
     });
   });
 
@@ -121,9 +109,7 @@ describe("apiError", () => {
       const res = lagMockRes();
       apiError.notFound(res);
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ kode: "not_found" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "not_found" }));
     });
 
     it("inkluderer ressursnavn i feilmelding", () => {
@@ -166,9 +152,7 @@ describe("apiError", () => {
       const res = lagMockRes();
       apiError.rateLimited(res);
       expect(res.status).toHaveBeenCalledWith(429);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ kode: "rate_limited" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "rate_limited" }));
     });
 
     it("bruker egendefinert melding", () => {
@@ -195,9 +179,7 @@ describe("apiError", () => {
       const res = lagMockRes();
       apiError.timeout(res);
       expect(res.status).toHaveBeenCalledWith(504);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ kode: "timeout" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "timeout" }));
     });
 
     it("bruker egendefinert melding", () => {
@@ -247,9 +229,7 @@ describe("apiError", () => {
       const res = lagMockRes();
       apiError.serverError(res);
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ kode: "server_error" }),
-      );
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "server_error" }));
     });
   });
 });
@@ -296,9 +276,7 @@ describe("sendZodError", () => {
     }
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ kode: "validation_error" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "validation_error" }));
   });
 
   it("inkluderer kontekst i feilmelding når gitt", () => {
@@ -366,9 +344,7 @@ describe("sendError", () => {
   it("inkluderer kode i responsen", () => {
     const res = lagMockRes();
     sendError(res, "forbidden");
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ kode: "forbidden" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "forbidden" }));
   });
 });
 
@@ -379,9 +355,7 @@ describe("sendUnknownError", () => {
     const res = lagMockRes();
     sendUnknownError(res, new Error("uventet"));
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ kode: "server_error" }),
-    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ kode: "server_error" }));
   });
 
   it("bruker egendefinert brukermelding fra logContext", () => {

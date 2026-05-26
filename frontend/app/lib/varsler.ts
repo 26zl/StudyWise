@@ -19,57 +19,59 @@ export const FRIST_SNART_TIMER = 48;
 export type FristStatus = "kritisk" | "snart" | "kommende";
 
 export function klassifiserFrist(timerIgjen: number): FristStatus {
-    if (timerIgjen < FRIST_KRITISK_TIMER) return "kritisk";
-    if (timerIgjen < FRIST_SNART_TIMER) return "snart";
-    return "kommende";
+  if (timerIgjen < FRIST_KRITISK_TIMER) return "kritisk";
+  if (timerIgjen < FRIST_SNART_TIMER) return "snart";
+  return "kommende";
 }
 
 export function erInnenforFristVindu(
-    dato: string | Date | null | undefined,
-    nå = Date.now(),
+  dato: string | Date | null | undefined,
+  nå = Date.now(),
 ): boolean {
-    if (!dato) return false;
-    const timer = (new Date(dato).getTime() - nå) / (1000 * 60 * 60);
-    return timer > 0 && timer <= FRIST_VINDU_TIMER;
+  if (!dato) return false;
+  const timer = (new Date(dato).getTime() - nå) / (1000 * 60 * 60);
+  return timer > 0 && timer <= FRIST_VINDU_TIMER;
 }
 
 /** Formater timer igjen til lesbar tekst på valgt språk */
 export function formaterTid(timer: number, language: Language = "nb"): string {
-    if (language === "en") {
-        if (timer < 1) return "under 1 hour";
-        if (timer < 24) {
-            const hours = Math.round(timer);
-            return hours === 1 ? "1 hour" : `${hours} hours`;
-        }
-        const days = Math.floor(timer / 24);
-        const remainingHours = Math.round(timer % 24);
-        if (days === 1) {
-            if (remainingHours <= 0) return "1 day";
-            return remainingHours === 1 ? "1 day and 1 hour" : `1 day and ${remainingHours} hours`;
-        }
-        if (remainingHours <= 0) return `${days} days`;
-        return remainingHours === 1 ? `${days} days and 1 hour` : `${days} days and ${remainingHours} hours`;
+  if (language === "en") {
+    if (timer < 1) return "under 1 hour";
+    if (timer < 24) {
+      const hours = Math.round(timer);
+      return hours === 1 ? "1 hour" : `${hours} hours`;
     }
+    const days = Math.floor(timer / 24);
+    const remainingHours = Math.round(timer % 24);
+    if (days === 1) {
+      if (remainingHours <= 0) return "1 day";
+      return remainingHours === 1 ? "1 day and 1 hour" : `1 day and ${remainingHours} hours`;
+    }
+    if (remainingHours <= 0) return `${days} days`;
+    return remainingHours === 1
+      ? `${days} days and 1 hour`
+      : `${days} days and ${remainingHours} hours`;
+  }
 
-    if (timer < 1) return "under 1 time";
-    if (timer < 24) return `${Math.round(timer)} timer`;
-    const dager = Math.floor(timer / 24);
-    const restTimer = Math.round(timer % 24);
-    if (dager === 1) return restTimer > 0 ? `1 dag og ${restTimer} timer` : "1 dag";
-    return restTimer > 0 ? `${dager} dager og ${restTimer} timer` : `${dager} dager`;
+  if (timer < 1) return "under 1 time";
+  if (timer < 24) return `${Math.round(timer)} timer`;
+  const dager = Math.floor(timer / 24);
+  const restTimer = Math.round(timer % 24);
+  if (dager === 1) return restTimer > 0 ? `1 dag og ${restTimer} timer` : "1 dag";
+  return restTimer > 0 ? `${dager} dager og ${restTimer} timer` : `${dager} dager`;
 }
 
 // —— Typer ——
 
 export interface FristElement {
-    type: "frist";
-    id: string;
-    tittel: string;
-    emne: string;
-    dato: Date;
-    timerIgjen: number;
-    status: FristStatus;
-    erInnlevert: boolean;
+  type: "frist";
+  id: string;
+  tittel: string;
+  emne: string;
+  dato: Date;
+  timerIgjen: number;
+  status: FristStatus;
+  erInnlevert: boolean;
 }
 
 export interface OppgaveElement {
@@ -105,11 +107,7 @@ export interface HendelseElement {
   url?: string | null;
 }
 
-export type VarslingElement =
-  | FristElement
-  | OppgaveElement
-  | KunngjoringElement
-  | HendelseElement;
+export type VarslingElement = FristElement | OppgaveElement | KunngjoringElement | HendelseElement;
 
 // —— Bygg varsler-lister (bruker erInnlevert fra canvasUtils) ——
 
@@ -121,8 +119,7 @@ export function buildFrister(oppgaver: AssignmentMedEmne[]): FristElement[] {
       return erInnenforFristVindu(o.due_at, nå);
     })
     .map((o) => {
-      const timerIgjen =
-        (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
+      const timerIgjen = (new Date(o.due_at!).getTime() - nå) / (1000 * 60 * 60);
       return {
         type: "frist" as const,
         id: `oppgave-${o.id}`,
@@ -168,107 +165,122 @@ export function buildOppgaver(oppgaver: Assignment[]): OppgaveElement[] {
 }
 // Kunngjøringer og hendelser bygges direkte fra API-data, med enkel datoformatering.
 export function buildKunngjøringer(
-    announcements: { id: number; title: string; message?: string | null; context_code?: string; posted_at?: string | null }[],
-    emneNavnMap: Map<string, string>,
+  announcements: {
+    id: number;
+    title: string;
+    message?: string | null;
+    context_code?: string;
+    posted_at?: string | null;
+  }[],
+  emneNavnMap: Map<string, string>,
 ): KunngjoringElement[] {
-    return announcements
-        .map((a) => ({
-            type: "kunngjoring" as const,
-            id: `kunngjoring-${a.id}`,
-            tittel: a.title,
-            emne: (a.context_code && emneNavnMap.get(a.context_code)) ?? a.context_code?.replace("course_", "Emne ") ?? "",
-            dato: a.posted_at ? new Date(a.posted_at) : new Date(),
-            melding: a.message ?? "",
-        }))
-        .sort((a, b) => b.dato.getTime() - a.dato.getTime());
+  return announcements
+    .map((a) => ({
+      type: "kunngjoring" as const,
+      id: `kunngjoring-${a.id}`,
+      tittel: a.title,
+      emne:
+        (a.context_code && emneNavnMap.get(a.context_code)) ??
+        a.context_code?.replace("course_", "Emne ") ??
+        "",
+      dato: a.posted_at ? new Date(a.posted_at) : new Date(),
+      melding: a.message ?? "",
+    }))
+    .sort((a, b) => b.dato.getTime() - a.dato.getTime());
 }
 // Hendelser bygges fra kalenderdata, med ekstra håndtering
 export function buildHendelser(
-    events: { id: number; title: string; start_at?: string | null; end_at?: string | null; location_name?: string | null }[],
+  events: {
+    id: number;
+    title: string;
+    start_at?: string | null;
+    end_at?: string | null;
+    location_name?: string | null;
+  }[],
 ): HendelseElement[] {
-    return events
-        .filter((e) => e.start_at)
-        .map((e) => ({
-            type: "hendelse" as const,
-            id: `hendelse-${e.id}`,
-            tittel: e.title,
-            dato: new Date(e.start_at!),
-            sluttDato: e.end_at ? new Date(e.end_at) : null,
-            lokasjon: e.location_name ?? null,
-        }))
-        .sort((a, b) => b.dato.getTime() - a.dato.getTime());
+  return events
+    .filter((e) => e.start_at)
+    .map((e) => ({
+      type: "hendelse" as const,
+      id: `hendelse-${e.id}`,
+      tittel: e.title,
+      dato: new Date(e.start_at!),
+      sluttDato: e.end_at ? new Date(e.end_at) : null,
+      lokasjon: e.location_name ?? null,
+    }))
+    .sort((a, b) => b.dato.getTime() - a.dato.getTime());
 }
 
 export function buildKalenderHendelser(hendelser: Assignment[]): HendelseElement[] {
-    const nå = Date.now();
-    return hendelser
-        .filter((hendelse) => hendelse.dueDate.getTime() > nå)
-        .map((hendelse) => ({
-            type: "hendelse" as const,
-            id: `hendelse-${hendelse.id}`,
-            tittel: hendelse.title,
-            dato: hendelse.dueDate,
-            sluttDato: hendelse.endDate ?? null,
-            lokasjon: hendelse.location ?? null,
-            emne: hendelse.courseName ?? hendelse.courseCode,
-            url: hendelse.url ?? null,
-        }))
-        .sort((a, b) => a.dato.getTime() - b.dato.getTime());
+  const nå = Date.now();
+  return hendelser
+    .filter((hendelse) => hendelse.dueDate.getTime() > nå)
+    .map((hendelse) => ({
+      type: "hendelse" as const,
+      id: `hendelse-${hendelse.id}`,
+      tittel: hendelse.title,
+      dato: hendelse.dueDate,
+      sluttDato: hendelse.endDate ?? null,
+      lokasjon: hendelse.location ?? null,
+      emne: hendelse.courseName ?? hendelse.courseCode,
+      url: hendelse.url ?? null,
+    }))
+    .sort((a, b) => a.dato.getTime() - b.dato.getTime());
 }
 
 export function buildAlleAktiviteter(
-    oppgaver: OppgaveElement[],
-    kunngjøringer: KunngjoringElement[],
-    hendelser: HendelseElement[],
+  oppgaver: OppgaveElement[],
+  kunngjøringer: KunngjoringElement[],
+  hendelser: HendelseElement[],
 ): VarslingElement[] {
-    const nå = Date.now();
-    const relevans = (element: VarslingElement) => {
-        const tidspunkt = element.dato.getTime();
-        if (element.type === "kunngjoring") {
-            return Math.abs(nå - tidspunkt);
-        }
-        return Math.max(0, tidspunkt - nå);
-    };
+  const nå = Date.now();
+  const relevans = (element: VarslingElement) => {
+    const tidspunkt = element.dato.getTime();
+    if (element.type === "kunngjoring") {
+      return Math.abs(nå - tidspunkt);
+    }
+    return Math.max(0, tidspunkt - nå);
+  };
 
-    return [...oppgaver, ...kunngjøringer, ...hendelser].sort((a, b) => {
-        const forskjell = relevans(a) - relevans(b);
-        if (forskjell !== 0) return forskjell;
-        return b.dato.getTime() - a.dato.getTime();
-    });
+  return [...oppgaver, ...kunngjøringer, ...hendelser].sort((a, b) => {
+    const forskjell = relevans(a) - relevans(b);
+    if (forskjell !== 0) return forskjell;
+    return b.dato.getTime() - a.dato.getTime();
+  });
 }
 
 export function lagVarslingForhandsvisning(
-    innhold: string | null | undefined,
-    maxLengde = 220,
+  innhold: string | null | undefined,
+  maxLengde = 220,
 ): string {
-    if (!innhold) return "";
+  if (!innhold) return "";
 
-    // Fjern all HTML med regex i løkke — forhindrer at nestede fragmenter som
-    // "<scr<script>ipt>" overlever etter én enkelt pass (CWE-180/CWE-116)
-    let stripped = innhold;
-    let prev: string;
-    do {
-        prev = stripped;
-        stripped = stripped.replace(/<[^>]*>/g, "");
-    } while (stripped !== prev);
-    const renset = stripped
-        .replace(/&nbsp;/gi, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+  // Fjern all HTML med regex i løkke — forhindrer at nestede fragmenter som
+  // "<scr<script>ipt>" overlever etter én enkelt pass (CWE-180/CWE-116)
+  let stripped = innhold;
+  let prev: string;
+  do {
+    prev = stripped;
+    stripped = stripped.replace(/<[^>]*>/g, "");
+  } while (stripped !== prev);
+  const renset = stripped
+    .replace(/&nbsp;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-    if (renset.length <= maxLengde) {
-        return renset;
-    }
+  if (renset.length <= maxLengde) {
+    return renset;
+  }
 
-    return `${renset.slice(0, Math.max(0, maxLengde - 1)).trimEnd()}…`;
+  return `${renset.slice(0, Math.max(0, maxLengde - 1)).trimEnd()}…`;
 }
 // Bygg en samlet liste av alle varslingselementer, sortert på dato (nyeste først)
 export function buildAlleElementer(
-    frister: FristElement[],
-    kunngjøringer: KunngjoringElement[],
-    hendelser: HendelseElement[],
+  frister: FristElement[],
+  kunngjøringer: KunngjoringElement[],
+  hendelser: HendelseElement[],
 ): VarslingElement[] {
-    return [...frister, ...kunngjøringer, ...hendelser].sort(
-        (a, b) => b.dato.getTime() - a.dato.getTime(),
-    );
+  return [...frister, ...kunngjøringer, ...hendelser].sort(
+    (a, b) => b.dato.getTime() - a.dato.getTime(),
+  );
 }

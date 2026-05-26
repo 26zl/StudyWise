@@ -25,31 +25,34 @@ const isProtectedRoute = createRouteMatcher([
   "/account(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) {
-    await auth.protect();
-  }
+export default clerkMiddleware(
+  async (auth, req) => {
+    if (isProtectedRoute(req)) {
+      await auth.protect();
+    }
 
-  // Generer kryptografisk nonce for CSP per request
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const cspValue = buildCspValue(nonce);
+    // Generer kryptografisk nonce for CSP per request
+    const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+    const cspValue = buildCspValue(nonce);
 
-  // Sett nonce på request-header slik at layout.tsx kan lese den via headers()
-  const requestHeaders = new Headers(req.headers);
-  requestHeaders.set("x-nonce", nonce);
+    // Sett nonce på request-header slik at layout.tsx kan lese den via headers()
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set("x-nonce", nonce);
 
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    });
 
-  response.headers.set("Content-Security-Policy", cspValue);
+    response.headers.set("Content-Security-Policy", cspValue);
 
-  return response;
-}, {
-  publishableKey: clerkPublishableKey,
-  signInUrl: "/auth/sign-in",
-  signUpUrl: "/auth/sign-up",
-});
+    return response;
+  },
+  {
+    publishableKey: clerkPublishableKey,
+    signInUrl: "/auth/sign-in",
+    signUpUrl: "/auth/sign-up",
+  },
+);
 
 export const config = {
   matcher: [

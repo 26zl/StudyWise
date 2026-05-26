@@ -1,7 +1,7 @@
 /*
-* Tanstack React Query for global state management og data fetching
-* Håndterer caching, synkronisering og oppdatering av server state i React applikasjonen
-*/
+ * Tanstack React Query for global state management og data fetching
+ * Håndterer caching, synkronisering og oppdatering av server state i React applikasjonen
+ */
 // "use client" forteller Next.js at denne filen kjører i nettleseren.
 // Dette er nødvendig for biblioteker som bruker React Context (som React Query).
 "use client";
@@ -89,7 +89,9 @@ function ClerkProviderMedSprak({
       publishableKey={clerkPublishableKey ?? undefined}
       localization={{
         ...baseLocale,
-        formFieldInputPlaceholder__backupCode: isEnglish ? "Enter backup code" : "Skriv inn backup-kode",
+        formFieldInputPlaceholder__backupCode: isEnglish
+          ? "Enter backup code"
+          : "Skriv inn backup-kode",
         formFieldLabel__backupCode: isEnglish ? "Backup code" : "Backup-kode",
         reverification: {
           ...baseLocale.reverification,
@@ -220,8 +222,16 @@ function DatadogUserSync() {
     if (!isLoaded) return;
 
     if (!clerkUserId) {
-      try { clearDatadogUser(); } catch { /* Datadog RUM ikke kritisk */ }
-      try { resetPostHogUser(); } catch { /* PostHog ikke kritisk */ }
+      try {
+        clearDatadogUser();
+      } catch {
+        /* Datadog RUM ikke kritisk */
+      }
+      try {
+        resetPostHogUser();
+      } catch {
+        /* PostHog ikke kritisk */
+      }
       return;
     }
 
@@ -299,8 +309,7 @@ function AuthConflictGuard() {
           const erSlettet = fatalReason === "user_deleted";
           const erLaast = fatalReason === "user_locked";
           const erOAuthKonflikt =
-            fatalReason === "oauth_account_conflict" ||
-            fatalReason === "oauth_metadata_missing";
+            fatalReason === "oauth_account_conflict" || fatalReason === "oauth_metadata_missing";
           const erEpostKonflikt = fatalReason === "account_conflict";
 
           let feilmelding: string;
@@ -323,7 +332,10 @@ function AuthConflictGuard() {
           void clerk
             .signOut()
             .catch((error) => {
-              console.warn("Clerk signOut feilet under AuthConflictGuard-redirect:", (error as { code?: string })?.code ?? "unknown");
+              console.warn(
+                "Clerk signOut feilet under AuthConflictGuard-redirect:",
+                (error as { code?: string })?.code ?? "unknown",
+              );
             })
             .finally(() => {
               clearClientAuthState(queryClient);
@@ -367,46 +379,36 @@ function ClerkProfileCacheSync() {
     const nextFirstName = normalizeProfileField(user?.firstName);
     const nextLastName = normalizeProfileField(user?.lastName);
 
-    queryClient.setQueryData<MeResponse | undefined>(
-      AUTH_ME_QUERY_KEY,
-      (current) => {
-        if (!current) {
-          return current;
-        }
+    queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) => {
+      if (!current) {
+        return current;
+      }
 
-        const currentUser = current.user;
-        const hasChanges =
-          currentUser.firstName !== nextFirstName ||
-          currentUser.lastName !== nextLastName;
+      const currentUser = current.user;
+      const hasChanges =
+        currentUser.firstName !== nextFirstName || currentUser.lastName !== nextLastName;
 
-        if (!hasChanges) {
-          return current;
-        }
+      if (!hasChanges) {
+        return current;
+      }
 
-        return MeResponseSchema.parse({
-          user: {
-            ...currentUser,
-            firstName: nextFirstName,
-            lastName: nextLastName,
-          },
-        });
-      },
-    );
-  }, [
-    authLoaded,
-    clerkUserLoaded,
-    queryClient,
-    user?.firstName,
-    user?.lastName,
-    userId,
-  ]);
+      return MeResponseSchema.parse({
+        user: {
+          ...currentUser,
+          firstName: nextFirstName,
+          lastName: nextLastName,
+        },
+      });
+    });
+  }, [authLoaded, clerkUserLoaded, queryClient, user?.firstName, user?.lastName, userId]);
 
   // Spor externalAccounts (Google/Microsoft-koblinger) og tving backend-sync
   // når bruker kobler til/fra en OAuth-provider via Clerk UserProfile.
-  const externalAccountsKey = user?.externalAccounts
-    ?.map((a) => `${a.provider}:${a.id}`)
-    .sort()
-    .join(",") ?? "";
+  const externalAccountsKey =
+    user?.externalAccounts
+      ?.map((a) => `${a.provider}:${a.id}`)
+      .sort()
+      .join(",") ?? "";
   const prevExternalAccountsRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -419,13 +421,7 @@ function ClerkProfileCacheSync() {
     if (prev === null || prev === externalAccountsKey) return;
 
     void triggerBackendProfileSync();
-  }, [
-    authLoaded,
-    clerkUserLoaded,
-    externalAccountsKey,
-    triggerBackendProfileSync,
-    userId,
-  ]);
+  }, [authLoaded, clerkUserLoaded, externalAccountsKey, triggerBackendProfileSync, userId]);
 
   // E-post er aktiv i Clerk UserProfile, så vi må tvinge backend-synk når
   // primær e-post eller e-postlisten endrer seg.
@@ -434,16 +430,13 @@ function ClerkProfileCacheSync() {
     user?.primaryEmailAddress?.emailAddress ?? "",
     user?.primaryEmailAddress?.verification?.status ?? "",
   ].join(":");
-  const emailAddressesKey = user?.emailAddresses
-    ?.map((address) =>
-      [
-        address.id,
-        address.emailAddress,
-        address.verification?.status ?? "",
-      ].join(":"),
-    )
-    .sort()
-    .join(",") ?? "";
+  const emailAddressesKey =
+    user?.emailAddresses
+      ?.map((address) =>
+        [address.id, address.emailAddress, address.verification?.status ?? ""].join(":"),
+      )
+      .sort()
+      .join(",") ?? "";
   const clerkEmailStateKey = `${primaryEmailKey}|${emailAddressesKey}`;
   const prevClerkEmailStateRef = useRef<string | null>(null);
 
@@ -457,13 +450,7 @@ function ClerkProfileCacheSync() {
     if (prev === null || prev === clerkEmailStateKey) return;
 
     void triggerBackendProfileSync();
-  }, [
-    authLoaded,
-    clerkEmailStateKey,
-    clerkUserLoaded,
-    triggerBackendProfileSync,
-    userId,
-  ]);
+  }, [authLoaded, clerkEmailStateKey, clerkUserLoaded, triggerBackendProfileSync, userId]);
 
   // Spor MFA-status (TOTP/2FA) og tving backend-sync når brukeren aktiverer
   // eller deaktiverer tofaktorautentisering via Clerk UserProfile. Uten dette
@@ -481,13 +468,7 @@ function ClerkProfileCacheSync() {
     if (prev === null || prev === twoFactorEnabled) return;
 
     void triggerBackendProfileSync();
-  }, [
-    authLoaded,
-    clerkUserLoaded,
-    triggerBackendProfileSync,
-    twoFactorEnabled,
-    userId,
-  ]);
+  }, [authLoaded, clerkUserLoaded, triggerBackendProfileSync, twoFactorEnabled, userId]);
 
   // Spor backup-codes-status: brukeren genererer dem via Clerk UserProfile,
   // og vi vil at BackupCodesBanner-en skal forsvinne umiddelbart etterpå
@@ -504,17 +485,10 @@ function ClerkProfileCacheSync() {
     if (prev === null || prev === backupCodeEnabled) return;
 
     void triggerBackendProfileSync();
-  }, [
-    authLoaded,
-    clerkUserLoaded,
-    triggerBackendProfileSync,
-    backupCodeEnabled,
-    userId,
-  ]);
+  }, [authLoaded, clerkUserLoaded, triggerBackendProfileSync, backupCodeEnabled, userId]);
 
   return null;
 }
-
 
 /**
  * Viser en advarselsbanner når det finnes aktive Clerk↔lokal synkroniseringskonflikter
@@ -550,32 +524,38 @@ function SyncConflictBanner() {
     return unsubscribe;
   }, [isLoaded, userId, queryClient]);
 
-  const handleDismiss = useCallback(async (type: SyncConflict["type"]) => {
-    setDismissing(type);
-    try {
-      await dismissSyncConflict(type);
-      setConflicts((prev) => prev.filter((c) => c.type !== type));
-      queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) => {
-        if (!current) return current;
-        return {
-          ...current,
-          user: {
-            ...current.user,
-            syncConflicts: (current.user.syncConflicts ?? []).filter((c) => c.type !== type),
-          },
-        };
-      });
-    } catch {
-      showToast.error(t("common.labels.error"), t("auth.syncConflict.dismissError"));
-    } finally {
-      setDismissing(null);
-    }
-  }, [queryClient, t]);
+  const handleDismiss = useCallback(
+    async (type: SyncConflict["type"]) => {
+      setDismissing(type);
+      try {
+        await dismissSyncConflict(type);
+        setConflicts((prev) => prev.filter((c) => c.type !== type));
+        queryClient.setQueryData<MeResponse | undefined>(AUTH_ME_QUERY_KEY, (current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            user: {
+              ...current.user,
+              syncConflicts: (current.user.syncConflicts ?? []).filter((c) => c.type !== type),
+            },
+          };
+        });
+      } catch {
+        showToast.error(t("common.labels.error"), t("auth.syncConflict.dismissError"));
+      } finally {
+        setDismissing(null);
+      }
+    },
+    [queryClient, t],
+  );
 
   if (conflicts.length === 0) return null;
 
   return (
-    <div className="fixed right-4 z-50 flex max-w-md flex-col gap-2" style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}>
+    <div
+      className="fixed right-4 z-50 flex max-w-md flex-col gap-2"
+      style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+    >
       {conflicts.map((c) => (
         <div
           key={c.type}
@@ -627,17 +607,17 @@ export function Providers({
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 60 * 1000,       // Data er "fersk" i 1 minutt
-            gcTime: 5 * 60 * 1000,      // Hold i minnet i 5 minutter (cache > stale for bedre UX)
-            retry: 2,                    // Maks 2 retries — raskere feilmelding til bruker
+            staleTime: 60 * 1000, // Data er "fersk" i 1 minutt
+            gcTime: 5 * 60 * 1000, // Hold i minnet i 5 minutter (cache > stale for bedre UX)
+            retry: 2, // Maks 2 retries — raskere feilmelding til bruker
             retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 4000), // Exponential backoff: 1s, 2s, 4s
             refetchOnWindowFocus: false, // Unngå unødvendige refetches
           },
           mutations: {
-            retry: 0,                    // Mutations (auth, delete, POST) bør ikke retries automatisk
+            retry: 0, // Mutations (auth, delete, POST) bør ikke retries automatisk
           },
         },
-      })
+      }),
   );
 
   // Pakker inn applikasjonen (children) med Provideren.

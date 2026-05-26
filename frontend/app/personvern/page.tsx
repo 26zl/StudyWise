@@ -56,13 +56,16 @@ export default function PersonvernPage() {
         <p className="mb-3">{t("personvern.legalBasisIntro")}</p>
         <ul className="space-y-3">
           <li>
-            <strong>{t("personvern.legalBasisContractLabel")}</strong> {t("personvern.legalBasisContractBody")}
+            <strong>{t("personvern.legalBasisContractLabel")}</strong>{" "}
+            {t("personvern.legalBasisContractBody")}
           </li>
           <li>
-            <strong>{t("personvern.legalBasisInterestLabel")}</strong> {t("personvern.legalBasisInterestBody")}
+            <strong>{t("personvern.legalBasisInterestLabel")}</strong>{" "}
+            {t("personvern.legalBasisInterestBody")}
           </li>
           <li>
-            <strong>{t("personvern.legalBasisConsentLabel")}</strong> {t("personvern.legalBasisConsentBody")}
+            <strong>{t("personvern.legalBasisConsentLabel")}</strong>{" "}
+            {t("personvern.legalBasisConsentBody")}
           </li>
         </ul>
       </InfoSection>
@@ -80,27 +83,30 @@ export default function PersonvernPage() {
       <InfoSection title={t("personvern.retentionTitle")}>
         <ul className="space-y-3">
           <li>
-            <strong>{t("personvern.retentionAccountLabel")}</strong> {t("personvern.retentionAccountBody")}
+            <strong>{t("personvern.retentionAccountLabel")}</strong>{" "}
+            {t("personvern.retentionAccountBody")}
           </li>
           <li>
-            <strong>{t("personvern.retentionAuditLabel")}</strong> {t("personvern.retentionAuditBody")}
+            <strong>{t("personvern.retentionAuditLabel")}</strong>{" "}
+            {t("personvern.retentionAuditBody")}
           </li>
           <li>
-            <strong>{t("personvern.retentionChatLabel")}</strong> {t("personvern.retentionChatBody")}
+            <strong>{t("personvern.retentionChatLabel")}</strong>{" "}
+            {t("personvern.retentionChatBody")}
           </li>
           <li>
-            <strong>{t("personvern.retentionCacheLabel")}</strong> {t("personvern.retentionCacheBody")}
+            <strong>{t("personvern.retentionCacheLabel")}</strong>{" "}
+            {t("personvern.retentionCacheBody")}
           </li>
           <li>
-            <strong>{t("personvern.retentionSessionLabel")}</strong> {t("personvern.retentionSessionBody")}
+            <strong>{t("personvern.retentionSessionLabel")}</strong>{" "}
+            {t("personvern.retentionSessionBody")}
           </li>
         </ul>
       </InfoSection>
 
       <InfoSection title={t("personvern.cookiesSectionTitle")}>
-        <p>
-          {t("personvern.cookiesSectionBody")}
-        </p>
+        <p>{t("personvern.cookiesSectionBody")}</p>
         <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-900/20 dark:text-amber-200">
           {t("personvern.cookiesSectionAdblockNote")}
         </p>
@@ -110,43 +116,55 @@ export default function PersonvernPage() {
         <p className="mb-4">{t("personvern.thirdPartyIntro")}</p>
         <ul className="space-y-3">
           <li>
-            <strong>{t("personvern.thirdPartyHostingLabel")}</strong> {t("personvern.thirdPartyHostingBody")}
+            <strong>{t("personvern.thirdPartyHostingLabel")}</strong>{" "}
+            {t("personvern.thirdPartyHostingBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyDatabaseLabel")}</strong> {t("personvern.thirdPartyDatabaseBody")}
+            <strong>{t("personvern.thirdPartyDatabaseLabel")}</strong>{" "}
+            {t("personvern.thirdPartyDatabaseBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyClerkLabel")}</strong> {t("personvern.thirdPartyClerkBody")}
+            <strong>{t("personvern.thirdPartyClerkLabel")}</strong>{" "}
+            {t("personvern.thirdPartyClerkBody")}
           </li>
           <li>
             <strong>{t("personvern.thirdPartyAILabel")}</strong> {t("personvern.thirdPartyAIBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyCanvasLabel")}</strong> {t("personvern.thirdPartyCanvasBody")}
+            <strong>{t("personvern.thirdPartyCanvasLabel")}</strong>{" "}
+            {t("personvern.thirdPartyCanvasBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyPineconeLabel")}</strong> {t("personvern.thirdPartyPineconeBody")}
+            <strong>{t("personvern.thirdPartyPineconeLabel")}</strong>{" "}
+            {t("personvern.thirdPartyPineconeBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyCohereLabel")}</strong> {t("personvern.thirdPartyCohereBody")}
+            <strong>{t("personvern.thirdPartyCohereLabel")}</strong>{" "}
+            {t("personvern.thirdPartyCohereBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyDatadogLabel")}</strong> {t("personvern.thirdPartyDatadogBody")}
+            <strong>{t("personvern.thirdPartyDatadogLabel")}</strong>{" "}
+            {t("personvern.thirdPartyDatadogBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyPosthogLabel")}</strong> {t("personvern.thirdPartyPosthogBody")}
+            <strong>{t("personvern.thirdPartyPosthogLabel")}</strong>{" "}
+            {t("personvern.thirdPartyPosthogBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyLangsmithLabel")}</strong> {t("personvern.thirdPartyLangsmithBody")}
+            <strong>{t("personvern.thirdPartyLangsmithLabel")}</strong>{" "}
+            {t("personvern.thirdPartyLangsmithBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyContactRelayLabel")}</strong> {t("personvern.thirdPartyContactRelayBody")}
+            <strong>{t("personvern.thirdPartyContactRelayLabel")}</strong>{" "}
+            {t("personvern.thirdPartyContactRelayBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyNotionLabel")}</strong> {t("personvern.thirdPartyNotionBody")}
+            <strong>{t("personvern.thirdPartyNotionLabel")}</strong>{" "}
+            {t("personvern.thirdPartyNotionBody")}
           </li>
           <li>
-            <strong>{t("personvern.thirdPartyMapsLabel")}</strong> {t("personvern.thirdPartyMapsBody")}
+            <strong>{t("personvern.thirdPartyMapsLabel")}</strong>{" "}
+            {t("personvern.thirdPartyMapsBody")}
           </li>
         </ul>
       </InfoSection>
@@ -158,13 +176,16 @@ export default function PersonvernPage() {
             <strong>{t("personvern.rightsAccessLabel")}</strong> {t("personvern.rightsAccessBody")}
           </li>
           <li>
-            <strong>{t("personvern.rightsCorrectionLabel")}</strong> {t("personvern.rightsCorrectionBody")}
+            <strong>{t("personvern.rightsCorrectionLabel")}</strong>{" "}
+            {t("personvern.rightsCorrectionBody")}
           </li>
           <li>
-            <strong>{t("personvern.rightsDeletionLabel")}</strong> {t("personvern.rightsDeletionBody")}
+            <strong>{t("personvern.rightsDeletionLabel")}</strong>{" "}
+            {t("personvern.rightsDeletionBody")}
           </li>
           <li>
-            <strong>{t("personvern.rightsPortabilityLabel")}</strong> {t("personvern.rightsPortabilityBody")}
+            <strong>{t("personvern.rightsPortabilityLabel")}</strong>{" "}
+            {t("personvern.rightsPortabilityBody")}
           </li>
         </ul>
         <p className="mt-4">{t("personvern.rightsComplaint")}</p>

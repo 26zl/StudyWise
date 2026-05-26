@@ -12,7 +12,10 @@ import type { TargetedQuery } from "./ki.js";
  * Kaster `AI_RESPONSE_NOT_JSON_ARRAY` hvis teksten ikke inneholder en gyldig `[...]`-seksjon.
  */
 export function extractJsonArray(text: string): string {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
   const start = cleaned.indexOf("[");
   const end = cleaned.lastIndexOf("]");
   if (start === -1 || end === -1 || end < start) {
@@ -27,7 +30,10 @@ export function extractJsonArray(text: string): string {
  * Kaster `AI_RESPONSE_NOT_JSON_OBJECT` hvis teksten ikke inneholder en gyldig `{...}`-seksjon.
  */
 export function extractJsonObject(text: string): string {
-  const cleaned = text.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
+  const cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
   const start = cleaned.indexOf("{");
   const end = cleaned.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) {

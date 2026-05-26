@@ -9,12 +9,7 @@ import { type CanvasErrorCode } from "common/canvasErrors";
 export type { CanvasErrorCode } from "common/canvasErrors";
 
 // KI-spesifikke feilkoder
-export type KIErrorCode =
-  | "ki_auth"
-  | "ki_config"
-  | "ki_rate_limit"
-  | "ki_service"
-  | "ki_timeout";
+export type KIErrorCode = "ki_auth" | "ki_config" | "ki_rate_limit" | "ki_service" | "ki_timeout";
 
 // Auth-spesifikke feilkoder
 export type AuthErrorCode = "auth_error" | "auth_expired" | "forbidden";
@@ -23,11 +18,7 @@ export type AuthErrorCode = "auth_error" | "auth_expired" | "forbidden";
 export type ServiceErrorCode = "service_unavailable";
 
 // Alle feilkoder kombinert
-export type AppErrorCode =
-  | CanvasErrorCode
-  | KIErrorCode
-  | AuthErrorCode
-  | ServiceErrorCode;
+export type AppErrorCode = CanvasErrorCode | KIErrorCode | AuthErrorCode | ServiceErrorCode;
 
 /**
  * Base-klasse for alle applikasjonsfeil.
@@ -200,10 +191,7 @@ export class CanvasResourceError extends AppError {
   readonly code: CanvasErrorCode;
   readonly name = "CanvasResourceError";
 
-  constructor(
-    code: "resource_disabled" | "resource_not_found",
-    message: string,
-  ) {
+  constructor(code: "resource_disabled" | "resource_not_found", message: string) {
     super(message, { httpStatus: 404 });
     this.code = code;
   }
@@ -243,16 +231,18 @@ export class CanvasOutageError extends AppError {
   /** Anbefalt ventetid før retry (sekunder). */
   readonly retryAfterSeconds?: number;
 
-  constructor(options: {
-    message?: string;
-    kilde?: "canvas";
-    outageStatus?: CanvasOutageStatus;
-    retryAfterSeconds?: number;
-  } = {}) {
-    super(
-      options.message ?? "Canvas er midlertidig utilgjengelig. Prøv igjen senere.",
-      { httpStatus: 503, retryable: true },
-    );
+  constructor(
+    options: {
+      message?: string;
+      kilde?: "canvas";
+      outageStatus?: CanvasOutageStatus;
+      retryAfterSeconds?: number;
+    } = {},
+  ) {
+    super(options.message ?? "Canvas er midlertidig utilgjengelig. Prøv igjen senere.", {
+      httpStatus: 503,
+      retryable: true,
+    });
     this.kilde = options.kilde ?? "canvas";
     this.outageStatus = options.outageStatus ?? "outage";
     this.retryAfterSeconds = options.retryAfterSeconds;

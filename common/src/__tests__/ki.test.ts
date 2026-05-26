@@ -41,9 +41,7 @@ describe("KIMessageSchema", () => {
   });
 
   it("avviser ugyldig rolle", () => {
-    expect(
-      KIMessageSchema.safeParse({ role: "moderator", content: "Hei" }).success,
-    ).toBe(false);
+    expect(KIMessageSchema.safeParse({ role: "moderator", content: "Hei" }).success).toBe(false);
   });
 
   it("avviser tom content", () => {
@@ -249,15 +247,11 @@ describe("KIOppsummeringRequestSchema", () => {
   });
 
   it("avviser tom tekst", () => {
-    expect(
-      KIOppsummeringRequestSchema.safeParse({ tekst: "" }).success,
-    ).toBe(false);
+    expect(KIOppsummeringRequestSchema.safeParse({ tekst: "" }).success).toBe(false);
   });
 
   it("avviser tekst over 50000 tegn", () => {
-    expect(
-      KIOppsummeringRequestSchema.safeParse({ tekst: "a".repeat(50001) }).success,
-    ).toBe(false);
+    expect(KIOppsummeringRequestSchema.safeParse({ tekst: "a".repeat(50001) }).success).toBe(false);
   });
 });
 

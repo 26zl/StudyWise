@@ -5,37 +5,49 @@
 import { z } from "zod";
 
 /** Ukedager i rekkefølge */
-export const UKEDAGER = ["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag"] as const;
+export const UKEDAGER = [
+  "Mandag",
+  "Tirsdag",
+  "Onsdag",
+  "Torsdag",
+  "Fredag",
+  "Lørdag",
+  "Søndag",
+] as const;
 
 const IkkeTomTekstSchema = z.string().trim().min(1, "Feltet kan ikke være tomt");
 const IsoDateStringSchema = z
   .string()
   .trim()
   .refine(
-    (value) => /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(value) && !Number.isNaN(Date.parse(value)),
+    (value) =>
+      /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/.test(value) &&
+      !Number.isNaN(Date.parse(value)),
     "Ugyldig dato — må være ISO 8601-format (YYYY-MM-DD)",
   );
 
 /** Zod-skjema for en enkelt studieblokk */
-export const StudyBlockSchema = z.object({
-  day: z.enum(UKEDAGER),
-  timeSlot: IkkeTomTekstSchema.max(50, "Tidsluke må være maks 50 tegn"),
-  task: IkkeTomTekstSchema.max(300, "Oppgave må være maks 300 tegn"),
-  duration: IkkeTomTekstSchema.max(50, "Varighet må være maks 50 tegn"),
-  priority: z.enum(["high", "medium", "low"]),
-  courseName: IkkeTomTekstSchema.max(200, "Emnenavn må være maks 200 tegn"),
-  assignmentId: IkkeTomTekstSchema.max(200, "Oppgave-ID må være maks 200 tegn").optional(),
-  completed: z.boolean().default(false),
-  completedAt: IsoDateStringSchema.optional(),
-}).superRefine((block, ctx) => {
-  if (!block.completed && block.completedAt !== undefined) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["completedAt"],
-      message: "completedAt kan bare settes når blokken er fullført",
-    });
-  }
-});
+export const StudyBlockSchema = z
+  .object({
+    day: z.enum(UKEDAGER),
+    timeSlot: IkkeTomTekstSchema.max(50, "Tidsluke må være maks 50 tegn"),
+    task: IkkeTomTekstSchema.max(300, "Oppgave må være maks 300 tegn"),
+    duration: IkkeTomTekstSchema.max(50, "Varighet må være maks 50 tegn"),
+    priority: z.enum(["high", "medium", "low"]),
+    courseName: IkkeTomTekstSchema.max(200, "Emnenavn må være maks 200 tegn"),
+    assignmentId: IkkeTomTekstSchema.max(200, "Oppgave-ID må være maks 200 tegn").optional(),
+    completed: z.boolean().default(false),
+    completedAt: IsoDateStringSchema.optional(),
+  })
+  .superRefine((block, ctx) => {
+    if (!block.completed && block.completedAt !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["completedAt"],
+        message: "completedAt kan bare settes når blokken er fullført",
+      });
+    }
+  });
 
 /** Zod-skjema for å opprette/oppdatere arbeidsplan */
 export const CreateArbeidsplanSchema = z.object({

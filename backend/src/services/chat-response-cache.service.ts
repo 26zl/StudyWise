@@ -101,15 +101,11 @@ export interface ChatResponseCacheKeyInput {
  * Bygger deterministisk cache-nøkkel. Returnerer null når input mangler
  * fields som kreves for stabil caching (da cacher vi ikke).
  */
-export function buildChatResponseCacheKey(
-  input: ChatResponseCacheKeyInput,
-): string | null {
+export function buildChatResponseCacheKey(input: ChatResponseCacheKeyInput): string | null {
   if (!input.tenantPrefix) return null;
   if (!input.primaryCourseId || !input.primaryFileId) return null;
   if (!input.moduleHint && !input.fileHint) return null;
-  const triggerClass = input.triggerWord
-    ? classifyTriggerWord(input.triggerWord)
-    : "standard";
+  const triggerClass = input.triggerWord ? classifyTriggerWord(input.triggerWord) : "standard";
   const hintPart = input.moduleHint
     ? normalizeModuleHint(input.moduleHint)
     : `file-${input.fileHint?.slice(0, 40) ?? "unknown"}`;
@@ -121,9 +117,7 @@ export function buildChatResponseCacheKey(
   return `chat-response:v3:${input.tenantPrefix}:${input.primaryCourseId}:${input.primaryFileId}:${triggerClass}:${hintPart}`;
 }
 
-export async function getCachedChatResponse(
-  key: string,
-): Promise<CachedChatResponse | null> {
+export async function getCachedChatResponse(key: string): Promise<CachedChatResponse | null> {
   try {
     const raw = await getCache(key);
     if (!raw) return null;
@@ -150,11 +144,7 @@ export async function setCachedChatResponse(
       generatedAt: new Date().toISOString(),
       ...value,
     };
-    await setCache(
-      key,
-      JSON.stringify(payload),
-      CHAT_RESPONSE_CACHE_TTL_SECONDS,
-    );
+    await setCache(key, JSON.stringify(payload), CHAT_RESPONSE_CACHE_TTL_SECONDS);
     logger.info(
       {
         key,

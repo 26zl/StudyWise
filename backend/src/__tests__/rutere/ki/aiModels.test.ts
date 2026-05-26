@@ -4,11 +4,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  DEFAULT_MODEL,
-  SUPPORTED_MODELS,
-  resolveModel,
-} from "../../../rutere/ki/aiModels.js";
+import { DEFAULT_MODEL, SUPPORTED_MODELS, resolveModel } from "../../../rutere/ki/aiModels.js";
 
 describe("AI-modeller", () => {
   // --- DEFAULT_MODEL ---

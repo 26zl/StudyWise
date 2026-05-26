@@ -20,7 +20,7 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 6. **Never modify migration history.** Migrations in `backend/src/database/migrations.ts` are append-only and idempotent (each runs once based on `id`). Never edit a migration that has already been deployed; add a new one instead. Do not change the `id` of an existing migration.
 7. **Never disable, skip or comment out failing tests** to make CI pass. Fix the underlying issue. Do not use `it.skip`, `test.skip`, `it.todo`, `xit` or `xdescribe` to silence a real failure. If a test is genuinely obsolete, remove it with a commit message that explains why.
 8. **Never bypass type and runtime validation.** TypeScript runs in strict mode in all packages. Avoid `any`. Do not use `as` casts to launder types past the compiler. Every shared type lives in `common/` as a Zod schema and is exported as both schema (runtime validation) and type (`z.infer<typeof ...>`). External input — HTTP body, Canvas API response, Anthropic response, file uploads — must pass a Zod parse before it is trusted.
-9. **Never bypass git safety.** No `git push --force` to `main`, no `git commit --no-verify`, no `git commit --no-gpg-sign`, no `git rebase -i` on shared branches. The pre-commit hook is currently disabled, but the same checks run in CI on PRs — do not work around them.
+9. **Never bypass git safety.** No `git push --force` to `main`, no `git commit --no-verify`, no `git commit --no-gpg-sign`, no `git rebase -i` on shared branches. The pre-commit hook is active (runs `lint-staged`), and the same checks run in CI on PRs — do not work around either.
 10. **Never weaken GitHub Actions trust boundaries.** Do not introduce `pull_request_target`. Do not add shared package-manager caches (`actions/cache`, `cache: pnpm`, restore keys, etc.), global `npm install -g`, or `curl | sh` installers to deploy, publish, release or otherwise privileged workflows with secrets or write permissions. `pnpm lint:actions-security` enforces this.
 11. **Never weaken pnpm supply-chain guardrails.** Keep `minimumReleaseAge: 7200` in `pnpm-workspace.yaml` unless a human explicitly approves a security exception. Prefer narrow `minimumReleaseAgeExclude` entries for urgent, reviewed fixes over lowering the global delay.
 12. **Never run destructive operations** without explicit human confirmation: `pnpm db:reset-encrypted`, dropping a Mongo collection, deleting Pinecone records, `git reset --hard`, `git clean -f`. These are not reversible.
@@ -42,7 +42,7 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 
 If a task seems to require breaking one of these rules, **stop and ask the human developer** before proceeding. Phrasings like "I'll just disable this temporarily" or "we can fix the test later" are red flags — they tend to ship to production. Better to surface the conflict explicitly than to merge a workaround.
 
-These guardrails are an explicit part of the bachelor thesis's contribution on safe AI-assisted coding. They are not aspirational — they are enforced through code review and CI checks. The pre-commit hook is currently disabled while the codebase is being formatted in bulk; once that one-time formatting commit has landed on `main`, the hook will be re-enabled and run the same checks locally before each commit.
+These guardrails are an explicit part of the bachelor thesis's contribution on safe AI-assisted coding. They are not aspirational — they are enforced through code review and CI checks. The pre-commit hook is active again: the one-time bulk formatting has been applied across the codebase with `pnpm format`, so the hook now runs `lint-staged` locally before each commit in addition to the CI checks on PRs.
 
 ## Project Overview
 
@@ -208,7 +208,7 @@ Host/origin validation (prod) → Cloudflare-only enforcement (prod, when enable
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
-The Husky pre-commit hook is currently disabled — see the comment in `.husky/pre-commit`. It will be reactivated after the codebase has been formatted in one batch on `main`, so future commits get small focused diffs rather than large reformatting churn. Until then, the same checks are enforced automatically by CI on pull requests, and developers run `pnpm format` plus the checklist above manually before each commit. The `lint-staged` config in `package.json` is kept ready for reactivation.
+The Husky pre-commit hook is active — see `.husky/pre-commit`, which runs `lint-staged` (Prettier `--write` on staged files). It was reactivated after the codebase was formatted in one batch with `pnpm format`, so commits now get Prettier applied automatically to staged files, keeping diffs small. The same checks are also enforced by CI on pull requests, and developers still run the checklist above before each commit. The `lint-staged` config lives in `package.json`.
 
 ## Deployment
 

@@ -11,11 +11,7 @@
 import mongoose, { Document, Schema } from "mongoose";
 
 export type ContactMessageStatus = "unread" | "read" | "replied";
-export const CONTACT_MESSAGE_STATUSES: ContactMessageStatus[] = [
-  "unread",
-  "read",
-  "replied",
-];
+export const CONTACT_MESSAGE_STATUSES: ContactMessageStatus[] = ["unread", "read", "replied"];
 
 export interface IContactMessage extends Document {
   /** Avsenderens navn slik de skrev det inn */
@@ -74,10 +70,7 @@ const ContactMessageSchema = new Schema<IContactMessage>(
 );
 
 // TTL: slettes automatisk etter 365 dager
-ContactMessageSchema.index(
-  { createdAt: 1 },
-  { expireAfterSeconds: 365 * 24 * 60 * 60 },
-);
+ContactMessageSchema.index({ createdAt: 1 }, { expireAfterSeconds: 365 * 24 * 60 * 60 });
 
 // Indeks for sortering på status + nylige meldinger først
 ContactMessageSchema.index({ status: 1, createdAt: -1 });

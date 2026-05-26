@@ -57,9 +57,7 @@ function getTransportConfig() {
  * I development uten konfigurasjon: returnerer mock-suksess
  * I production uten konfigurasjon: kaster feil (503)
  */
-export async function sendKontaktmelding(
-  payload: KontaktPayload,
-): Promise<TransportResult> {
+export async function sendKontaktmelding(payload: KontaktPayload): Promise<TransportResult> {
   const config = getTransportConfig();
 
   // Sjekk om transport er konfigurert
@@ -91,9 +89,8 @@ export async function sendKontaktmelding(
         timestamp: payload.timestamp,
         toEmail: config.toEmail,
         fromEmail: config.fromEmail,
-        attachments: payload.attachments?.map((attachment) =>
-          KontaktAttachmentSchema.parse(attachment),
-        ) ?? [],
+        attachments:
+          payload.attachments?.map((attachment) => KontaktAttachmentSchema.parse(attachment)) ?? [],
       };
 
       const response = await fetch(config.workerUrl, {
@@ -132,17 +129,11 @@ export async function sendKontaktmelding(
     }
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {
-      logger.error(
-        { requestId: payload.requestId },
-        "Kontakttransport timet ut",
-      );
+      logger.error({ requestId: payload.requestId }, "Kontakttransport timet ut");
       return { success: false, error: "timeout" };
     }
 
-    logger.error(
-      { err: error, requestId: payload.requestId },
-      "Kontakttransport feilet",
-    );
+    logger.error({ err: error, requestId: payload.requestId }, "Kontakttransport feilet");
     return { success: false, error: "internal-error" };
   }
 }
@@ -150,9 +141,7 @@ export async function sendKontaktmelding(
 /**
  * Sender svar på kontaktmelding via ekstern worker/webhook
  */
-export async function sendKontaktSvar(
-  payload: ReplyPayload,
-): Promise<TransportResult> {
+export async function sendKontaktSvar(payload: ReplyPayload): Promise<TransportResult> {
   const config = getTransportConfig();
 
   if (!config.workerUrl || !config.workerSecret) {

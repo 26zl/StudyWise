@@ -20,7 +20,7 @@ import {
   TrendingUp,
   Clock,
   CheckCircle2,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
 } from "lucide-react";
 import { parseTimerStreng } from "common/dateUtils";
 import type { SubTask } from "common/ki";
@@ -28,11 +28,7 @@ import { LoadingSpinner } from "@/app/components/ui/Loading";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { AddToWorkplanModal } from "@/app/components/arbeidsplan/AddToWorkplanModal";
-import {
-  useDeleteTaskBreakdown,
-  useSaveTaskBreakdown,
-  useTaskBreakdown,
-} from "@/app/ki/ki-api";
+import { useDeleteTaskBreakdown, useSaveTaskBreakdown, useTaskBreakdown } from "@/app/ki/ki-api";
 import { PRIORITY_COLORS, PRIORITY_LABELS } from "@/app/arbeidsplan/arbeidsplan-api";
 import { useKIStore } from "@/app/store/kiStore";
 
@@ -126,10 +122,7 @@ export function AITaskBreakdown({
     }
   }, [bgJob, assignmentId, clearTaskBreakdown, t]);
 
-  const persistSubtasks = async (
-    nextSubtasks: SubTask[],
-    options?: { notify?: boolean },
-  ) => {
+  const persistSubtasks = async (nextSubtasks: SubTask[], options?: { notify?: boolean }) => {
     try {
       if (nextSubtasks.length === 0) {
         await deleteTaskBreakdown.mutateAsync({ assignmentId });
@@ -155,16 +148,19 @@ export function AITaskBreakdown({
   const calculateProgress = (): ProgressStats => {
     const total = subtasks.length;
     const approved = subtasks.filter((t) => t.approved).length;
-    const completed = subtasks.filter(t => t.completed).length;
+    const completed = subtasks.filter((t) => t.completed).length;
     const remaining = approved - completed;
     const percentageApproved = total > 0 ? Math.round((approved / total) * 100) : 0;
     const percentageCompleted = approved > 0 ? Math.round((completed / approved) * 100) : 0;
-    
-    const totalEstimatedHours = subtasks.reduce((sum, t) => sum + parseTimerStreng(t.estimatedTime), 0);
+
+    const totalEstimatedHours = subtasks.reduce(
+      (sum, t) => sum + parseTimerStreng(t.estimatedTime),
+      0,
+    );
     const completedHours = subtasks
-      .filter(t => t.completed)
+      .filter((t) => t.completed)
       .reduce((sum, t) => sum + parseTimerStreng(t.estimatedTime), 0);
-    
+
     return {
       total,
       approved,
@@ -233,20 +229,18 @@ export function AITaskBreakdown({
 
   const startEdit = (task: SubTask) => {
     setEditingId(task.id);
-    setEditForm({ 
-      title: task.title, 
-      description: task.description, 
-      estimatedTime: task.estimatedTime, 
-      priority: task.priority 
+    setEditForm({
+      title: task.title,
+      description: task.description,
+      estimatedTime: task.estimatedTime,
+      priority: task.priority,
     });
   };
 
   const saveEdit = () => {
     if (!editingId) return;
     const nextSubtasks = subtasks.map((task) =>
-      task.id === editingId
-        ? { ...task, ...editForm }
-        : task,
+      task.id === editingId ? { ...task, ...editForm } : task,
     );
     setSubtasks(nextSubtasks);
     setEditingId(null);
@@ -347,7 +341,11 @@ export function AITaskBreakdown({
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400">
-                  <span>{t("taskBreakdown.progress.percentComplete", { percent: stats.percentageCompleted })}</span>
+                  <span>
+                    {t("taskBreakdown.progress.percentComplete", {
+                      percent: stats.percentageCompleted,
+                    })}
+                  </span>
                   <span>
                     {t("taskBreakdown.progress.hours", {
                       completed: stats.completedHours.toFixed(1),
@@ -449,7 +447,9 @@ export function AITaskBreakdown({
                 className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 title={t("taskBreakdown.editor.regenerate")}
               >
-                <RefreshCw className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${isGenerating ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`w-4 h-4 text-slate-600 dark:text-slate-400 ${isGenerating ? "animate-spin" : ""}`}
+                />
               </button>
 
               <button
@@ -470,8 +470,12 @@ export function AITaskBreakdown({
                   className="flex items-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   <CalendarIcon className="w-4 h-4" />
-                  <span className="hidden sm:inline">{t("taskBreakdown.editor.addToWorkplan", { count: stats.approved })}</span>
-                  <span className="sm:hidden">{t("taskBreakdown.editor.addToWorkplanShort", { count: stats.approved })}</span>
+                  <span className="hidden sm:inline">
+                    {t("taskBreakdown.editor.addToWorkplan", { count: stats.approved })}
+                  </span>
+                  <span className="sm:hidden">
+                    {t("taskBreakdown.editor.addToWorkplanShort", { count: stats.approved })}
+                  </span>
                 </button>
               )}
             </div>
@@ -486,8 +490,8 @@ export function AITaskBreakdown({
                   task.completed
                     ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20"
                     : task.approved
-                    ? "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
-                    : "border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20"
+                      ? "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+                      : "border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20"
                 } p-4 transition-all`}
               >
                 {editingId === task.id ? (
@@ -511,13 +515,20 @@ export function AITaskBreakdown({
                       <input
                         type="text"
                         value={editForm.estimatedTime || ""}
-                        onChange={(e) => setEditForm({ ...editForm, estimatedTime: e.target.value })}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, estimatedTime: e.target.value })
+                        }
                         className="w-24 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-base sm:text-sm text-slate-900 dark:text-white"
                         placeholder="2t"
                       />
                       <select
                         value={editForm.priority || "medium"}
-                        onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as "low" | "medium" | "high" })}
+                        onChange={(e) =>
+                          setEditForm({
+                            ...editForm,
+                            priority: e.target.value as "low" | "medium" | "high",
+                          })
+                        }
                         className="flex-1 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-base sm:text-sm text-slate-900 dark:text-white"
                       >
                         <option value="low">{t("taskBreakdown.priority.low")}</option>
@@ -566,13 +577,17 @@ export function AITaskBreakdown({
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-1 sm:gap-3 mb-2">
-                        <h4 className={`font-medium text-slate-900 dark:text-white wrap-break-word ${
-                          task.completed ? "line-through opacity-60" : ""
-                        }`}>
+                        <h4
+                          className={`font-medium text-slate-900 dark:text-white wrap-break-word ${
+                            task.completed ? "line-through opacity-60" : ""
+                          }`}
+                        >
                           {task.title}
                         </h4>
                         <div className="flex items-center gap-2 shrink-0">
-                          <span className={`px-2 py-1 rounded text-xs font-medium border ${PRIORITY_COLORS[task.priority]}`}>
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium border ${PRIORITY_COLORS[task.priority]}`}
+                          >
                             {PRIORITY_LABELS[task.priority]}
                           </span>
                           <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
@@ -583,9 +598,11 @@ export function AITaskBreakdown({
                       </div>
 
                       {task.description && (
-                        <p className={`text-sm text-slate-600 dark:text-slate-400 mb-3 ${
-                          task.completed ? "opacity-60" : ""
-                        }`}>
+                        <p
+                          className={`text-sm text-slate-600 dark:text-slate-400 mb-3 ${
+                            task.completed ? "opacity-60" : ""
+                          }`}
+                        >
                           {task.description}
                         </p>
                       )}
@@ -658,4 +675,4 @@ export function AITaskBreakdown({
       />
     </div>
   );
-} 
+}

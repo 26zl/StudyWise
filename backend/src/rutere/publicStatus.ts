@@ -70,9 +70,7 @@ function componentStatus(services: ServiceHealth[]): OverallStatus {
   if (criticalDown) return "down";
   const anyDown = services.some((s) => s.status === "down");
   if (anyDown) return "degraded";
-  const criticalUnknown = services.some(
-    (s) => s.critical && s.status === "unknown",
-  );
+  const criticalUnknown = services.some((s) => s.critical && s.status === "unknown");
   if (criticalUnknown) return "degraded";
   return "operational";
 }

@@ -30,76 +30,73 @@ export interface ICanvasUser extends Document {
 }
 
 const CanvasUserSchema: Schema = new Schema(
-    {
-        canvasId: {
-            type: Number,
-            required: true,
-        },
-        canvasBaseUrl: {
-            type: String,
-            required: true,
-            trim: true,
-            set: normalizeCanvasBaseUrl,
-        },
-        name: {
-            type: String,
-            required: true,
-            trim: true,
-        },
-        sortableName: {
-            type: String,
-            trim: true,
-        },
-        shortName: {
-            type: String,
-            trim: true,
-        },
-        avatarUrl: {
-            type: String,
-            trim: true,
-        },
-        firstName: {
-            type: String,
-            trim: true,
-        },
-        lastName: {
-            type: String,
-            trim: true,
-        },
-        locale: {
-            type: String,
-            default: null,
-        },
-        effectiveLocale: {
-            type: String,
-            trim: true,
-        },
-        permissions: {
-            canUpdateName: { type: Boolean, default: false },
-            canUpdateAvatar: { type: Boolean, default: false },
-            limitParentAppWebAccess: { type: Boolean, default: false },
-        },
-        canvasUserCreatedAt: {
-            type: Date,
-        },
-        localUser: {
-            type: Schema.Types.ObjectId,
-            ref: 'User', // Dette er koblingen tilbake til Login-brukeren (User model).
-            required: true,
-        },
+  {
+    canvasId: {
+      type: Number,
+      required: true,
     },
-    {
-        timestamps: true,
-    }
+    canvasBaseUrl: {
+      type: String,
+      required: true,
+      trim: true,
+      set: normalizeCanvasBaseUrl,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    sortableName: {
+      type: String,
+      trim: true,
+    },
+    shortName: {
+      type: String,
+      trim: true,
+    },
+    avatarUrl: {
+      type: String,
+      trim: true,
+    },
+    firstName: {
+      type: String,
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      trim: true,
+    },
+    locale: {
+      type: String,
+      default: null,
+    },
+    effectiveLocale: {
+      type: String,
+      trim: true,
+    },
+    permissions: {
+      canUpdateName: { type: Boolean, default: false },
+      canUpdateAvatar: { type: Boolean, default: false },
+      limitParentAppWebAccess: { type: Boolean, default: false },
+    },
+    canvasUserCreatedAt: {
+      type: Date,
+    },
+    localUser: {
+      type: Schema.Types.ObjectId,
+      ref: "User", // Dette er koblingen tilbake til Login-brukeren (User model).
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
 CanvasUserSchema.index(
-    { canvasBaseUrl: 1, canvasId: 1 },
-    { unique: true, name: "canvas_base_url_canvas_id_unique" },
+  { canvasBaseUrl: 1, canvasId: 1 },
+  { unique: true, name: "canvas_base_url_canvas_id_unique" },
 );
-CanvasUserSchema.index(
-    { localUser: 1 },
-    { unique: true, name: "canvas_user_local_user_unique" },
-);
+CanvasUserSchema.index({ localUser: 1 }, { unique: true, name: "canvas_user_local_user_unique" });
 
-export const CanvasUser = mongoose.model<ICanvasUser>('CanvasUser', CanvasUserSchema);
+export const CanvasUser = mongoose.model<ICanvasUser>("CanvasUser", CanvasUserSchema);

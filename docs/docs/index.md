@@ -70,7 +70,7 @@ Bruker → Cloudflare → Frontend → Cloudflare API-edge → Backend → KI-tj
 | **Vektorsøk**             | Pinecone (serverless, integrated embedding); chunk-tekst i MongoDB som sannhetskilde                                                      |
 | **Filer/dokumenter**      | Multer, unpdf (PDF), mammoth (Word), tesseract.js + sharp (OCR)                                                                           |
 | **API**                   | Swagger UI + swagger-jsdoc, Helmet, CORS, compression, rate-limiter-flexible                                                              |
-| **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend), PostHog (cookie-samtykke-styrt produktanalyse), LangSmith (KI-feilsøking)     |
+| **Logging/Observability** | Pino + pino-http, Datadog APM (backend) og RUM (frontend), PostHog (cookie-samtykke-styrt produktanalyse), LangSmith (KI-feilsøking)      |
 | **E-postlevering**        | Resend (via Cloudflare Worker-relay for kontaktskjema)                                                                                    |
 | **Tooling**               | syncpack (versjons-drift), knip (død kode)                                                                                                |
 | **CI/CD**                 | GitHub Actions, Heroku (backend), Vercel (frontend), Cloudflare (CDN/WAF), GitHub Pages (docs)                                            |

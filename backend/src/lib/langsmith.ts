@@ -9,20 +9,18 @@ import type { ChatMessage } from "../rutere/ki/aiClient.js";
 import { logger } from "../utils/logger.js";
 
 const tracingFlagRaw = process.env.LANGCHAIN_TRACING_V2 ?? process.env.LANGSMITH_TRACING;
-const tracingFlag = typeof tracingFlagRaw === "string" ? tracingFlagRaw.trim().toLowerCase() : undefined;
+const tracingFlag =
+  typeof tracingFlagRaw === "string" ? tracingFlagRaw.trim().toLowerCase() : undefined;
 const LANGCHAIN_ENDPOINT =
   process.env.LANGCHAIN_ENDPOINT ||
   process.env.LANGSMITH_ENDPOINT ||
   "https://api.smith.langchain.com";
-const LANGCHAIN_API_KEY =
-  process.env.LANGCHAIN_API_KEY || process.env.LANGSMITH_API_KEY;
+const LANGCHAIN_API_KEY = process.env.LANGCHAIN_API_KEY || process.env.LANGSMITH_API_KEY;
 const LANGCHAIN_PROJECT =
   process.env.LANGCHAIN_PROJECT || process.env.LANGSMITH_PROJECT || "studywise";
 
 if (!LANGCHAIN_API_KEY) {
-  logger.warn(
-    "LANGCHAIN_API_KEY mangler. Hopper over LangSmith-tracing uten å stoppe backend.",
-  );
+  logger.warn("LANGCHAIN_API_KEY mangler. Hopper over LangSmith-tracing uten å stoppe backend.");
 }
 
 export const langsmithClient = LANGCHAIN_API_KEY
@@ -94,9 +92,7 @@ setInterval(() => {
   }
 }, RUN_EXTRA_TTL_MS).unref?.();
 
-export async function startLangsmithRun(
-  input: StartLangsmithRunInput,
-): Promise<string | null> {
+export async function startLangsmithRun(input: StartLangsmithRunInput): Promise<string | null> {
   if (!isLangsmithEnabled() || !langsmithClient) return null;
 
   const runId = randomUUID();

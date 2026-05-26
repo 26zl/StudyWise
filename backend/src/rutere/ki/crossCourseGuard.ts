@@ -42,9 +42,7 @@ export interface CrossCourseGuardResult {
  * Returner en guard-beslutning. Når `triggered=true` inneholder `promptBlock`
  * et ferdigformatert Markdown-avsnitt som skal appendes til system-prompten.
  */
-export function evaluateCrossCourseGuard(
-  input: CrossCourseGuardInput,
-): CrossCourseGuardResult {
+export function evaluateCrossCourseGuard(input: CrossCourseGuardInput): CrossCourseGuardResult {
   const { primaryCourseId, primaryCourseHint, kilder, userExplicitlyReferencedOtherCourse } = input;
 
   const empty: CrossCourseGuardResult = {
@@ -59,9 +57,7 @@ export function evaluateCrossCourseGuard(
     return empty;
   }
 
-  const outOfScope = kilder.filter(
-    (k) => k.courseId != null && k.courseId !== primaryCourseId,
-  );
+  const outOfScope = kilder.filter((k) => k.courseId != null && k.courseId !== primaryCourseId);
   const inScope = kilder.filter((k) => k.courseId === primaryCourseId);
 
   if (outOfScope.length === 0) return empty;
@@ -71,11 +67,7 @@ export function evaluateCrossCourseGuard(
     : `kurs-id ${primaryCourseId}`;
 
   const foreignCourseLabels = [
-    ...new Set(
-      outOfScope.map(
-        (k) => `${k.courseName || "(ukjent navn)"} (kurs-id ${k.courseId})`,
-      ),
-    ),
+    ...new Set(outOfScope.map((k) => `${k.courseName || "(ukjent navn)"} (kurs-id ${k.courseId})`)),
   ].join(", ");
 
   const inScopeLine =

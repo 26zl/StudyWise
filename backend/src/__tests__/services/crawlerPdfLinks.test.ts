@@ -20,10 +20,15 @@ describe("findPdfLinks", () => {
       </html>
     `;
 
-    const links = findPdfLinks(html, "https://www.windowsnett.no/leksjoner/L01/Leksjon%201%20beskrivelse.htm");
+    const links = findPdfLinks(
+      html,
+      "https://www.windowsnett.no/leksjoner/L01/Leksjon%201%20beskrivelse.htm",
+    );
     const urls = links.map((link) => link.url);
 
-    expect(urls).toContain("https://www.windowsnett.no/leksjoner/L01/1a%20Introduksjon%20til%20nettverk.pdf");
+    expect(urls).toContain(
+      "https://www.windowsnett.no/leksjoner/L01/1a%20Introduksjon%20til%20nettverk.pdf",
+    );
     expect(urls).toContain("https://www.windowsnett.no/leksjoner/L01/1b%20Virtualisering.pdf");
     expect(links.length).toBeGreaterThanOrEqual(8);
   });
@@ -38,9 +43,14 @@ describe("findPdfLinks", () => {
       </html>
     `;
 
-    const links = findPdfLinks(html, "https://www.windowsnett.no/leksjoner/L01/Leksjon%201%20beskrivelse.htm");
+    const links = findPdfLinks(
+      html,
+      "https://www.windowsnett.no/leksjoner/L01/Leksjon%201%20beskrivelse.htm",
+    );
 
     expect(links).toHaveLength(1);
-    expect(links[0]?.url).toBe("https://www.windowsnett.no/leksjoner/L01/1a%20Introduksjon%20til%20nettverk.pdf");
+    expect(links[0]?.url).toBe(
+      "https://www.windowsnett.no/leksjoner/L01/1a%20Introduksjon%20til%20nettverk.pdf",
+    );
   });
 });

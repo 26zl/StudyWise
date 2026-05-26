@@ -25,16 +25,9 @@ export class AuthTimeoutError extends Error {
  * setActive, handleRedirectCallback osv.) ikke låser UI-et i spinner for alltid.
  * Rejecter med en `AuthTimeoutError` etter `ms` millisekunder.
  */
-export function withAuthTimeout<T>(
-  promise: Promise<T>,
-  ms: number,
-  label: string,
-): Promise<T> {
+export function withAuthTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(
-      () => reject(new AuthTimeoutError(label)),
-      ms,
-    );
+    const timer = setTimeout(() => reject(new AuthTimeoutError(label)), ms);
     promise.then(
       (value) => {
         clearTimeout(timer);
@@ -48,9 +41,7 @@ export function withAuthTimeout<T>(
   });
 }
 
-
 /*  Shared Clerk error parser                                         */
-
 
 /**
  * Trekk ut lesbar feilmelding fra Clerk-feil.
@@ -67,9 +58,8 @@ export function parseClerkError(
     "errors" in err &&
     Array.isArray((err as { errors: unknown[] }).errors)
   ) {
-    const first = (
-      err as { errors: { code?: string; longMessage?: string; message?: string }[] }
-    ).errors[0];
+    const first = (err as { errors: { code?: string; longMessage?: string; message?: string }[] })
+      .errors[0];
     if (first?.code && translateCode) {
       const translated = translateCode(first.code);
       if (translated) return translated;
@@ -127,14 +117,10 @@ function isRateLimitClerkError(code: string, source: string): boolean {
   );
 }
 
-export function classifyClerkSignInError(
-  err: unknown,
-): ClerkSignInErrorKind | null {
+export function classifyClerkSignInError(err: unknown): ClerkSignInErrorKind | null {
   const first = getFirstClerkError(err);
   const code = first?.code?.trim().toLowerCase() ?? "";
-  const message = `${first?.longMessage ?? ""} ${first?.message ?? ""}`
-    .trim()
-    .toLowerCase();
+  const message = `${first?.longMessage ?? ""} ${first?.message ?? ""}`.trim().toLowerCase();
   const source = `${code} ${message}`;
 
   if (isRateLimitClerkError(code, source)) {
@@ -177,14 +163,10 @@ export function classifyClerkSignInError(
   return null;
 }
 
-export function classifyClerkSignUpError(
-  err: unknown,
-): ClerkSignUpErrorKind | null {
+export function classifyClerkSignUpError(err: unknown): ClerkSignUpErrorKind | null {
   const first = getFirstClerkError(err);
   const code = first?.code?.trim().toLowerCase() ?? "";
-  const message = `${first?.longMessage ?? ""} ${first?.message ?? ""}`
-    .trim()
-    .toLowerCase();
+  const message = `${first?.longMessage ?? ""} ${first?.message ?? ""}`.trim().toLowerCase();
   const source = `${code} ${message}`;
 
   if (isRateLimitClerkError(code, source)) {
@@ -215,9 +197,7 @@ export function classifyClerkSignUpError(
 
   if (
     code.includes("username") &&
-    (code.includes("invalid") ||
-      code.includes("format") ||
-      source.includes("invalid username"))
+    (code.includes("invalid") || code.includes("format") || source.includes("invalid username"))
   ) {
     return "usernameInvalid";
   }
@@ -235,9 +215,7 @@ export function classifyClerkSignUpError(
 
   if (
     code.includes("email") &&
-    (code.includes("invalid") ||
-      code.includes("format") ||
-      source.includes("invalid email"))
+    (code.includes("invalid") || code.includes("format") || source.includes("invalid email"))
   ) {
     return "invalidEmail";
   }
@@ -250,9 +228,7 @@ export function classifyClerkSignUpError(
 export const AUTH_INPUT_CLASSES =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 transition-colors focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500 dark:focus:border-blue-400 dark:focus:bg-slate-800";
 
-export const AUTH_LABEL_CLASSES =
-  "block text-sm font-medium text-slate-700 dark:text-slate-300";
-
+export const AUTH_LABEL_CLASSES = "block text-sm font-medium text-slate-700 dark:text-slate-300";
 
 /*  AuthCard                                                          */
 
@@ -266,23 +242,11 @@ export function AuthCard({ children }: { children: ReactNode }) {
 
 /*  AuthHeader                                                        */
 
-export function AuthHeader({
-  title,
-  subtitle,
-}: {
-  title: string;
-  subtitle?: string;
-}) {
+export function AuthHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="mb-5 text-center">
-      <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-        {title}
-      </h1>
-      {subtitle && (
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          {subtitle}
-        </p>
-      )}
+      <h1 className="text-xl font-bold text-slate-900 dark:text-white">{title}</h1>
+      {subtitle && <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
     </div>
   );
 }
@@ -303,12 +267,7 @@ export function AuthOAuthButtons({
 
   return (
     <div className="mb-5 flex gap-3">
-      <button
-        type="button"
-        onClick={onGoogle}
-        disabled={disabled}
-        className={btnClasses}
-      >
+      <button type="button" onClick={onGoogle} disabled={disabled} className={btnClasses}>
         <svg className="h-4 w-4" viewBox="0 0 24 24">
           <path
             d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
@@ -329,12 +288,7 @@ export function AuthOAuthButtons({
         </svg>
         Google
       </button>
-      <button
-        type="button"
-        onClick={onMicrosoft}
-        disabled={disabled}
-        className={btnClasses}
-      >
+      <button type="button" onClick={onMicrosoft} disabled={disabled} className={btnClasses}>
         <svg className="h-4 w-4" viewBox="0 0 23 23">
           <rect x="1" y="1" width="10" height="10" fill="#F25022" />
           <rect x="12" y="1" width="10" height="10" fill="#7FBA00" />

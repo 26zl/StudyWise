@@ -9,7 +9,11 @@ import { X, Calendar, Clock, CheckCircle2, Sparkles, AlertTriangle } from "lucid
 import type { SubTask } from "common/ki";
 import { getIsoWeekInfo, parseTimerStreng } from "common/dateUtils";
 import { UKEDAGER } from "common/arbeidsplan";
-import { useCreateArbeidsplan, useCurrentArbeidsplan, type StudyBlock } from "@/app/arbeidsplan/arbeidsplan-api";
+import {
+  useCreateArbeidsplan,
+  useCurrentArbeidsplan,
+  type StudyBlock,
+} from "@/app/arbeidsplan/arbeidsplan-api";
 import { showToast } from "@/app/components/ui/Toaster";
 import { useLanguage } from "@/app/i18n";
 import { useDialogAccessibility } from "@/app/hooks/useDialogAccessibility";
@@ -42,9 +46,15 @@ export function AddToWorkplanModal({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
   const [selectedWeek, setSelectedWeek] = useState<"current" | "next">("current");
-  const [selectedDays, setSelectedDays] = useState<StudyBlock["day"][]>(["Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag"]);
+  const [selectedDays, setSelectedDays] = useState<StudyBlock["day"][]>([
+    "Mandag",
+    "Tirsdag",
+    "Onsdag",
+    "Torsdag",
+    "Fredag",
+  ]);
   const [startTime, setStartTime] = useState("08:00-10:00");
-  
+
   const { mutate: createPlan, isPending } = useCreateArbeidsplan();
   const { data: existingPlan } = useCurrentArbeidsplan();
 
@@ -71,8 +81,8 @@ export function AddToWorkplanModal({
   );
 
   const toggleDay = (day: StudyBlock["day"]) => {
-    setSelectedDays(prev =>
-      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    setSelectedDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
     );
   };
 
@@ -116,7 +126,10 @@ export function AddToWorkplanModal({
       };
     });
 
-    const totalHours = subtasks.reduce((sum, task) => sum + parseTimerStreng(task.estimatedTime), 0);
+    const totalHours = subtasks.reduce(
+      (sum, task) => sum + parseTimerStreng(task.estimatedTime),
+      0,
+    );
 
     // Opprett arbeidsplan
     createPlan(
@@ -131,26 +144,29 @@ export function AddToWorkplanModal({
         onSuccess: () => {
           showToast.success(
             t("addToWorkplanModal.addedSuccess", { count: subtasks.length, week: weekText }),
-            t("addToWorkplanModal.addedSuccessSubtitle")
+            t("addToWorkplanModal.addedSuccessSubtitle"),
           );
           onClose();
         },
         onError: () => {
           showToast.error(
             t("arbeidsplan.addToWorkplanError"),
-            t("arbeidsplan.addToWorkplanErrorDescription")
+            t("arbeidsplan.addToWorkplanErrorDescription"),
           );
         },
-      }
+      },
     );
   };
 
   // Beregn fordeling (speiler round-robin-logikken i handleAdd)
-  const tasksPerDay = subtasks.reduce((acc, _, i) => {
-    const day = selectedDays[i % selectedDays.length];
-    acc[day] = (acc[day] ?? 0) + 1;
-    return acc;
-  }, {} as Partial<Record<StudyBlock["day"], number>>);
+  const tasksPerDay = subtasks.reduce(
+    (acc, _, i) => {
+      const day = selectedDays[i % selectedDays.length];
+      acc[day] = (acc[day] ?? 0) + 1;
+      return acc;
+    },
+    {} as Partial<Record<StudyBlock["day"], number>>,
+  );
 
   // Sjekk konflikter mot eksisterende plan
   const conflicts = useMemo(() => {
@@ -213,7 +229,10 @@ export function AddToWorkplanModal({
                 {t("addToWorkplanModal.title")}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                {t("addToWorkplanModal.subtitle", { count: subtasks.length, assignment: assignmentTitle })}
+                {t("addToWorkplanModal.subtitle", {
+                  count: subtasks.length,
+                  assignment: assignmentTitle,
+                })}
               </p>
             </div>
           </div>
@@ -389,7 +408,9 @@ export function AddToWorkplanModal({
                 <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <div className="flex-1">
                   <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                    {conflicts.length === 1 ? t("addToWorkplanModal.conflictSingular") : t("addToWorkplanModal.conflictPlural", { count: conflicts.length })}
+                    {conflicts.length === 1
+                      ? t("addToWorkplanModal.conflictSingular")
+                      : t("addToWorkplanModal.conflictPlural", { count: conflicts.length })}
                   </h4>
                   <p className="text-xs text-amber-700 dark:text-amber-300 mb-2">
                     {t("addToWorkplanModal.conflictDescription")}
@@ -397,7 +418,10 @@ export function AddToWorkplanModal({
                   <div className="space-y-1">
                     {conflicts.map((c, i) => (
                       <div key={i} className="text-xs text-amber-800 dark:text-amber-200">
-                        <span className="font-medium">{c.day} {c.timeSlot}:</span> «{c.existingTask}»
+                        <span className="font-medium">
+                          {c.day} {c.timeSlot}:
+                        </span>{" "}
+                        «{c.existingTask}»
                       </div>
                     ))}
                   </div>
@@ -416,7 +440,10 @@ export function AddToWorkplanModal({
                     {t("addToWorkplanModal.previewTitle")}
                   </h4>
                   <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
-                    {t("addToWorkplanModal.previewDescription", { subtasks: subtasks.length, days: selectedDays.length })}
+                    {t("addToWorkplanModal.previewDescription", {
+                      subtasks: subtasks.length,
+                      days: selectedDays.length,
+                    })}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {selectedDays.map((day) => {
@@ -465,7 +492,7 @@ export function AddToWorkplanModal({
                 {t("addToWorkplanModal.addButton", { week: weekText })}
               </>
             )}
-          </button> 
+          </button>
         </div>
       </div>
     </div>

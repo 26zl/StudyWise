@@ -4,14 +4,7 @@
  * i et kort øyeblikk ved refresh før Clerk er hydrert i klienten.
  */
 import { Footer } from "@/app/components/layout/footer";
-import {
-  BookOpen,
-  Bot,
-  CalendarDays,
-  Library,
-  Share2,
-  Sparkles,
-} from "lucide-react";
+import { BookOpen, Bot, CalendarDays, Library, Share2, Sparkles } from "lucide-react";
 import { LandingHeroActions } from "@/app/components/layout/LandingHeroActions";
 import { AccountDeletedBanner } from "@/app/components/account/AccountDeletedBanner";
 import { getUserServerSafe } from "@/app/auth/auth-server";
@@ -39,8 +32,7 @@ export default async function HomePage() {
   const heroHeading = splitHeading(translate(language, "landing.hero.title"));
   const featureHeading = splitHeading(translate(language, "landing.features.heading"));
 
-  const headingClass =
-    "font-bold tracking-tight text-slate-900 dark:text-white";
+  const headingClass = "font-bold tracking-tight text-slate-900 dark:text-white";
 
   const featureCards = [
     {
@@ -112,9 +104,15 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <section className="px-4 sm:px-6 lg:px-8 py-8 md:py-10" aria-labelledby="funksjoner-heading">
+        <section
+          className="px-4 sm:px-6 lg:px-8 py-8 md:py-10"
+          aria-labelledby="funksjoner-heading"
+        >
           <div className="max-w-5xl mx-auto text-center">
-            <h2 id="funksjoner-heading" className={`${headingClass} text-3xl sm:text-4xl text-balance`}>
+            <h2
+              id="funksjoner-heading"
+              className={`${headingClass} text-3xl sm:text-4xl text-balance`}
+            >
               {featureHeading.lead}
               {featureHeading.accent ? (
                 <>
@@ -138,7 +136,9 @@ export default async function HomePage() {
                   key={feature.title}
                   className="group rounded-2xl border border-slate-200/80 dark:border-slate-700/70 bg-white/85 dark:bg-slate-900/45 backdrop-blur-sm p-5 shadow-[0_1px_2px_rgb(15_23_42/0.06)] hover:shadow-[0_10px_28px_rgb(15_23_42/0.08)] dark:shadow-none transition-all"
                 >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${feature.iconBg}`}>
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center ${feature.iconBg}`}
+                  >
                     <Icon size={18} />
                   </div>
                   <h3 className="mt-4 text-base font-semibold text-slate-900 dark:text-white text-left">

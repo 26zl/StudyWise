@@ -75,10 +75,7 @@ export function CanvasStatusBanner() {
       }),
     [queryClient],
   );
-  const getSnapshot = useCallback(
-    () => findLatestCanvasOutageError(queryClient),
-    [queryClient],
-  );
+  const getSnapshot = useCallback(() => findLatestCanvasOutageError(queryClient), [queryClient]);
   const getServerSnapshot = useCallback(() => null, []);
 
   const outage = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
@@ -106,8 +103,8 @@ export function CanvasStatusBanner() {
     >
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <p className="flex-1 leading-snug">
-        <span className="font-medium">{headline}.</span>{" "}
-        Kalender, kunngjøringer og kursdata kan mangle eller være utdaterte.
+        <span className="font-medium">{headline}.</span> Kalender, kunngjøringer og kursdata kan
+        mangle eller være utdaterte.
         {retryHint ? ` ${retryHint}` : ""}
       </p>
       <button

@@ -44,7 +44,8 @@ const ACTIVE_FILTER_TOKENS = [
 ];
 
 // Mønster for User-queries vi vil verifisere
-const QUERY_PATTERN = /\bUser\.(find|findOne|findById|findByIdAndUpdate|findOneAndUpdate|findOneAndDelete|countDocuments|updateOne|updateMany|deleteOne|deleteMany)\s*\(/g;
+const QUERY_PATTERN =
+  /\bUser\.(find|findOne|findById|findByIdAndUpdate|findOneAndUpdate|findOneAndDelete|countDocuments|updateOne|updateMany|deleteOne|deleteMany)\s*\(/g;
 
 const ALLOW_COMMENT = /allow-deleted-users\s*:/i;
 const WINDOW_LINES_AFTER = 25;

@@ -20,9 +20,10 @@ export function requestIdMiddleware(req: Request, res: Response, next: NextFunct
   const incoming = req.get(HEADER_REQUEST_ID);
   const trimmed = typeof incoming === "string" ? incoming.trim() : "";
   // Godta kun IDer med rimelig lengde og sikre tegn (ingen linjeskift/kontrolltegn for loggsikkerhet)
-  const isValid = trimmed.length > 0
-    && trimmed.length <= MAX_REQUEST_ID_LENGTH
-    && (UUID_PATTERN.test(trimmed) || /^[\w.:-]+$/.test(trimmed));
+  const isValid =
+    trimmed.length > 0 &&
+    trimmed.length <= MAX_REQUEST_ID_LENGTH &&
+    (UUID_PATTERN.test(trimmed) || /^[\w.:-]+$/.test(trimmed));
   const id = isValid ? trimmed : randomUUID();
   (req as Request & { id: string }).id = id;
   res.setHeader(HEADER_REQUEST_ID, id);

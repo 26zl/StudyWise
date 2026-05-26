@@ -26,11 +26,7 @@ import { header, log } from "../helpers/log.js";
 
 type Provider = "email" | "google" | "microsoft";
 type ScenarioKind = "executable" | "manual";
-type ScenarioStatus =
-  | "executed"
-  | "manual_required"
-  | "setup_failed"
-  | "skipped";
+type ScenarioStatus = "executed" | "manual_required" | "setup_failed" | "skipped";
 
 type ModeArg =
   | "email"
@@ -197,9 +193,7 @@ const MONGO_OPTIONS: ConnectOptions = {
   serverSelectionTimeoutMS: 10_000,
 };
 
-type UsersCollection = ReturnType<
-  NonNullable<typeof mongoose.connection.db>["collection"]
->;
+type UsersCollection = ReturnType<NonNullable<typeof mongoose.connection.db>["collection"]>;
 
 let usersCollection: UsersCollection | null = null;
 
@@ -229,7 +223,10 @@ function makeEmail(label: string): string {
 }
 
 function makeUsername(label: string): string {
-  return `mx_${label}_${RUN_SEED}`.replace(/[^a-zA-Z0-9_]/g, "").toLowerCase().slice(0, 30);
+  return `mx_${label}_${RUN_SEED}`
+    .replace(/[^a-zA-Z0-9_]/g, "")
+    .toLowerCase()
+    .slice(0, 30);
 }
 
 function parseModeArg(rawArg: string | undefined): ModeArg {
@@ -245,9 +242,7 @@ function parseModeArg(rawArg: string | undefined): ModeArg {
   if (allowed.includes(value as ModeArg)) {
     return value as ModeArg;
   }
-  throw new Error(
-    `Unknown mode "${value}". Allowed: ${allowed.join(", ")}`,
-  );
+  throw new Error(`Unknown mode "${value}". Allowed: ${allowed.join(", ")}`);
 }
 
 function parseClerkCreateError(error: unknown): ClerkCreateErrorInfo {
@@ -256,8 +251,7 @@ function parseClerkCreateError(error: unknown): ClerkCreateErrorInfo {
     status?: number;
     errors?: Array<{ code?: string; longMessage?: string; message?: string }>;
   };
-  const status =
-    typeof asObject.status === "number" ? asObject.status : undefined;
+  const status = typeof asObject.status === "number" ? asObject.status : undefined;
   const errors = Array.isArray(asObject.errors) ? asObject.errors : [];
 
   return {
@@ -273,17 +267,19 @@ function parseClerkCreateError(error: unknown): ClerkCreateErrorInfo {
 }
 
 function hasDuplicateEmailSignal(error: ClerkCreateErrorInfo): boolean {
-  const blob = [error.message, ...error.codes, ...error.longMessages]
-    .join(" ")
-    .toLowerCase();
-  return blob.includes("email") && (blob.includes("exist") || blob.includes("taken") || blob.includes("already"));
+  const blob = [error.message, ...error.codes, ...error.longMessages].join(" ").toLowerCase();
+  return (
+    blob.includes("email") &&
+    (blob.includes("exist") || blob.includes("taken") || blob.includes("already"))
+  );
 }
 
 function hasDuplicateUsernameSignal(error: ClerkCreateErrorInfo): boolean {
-  const blob = [error.message, ...error.codes, ...error.longMessages]
-    .join(" ")
-    .toLowerCase();
-  return blob.includes("username") && (blob.includes("exist") || blob.includes("taken") || blob.includes("already"));
+  const blob = [error.message, ...error.codes, ...error.longMessages].join(" ").toLowerCase();
+  return (
+    blob.includes("username") &&
+    (blob.includes("exist") || blob.includes("taken") || blob.includes("already"))
+  );
 }
 
 function detectConflictType(result: unknown): string | null {
@@ -319,11 +315,14 @@ function parseFlowResponse(status: number, body: unknown): FlowResponseEvidence 
       ? (body as { classification: string }).classification
       : null;
   const result =
-    typeof body === "object" && body !== null
-      ? (body as { result?: unknown }).result
-      : null;
+    typeof body === "object" && body !== null ? (body as { result?: unknown }).result : null;
 
-  if (rawClassification?.startsWith("success") && typeof result === "object" && result !== null && "_id" in result) {
+  if (
+    rawClassification?.startsWith("success") &&
+    typeof result === "object" &&
+    result !== null &&
+    "_id" in result
+  ) {
     const user = result as {
       _id?: unknown;
       email?: unknown;
@@ -354,11 +353,13 @@ function parseFlowResponse(status: number, body: unknown): FlowResponseEvidence 
     };
   }
 
-  const conflictType = detectConflictType(result) ?? (() => {
-    if (!rawClassification) return null;
-    const match = rawClassification.match(/type:\s*([a-zA-Z0-9_]+)/);
-    return match ? match[1] : null;
-  })();
+  const conflictType =
+    detectConflictType(result) ??
+    (() => {
+      if (!rawClassification) return null;
+      const match = rawClassification.match(/type:\s*([a-zA-Z0-9_]+)/);
+      return match ? match[1] : null;
+    })();
 
   if (conflictType) {
     return {
@@ -385,9 +386,7 @@ function parseFlowResponse(status: number, body: unknown): FlowResponseEvidence 
   };
 }
 
-function scenarioClassificationFromEvidence(
-  evidence: ExecutedScenarioEvidence,
-): string {
+function scenarioClassificationFromEvidence(evidence: ExecutedScenarioEvidence): string {
   if (!evidence.firstCreate.ok) {
     return "SCENARIO_SETUP_FAILED_FIRST_IDENTITY";
   }
@@ -458,18 +457,11 @@ function normalizeDbUserRow(doc: Record<string, unknown>): DbUserRow {
     email: typeof doc.email === "string" ? doc.email : undefined,
     username: typeof doc.username === "string" ? doc.username : undefined,
     usernameNormalized:
-      typeof doc.usernameNormalized === "string"
-        ? doc.usernameNormalized
-        : undefined,
+      typeof doc.usernameNormalized === "string" ? doc.usernameNormalized : undefined,
     clerkId: typeof doc.clerkId === "string" ? doc.clerkId : undefined,
     authProviders: Array.isArray(doc.authProviders) ? doc.authProviders : undefined,
-    deletedAt:
-      doc.deletedAt instanceof Date
-        ? doc.deletedAt.toISOString()
-        : undefined,
-    oauthAccountsCount: Array.isArray(doc.oauthAccounts)
-      ? doc.oauthAccounts.length
-      : 0,
+    deletedAt: doc.deletedAt instanceof Date ? doc.deletedAt.toISOString() : undefined,
+    oauthAccountsCount: Array.isArray(doc.oauthAccounts) ? doc.oauthAccounts.length : 0,
   };
 }
 
@@ -511,16 +503,12 @@ async function collectDbSnapshot(
     .find({ usernameNormalized: { $in: usernameNormalized } }, { projection })
     .toArray();
   const clerkIdMatchesRaw = createdClerkIds.length
-    ? await usersCollection
-        .find({ clerkId: { $in: createdClerkIds } }, { projection })
-        .toArray()
+    ? await usersCollection.find({ clerkId: { $in: createdClerkIds } }, { projection }).toArray()
     : [];
 
   return {
     available: true,
-    emailMatches: emailMatchesRaw.map((doc) =>
-      normalizeDbUserRow(doc as Record<string, unknown>),
-    ),
+    emailMatches: emailMatchesRaw.map((doc) => normalizeDbUserRow(doc as Record<string, unknown>)),
     usernameMatches: usernameMatchesRaw.map((doc) =>
       normalizeDbUserRow(doc as Record<string, unknown>),
     ),
@@ -558,8 +546,7 @@ async function createEmailUser(
       requestedEmail: identity.email,
       requestedUsername: identity.username,
       error: {
-        message:
-          "Kun e-post/passord-brukere kan kjøres automatisk i denne testkjøreren",
+        message: "Kun e-post/passord-brukere kan kjøres automatisk i denne testkjøreren",
         codes: ["unsupported_provider"],
         longMessages: [],
       },
@@ -736,9 +723,7 @@ async function runExecutableScenario(
   }
 }
 
-function manualEvidenceFromScenario(
-  scenario: ManualScenario,
-): ManualScenarioEvidence {
+function manualEvidenceFromScenario(scenario: ManualScenario): ManualScenarioEvidence {
   return {
     id: scenario.id,
     kind: "manual",
@@ -977,10 +962,8 @@ async function main(): Promise<void> {
     clerkUsersApiMethods: {
       createUser: typeof usersApiRecord.createUser === "function",
       deleteUser: typeof usersApiRecord.deleteUser === "function",
-      deleteUserExternalAccount:
-        typeof usersApiRecord.deleteUserExternalAccount === "function",
-      createUserExternalAccount:
-        typeof usersApiRecord.createUserExternalAccount === "function",
+      deleteUserExternalAccount: typeof usersApiRecord.deleteUserExternalAccount === "function",
+      createUserExternalAccount: typeof usersApiRecord.createUserExternalAccount === "function",
     },
     oauthAutomationSupported: false,
     oauthAutomationBlocker:
@@ -997,10 +980,7 @@ async function main(): Promise<void> {
     if (scenario.kind === "manual") {
       const evidence = manualEvidenceFromScenario(scenario);
       scenarioEvidence.push(evidence);
-      const scenarioFile = writeJson(
-        `scenario-${scenario.id}-${slugTime()}.json`,
-        evidence,
-      );
+      const scenarioFile = writeJson(`scenario-${scenario.id}-${slugTime()}.json`, evidence);
       log(`Status: manual required`);
       log(`Evidence: ${scenarioFile}`);
       continue;
@@ -1008,10 +988,7 @@ async function main(): Promise<void> {
 
     const evidence = await runExecutableScenario(clerk, scenario);
     scenarioEvidence.push(evidence);
-    const scenarioFile = writeJson(
-      `scenario-${scenario.id}-${slugTime()}.json`,
-      evidence,
-    );
+    const scenarioFile = writeJson(`scenario-${scenario.id}-${slugTime()}.json`, evidence);
     log(`Classification: ${evidence.classification}`);
     log(`Evidence: ${scenarioFile}`);
   }
@@ -1021,7 +998,8 @@ async function main(): Promise<void> {
   const totals = {
     total: scenarioEvidence.length,
     executed: scenarioEvidence.filter((scenario) => scenario.status === "executed").length,
-    manualRequired: scenarioEvidence.filter((scenario) => scenario.status === "manual_required").length,
+    manualRequired: scenarioEvidence.filter((scenario) => scenario.status === "manual_required")
+      .length,
     setupFailed: scenarioEvidence.filter((scenario) => scenario.status === "setup_failed").length,
   };
 
@@ -1037,10 +1015,7 @@ async function main(): Promise<void> {
     totals,
   };
 
-  const matrixFile = writeJson(
-    `matrix-${mode}-${slugTime()}.json`,
-    matrix,
-  );
+  const matrixFile = writeJson(`matrix-${mode}-${slugTime()}.json`, matrix);
 
   header("MATRIX SUMMARY");
   for (const scenario of scenarioEvidence) {
@@ -1060,9 +1035,7 @@ async function main(): Promise<void> {
 }
 
 main().catch(async (error) => {
-  process.stderr.write(
-    `FATAL: ${error instanceof Error ? error.message : String(error)}\n`,
-  );
+  process.stderr.write(`FATAL: ${error instanceof Error ? error.message : String(error)}\n`);
   if (usersCollection) {
     await mongoose.disconnect().catch(() => undefined);
   }

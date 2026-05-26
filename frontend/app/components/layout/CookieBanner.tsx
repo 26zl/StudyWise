@@ -36,7 +36,9 @@ export function CookieBanner() {
           setHarGjesteCookie(true);
         }
       }
-    } catch { /* cookie-lesing utilgjengelig */ }
+    } catch {
+      /* cookie-lesing utilgjengelig */
+    }
   }, [isAuthenticated]);
 
   const handleChoice = useCallback(
@@ -44,10 +46,7 @@ export function CookieBanner() {
       try {
         await setConsent(choice);
       } catch {
-        showToast.error(
-          t("cookies.banner.errorTitle"),
-          t("cookies.banner.errorDescription"),
-        );
+        showToast.error(t("cookies.banner.errorTitle"), t("cookies.banner.errorDescription"));
       }
     },
     [setConsent, t],
@@ -62,7 +61,9 @@ export function CookieBanner() {
     open: isOpen,
     containerRef: dialogRef,
     initialFocusRef: declineButtonRef,
-    onClose: () => { /* no-op: bruker må velge */ },
+    onClose: () => {
+      /* no-op: bruker må velge */
+    },
   });
 
   if (!isOpen) return null;

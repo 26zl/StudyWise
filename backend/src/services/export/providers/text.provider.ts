@@ -25,9 +25,7 @@ function renderBlock(block: ExportBlock): string {
     case "bullet_list":
       return block.items.map((item) => `  • ${renderListItem(item)}`).join("\n");
     case "numbered_list":
-      return block.items
-        .map((item, idx) => `  ${idx + 1}. ${renderListItem(item)}`)
-        .join("\n");
+      return block.items.map((item, idx) => `  ${idx + 1}. ${renderListItem(item)}`).join("\n");
     case "checklist":
       return block.items
         .map((item) => `  [${item.checked ? "x" : " "}] ${renderListItem(item)}`)
@@ -49,10 +47,7 @@ function renderBlock(block: ExportBlock): string {
       return `${emoji}${renderSegments(block.segments)}`;
     }
     case "table": {
-      const allRows = [
-        ...(block.headers ? [block.headers] : []),
-        ...block.rows,
-      ];
+      const allRows = [...(block.headers ? [block.headers] : []), ...block.rows];
       if (allRows.length === 0) return "";
 
       // Beregn kolonnebredder
@@ -69,7 +64,9 @@ function renderBlock(block: ExportBlock): string {
       for (let r = 0; r < allRows.length; r++) {
         const row = allRows[r];
         const cells = Array.from({ length: colCount }, (_, c) =>
-          c < row.length ? renderSegments(row[c].segments).padEnd(colWidths[c]) : " ".repeat(colWidths[c]),
+          c < row.length
+            ? renderSegments(row[c].segments).padEnd(colWidths[c])
+            : " ".repeat(colWidths[c]),
         );
         lines.push(cells.join("  |  "));
         // Separator etter header
@@ -108,7 +105,10 @@ export const textProvider: ExportProvider = {
         target: "text",
         content,
         mimeType: "text/plain",
-        filename: `${doc.title.slice(0, 80).replace(/[^\w\sæøåÆØÅ-]/g, "").trim()}.txt`,
+        filename: `${doc.title
+          .slice(0, 80)
+          .replace(/[^\w\sæøåÆØÅ-]/g, "")
+          .trim()}.txt`,
       },
     };
   },

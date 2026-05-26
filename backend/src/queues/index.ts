@@ -27,11 +27,7 @@ import {
   processPineconeCleanupJob,
   handlePineconeCleanupFailure,
 } from "./pineconeCleanup.queue.js";
-import {
-  WEB_PUSH_JOB_NAME,
-  processWebPushJob,
-  handleWebPushFailure,
-} from "./webPush.queue.js";
+import { WEB_PUSH_JOB_NAME, processWebPushJob, handleWebPushFailure } from "./webPush.queue.js";
 import { logger } from "../utils/logger.js";
 
 const QUEUE_START_TIMEOUT_MS = 15000;
@@ -91,11 +87,7 @@ async function migrateOldQueues(): Promise<void> {
   for (const { oldName, jobName, idPrefix } of OLD_QUEUES) {
     const oldQueue = new Queue(oldName, { connection: conn });
     try {
-      const jobs = await oldQueue.getJobs(
-        ["waiting", "delayed", "failed", "active"],
-        0,
-        500,
-      );
+      const jobs = await oldQueue.getJobs(["waiting", "delayed", "failed", "active"], 0, 500);
       if (jobs.length === 0) continue;
 
       for (const job of jobs) {

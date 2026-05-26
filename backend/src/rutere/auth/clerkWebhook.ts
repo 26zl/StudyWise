@@ -100,10 +100,7 @@ export function verifySvixSignature(
   if (Math.abs(now - timestampSec) > 300) return false;
 
   // Svix secret starter med "whsec_" — fjern prefixet og decode base64
-  const secretBytes = Buffer.from(
-    secret.startsWith("whsec_") ? secret.slice(6) : secret,
-    "base64",
-  );
+  const secretBytes = Buffer.from(secret.startsWith("whsec_") ? secret.slice(6) : secret, "base64");
 
   // Signaturen beregnes over: "<msg_id>.<timestamp>.<body>"
   const signedContent = `${svixId}.${svixTimestamp}.${payload}`;
@@ -153,11 +150,15 @@ router.post("/", async (req, res) => {
   const rawBuffer: Buffer = Buffer.from(req.body);
   const payload = rawBuffer.toString("utf-8");
 
-  const isValid = verifySvixSignature(payload, {
-    svixId: req.headers["svix-id"] as string | undefined,
-    svixTimestamp: req.headers["svix-timestamp"] as string | undefined,
-    svixSignature: req.headers["svix-signature"] as string | undefined,
-  }, secret);
+  const isValid = verifySvixSignature(
+    payload,
+    {
+      svixId: req.headers["svix-id"] as string | undefined,
+      svixTimestamp: req.headers["svix-timestamp"] as string | undefined,
+      svixSignature: req.headers["svix-signature"] as string | undefined,
+    },
+    secret,
+  );
 
   if (!isValid) {
     logger.warn("Clerk webhook: ugyldig signatur");
@@ -251,10 +252,7 @@ router.post("/", async (req, res) => {
 
     res.json({ received: true });
   } catch (err) {
-    logger.error(
-      { err, clerkId, userId },
-      "Clerk webhook user.deleted: feil under opprydding",
-    );
+    logger.error({ err, clerkId, userId }, "Clerk webhook user.deleted: feil under opprydding");
     // Returner 500 slik at Clerk prøver på nytt
     res.status(500).json({ error: "Opprydding feilet" });
   }

@@ -5,5 +5,9 @@
 
 /** Normaliserer filnavn for fuzzy-matching: lowercases, fjerner .pdf, erstatter _ og - med mellomrom. */
 export function normaliserFilnavnHint(value: string): string {
-  return value.toLowerCase().replace(/\.pdf$/i, "").replace(/[_-]/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/\.pdf$/i, "")
+    .replace(/[_-]/g, " ")
+    .trim();
 }

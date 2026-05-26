@@ -273,12 +273,8 @@ describe("resolveRedirectUrl", () => {
   });
 
   it("løser relativ redirect mot base", () => {
-    expect(resolveRedirectUrl("https://example.com/a/b", "/c")).toBe(
-      "https://example.com/c",
-    );
-    expect(resolveRedirectUrl("https://example.com/a/b", "c")).toBe(
-      "https://example.com/a/c",
-    );
+    expect(resolveRedirectUrl("https://example.com/a/b", "/c")).toBe("https://example.com/c");
+    expect(resolveRedirectUrl("https://example.com/a/b", "c")).toBe("https://example.com/a/c");
   });
 
   it("returnerer null for ugyldig location", () => {
@@ -288,16 +284,16 @@ describe("resolveRedirectUrl", () => {
   });
 
   it("aksepterer redirect til samme origin", () => {
-    expect(
-      resolveRedirectUrl("https://example.com/old", "https://example.com/new"),
-    ).toBe("https://example.com/new");
+    expect(resolveRedirectUrl("https://example.com/old", "https://example.com/new")).toBe(
+      "https://example.com/new",
+    );
   });
 
   it("redirect til localhost (dette skal IKKE blokkeres her — kalleren må re-validere)", () => {
     // resolveRedirectUrl bare PARSER URL-en — det er fetchWithSafeRedirects sin jobb å re-validere
-    expect(
-      resolveRedirectUrl("https://example.com/a", "http://127.0.0.1/admin"),
-    ).toBe("http://127.0.0.1/admin");
+    expect(resolveRedirectUrl("https://example.com/a", "http://127.0.0.1/admin")).toBe(
+      "http://127.0.0.1/admin",
+    );
     // Dette er forventet — fetchWithSafeRedirects kaller isSafeExternalUrlFormat på neste hop
   });
 });

@@ -22,7 +22,14 @@
 import { logger } from "../utils/logger.js";
 import { escapeRegex } from "../utils/regexUtils.js";
 import { getCache, setCache, isRedisReady } from "../cache/redis.js";
-import { syncCanvasDataForUser, hasCanvasSyncData, userKey, isSyncing, waitForSync, hasIndexedCourseData } from "./canvas-sync.service.js";
+import {
+  syncCanvasDataForUser,
+  hasCanvasSyncData,
+  userKey,
+  isSyncing,
+  waitForSync,
+  hasIndexedCourseData,
+} from "./canvas-sync.service.js";
 import { fetchCanvasLectures, fetchPlannerItems } from "../rutere/canvas/canvasService.js";
 import type { TargetedQuery } from "../rutere/ki/ki.js";
 import { TWO_WEEKS_MS } from "common/dateUtils";
@@ -55,7 +62,11 @@ import {
   isStructuredCanvasQuery,
   normaliserCanvasSporsmal,
 } from "./canvasStructuredQueries.js";
-import { fetchPdfContent, fetchFileContent, fetchFileMetadata } from "../rutere/canvas/canvasService.js";
+import {
+  fetchPdfContent,
+  fetchFileContent,
+  fetchFileMetadata,
+} from "../rutere/canvas/canvasService.js";
 import { isSupportedFileType, extractTextFromFile } from "./fileExtractor.js";
 import { createChunksFromContent } from "./chunk.service.js";
 import { upsertStoredFileContent } from "./embedding.service.js";
@@ -144,19 +155,19 @@ async function buildCrawledFileIdUrlMap(
         // tilgang til). Alle får en Canvas UI-URL så klikk navigerer til
         // ressursen i Canvas selv istedenfor å 404/403-e mot file-API-et.
         if (
-          item.type === "Page"
-          && item.page_url
-          && typeof item.id === "number"
-          && !idToUrl.has(item.id)
+          item.type === "Page" &&
+          item.page_url &&
+          typeof item.id === "number" &&
+          !idToUrl.has(item.id)
         ) {
           idToUrl.set(
             item.id,
             `${normalizedBaseUrl}/courses/${courseId}/pages/${encodeURIComponent(item.page_url)}`,
           );
         } else if (
-          item.type === "File"
-          && typeof item.content_id === "number"
-          && !idToUrl.has(item.content_id)
+          item.type === "File" &&
+          typeof item.content_id === "number" &&
+          !idToUrl.has(item.content_id)
         ) {
           // Canvas file-download-URL med download_frd=1 som trigger direkte
           // nedlasting istedenfor forhåndsvisning. Hvis brukeren ikke har
@@ -169,9 +180,9 @@ async function buildCrawledFileIdUrlMap(
             `${normalizedBaseUrl}/courses/${courseId}/files/${item.content_id}/download?download_frd=1`,
           );
         } else if (
-          item.type === "Assignment"
-          && typeof item.content_id === "number"
-          && !idToUrl.has(item.content_id)
+          item.type === "Assignment" &&
+          typeof item.content_id === "number" &&
+          !idToUrl.has(item.content_id)
         ) {
           idToUrl.set(
             item.content_id,
@@ -228,7 +239,10 @@ async function backfillMissingSourceUrls(
             { userId, courseId, fileId: op.fileId, externalUrl: { $exists: false } },
             { $set: { externalUrl: op.externalUrl } },
           ).catch((err) => {
-            logger.warn({ err, userId, courseId, fileId: op.fileId }, "Backfill av externalUrl feilet");
+            logger.warn(
+              { err, userId, courseId, fileId: op.fileId },
+              "Backfill av externalUrl feilet",
+            );
           }),
         ),
       ).then(() => {
@@ -281,14 +295,57 @@ interface SyncedCourse {
 
 const COURSE_MATCH_STOPWORDS = new Set([
   // Norsk
-  "og", "i", "på", "for", "til", "av", "med", "om",
-  "emne", "emner", "kurs", "kursene", "fag", "faget", "fagene",
-  "høst", "host", "vår", "var", "semester", "kull", "bø", "bo",
-  "campus", "gruppe", "klasse", "studie", "studiet", "innføring",
+  "og",
+  "i",
+  "på",
+  "for",
+  "til",
+  "av",
+  "med",
+  "om",
+  "emne",
+  "emner",
+  "kurs",
+  "kursene",
+  "fag",
+  "faget",
+  "fagene",
+  "høst",
+  "host",
+  "vår",
+  "var",
+  "semester",
+  "kull",
+  "bø",
+  "bo",
+  "campus",
+  "gruppe",
+  "klasse",
+  "studie",
+  "studiet",
+  "innføring",
   // Engelsk
-  "and", "in", "on", "the", "of", "with", "about", "a", "an",
-  "course", "courses", "subject", "subjects", "class", "classes",
-  "fall", "spring", "semester", "group", "study", "introduction",
+  "and",
+  "in",
+  "on",
+  "the",
+  "of",
+  "with",
+  "about",
+  "a",
+  "an",
+  "course",
+  "courses",
+  "subject",
+  "subjects",
+  "class",
+  "classes",
+  "fall",
+  "spring",
+  "semester",
+  "group",
+  "study",
+  "introduction",
 ]);
 
 export const FULL_DOCUMENT_TRIGGER_WORDS = [
@@ -395,24 +452,29 @@ const NUMERIC_REFERENCE_PREFIXES =
 // "første forelesning" gir numerisk hint "1" — uten dette ville primærfil-valget
 // ikke kunne overstyre basert på filnavn for ordinal-formulerte spørsmål.
 const NORSKE_ORDINALER_TIL_SIFFER: Record<string, string> = {
-  "første": "1", "forste": "1",
-  "andre": "2", "annen": "2",
-  "tredje": "3",
-  "fjerde": "4",
-  "femte": "5",
-  "sjette": "6",
-  "sjuende": "7", "syvende": "7",
-  "åttende": "8", "attende": "8",
-  "niende": "9",
-  "tiende": "10",
-  "ellevte": "11",
-  "tolvte": "12",
+  første: "1",
+  forste: "1",
+  andre: "2",
+  annen: "2",
+  tredje: "3",
+  fjerde: "4",
+  femte: "5",
+  sjette: "6",
+  sjuende: "7",
+  syvende: "7",
+  åttende: "8",
+  attende: "8",
+  niende: "9",
+  tiende: "10",
+  ellevte: "11",
+  tolvte: "12",
 };
 
 // Inkluderer typo-varianter ("forlesning" mangler e) og nynorsk-former ("førelesing")
 // direkte her siden denne funksjonen kjører på rå brukermelding uten å gå via
 // normaliserSkrivefeil (som bor i ki.ts). Gir robust match også ved skrivefeil.
-const ORDINAL_MODUL_REGEX = /(?<![a-zæøå])(første|forste|andre|annen|tredje|fjerde|femte|sjette|sjuende|syvende|åttende|attende|niende|tiende|ellevte|tolvte)\s+(?:forelesning|forelesningen|forelesninga|forlesning|forlesninger|forelsning|forelesing|forelesinga|forelesingar|førelesning|førelesing|førelesinga|førelesingar|forlesing|lecture|modul|modulen|leksjon|lesson|kapittel|kapitlet|kapitel|kapitell|kap|chapter|uke|uka|week|tema|sesjon|session)/gi;
+const ORDINAL_MODUL_REGEX =
+  /(?<![a-zæøå])(første|forste|andre|annen|tredje|fjerde|femte|sjette|sjuende|syvende|åttende|attende|niende|tiende|ellevte|tolvte)\s+(?:forelesning|forelesningen|forelesninga|forlesning|forlesninger|forelsning|forelesing|forelesinga|forelesingar|førelesning|førelesing|førelesinga|førelesingar|forlesing|lecture|modul|modulen|leksjon|lesson|kapittel|kapitlet|kapitel|kapitell|kap|chapter|uke|uka|week|tema|sesjon|session)/gi;
 
 function extractNumericHintsFromMessage(message: string): string[] {
   const lower = message.toLowerCase();
@@ -587,9 +649,7 @@ function finnNteForelesningFraKatalog<T extends { fileName: string }>(
  * inn og gir falske positiver på hint som "2".
  */
 function cleanUrlEncodedFileName(fileName: string): string {
-  return fileName
-    .replace(/%[0-9a-f]{2}/gi, " ")
-    .replace(/\+/g, " ");
+  return fileName.replace(/%[0-9a-f]{2}/gi, " ").replace(/\+/g, " ");
 }
 
 /**
@@ -628,8 +688,10 @@ function fileNameMatchesNumericHints(fileName: string, hints: string[]): boolean
   // signaliserer forelesning/kapittel/leksjon-kontekst. Uten denne guarden
   // matcher "met1020" (kurs-kode) på hint "10" via run "1020" = "10" + "20"
   // — observert på MET1020 "kapittel 10" → valgte sensorveiledning.docx.
-  const harForelesningsKontekst = /\b(forele|forelesing|forelesning|lecture|leksjon|lesson|kapit|kap\b|modul|uke|week|tema|del|part)/i
-    .test(lower);
+  const harForelesningsKontekst =
+    /\b(forele|forelesing|forelesning|lecture|leksjon|lesson|kapit|kap\b|modul|uke|week|tema|del|part)/i.test(
+      lower,
+    );
 
   return hints.some((hint) => {
     if (/[.-]/.test(hint)) {
@@ -764,8 +826,8 @@ function velgPrimaerFilForFullDocument(
     if (!topStartsWithHint) {
       const startsWithMatch = filteredResults.find(
         (r) =>
-          r.source.fileId !== rerankedTop.source.fileId
-          && fileNameStartsWithAnyNumericHint(r.source.fileName, numericHints),
+          r.source.fileId !== rerankedTop.source.fileId &&
+          fileNameStartsWithAnyNumericHint(r.source.fileName, numericHints),
       );
       if (startsWithMatch) {
         return {
@@ -829,8 +891,12 @@ function shouldUseFullDocumentMode(
   const explicitBroadQuery = !!triggerWord;
   // Når moduleHint ikke traff noen resultater, er chunks fra en annen modul enn forespurt.
   // Da skal vi IKKE trigge full_document basert på moduleHint — filene er irrelevante.
-  const explicitFileOrChapter = Boolean(target?.fileHint || (!moduleHintMissed && target?.moduleHint));
-  const uniqueFileIds = new Set(filteredResults.map((r) => `${r.source.courseId}:${r.source.fileId}`));
+  const explicitFileOrChapter = Boolean(
+    target?.fileHint || (!moduleHintMissed && target?.moduleHint),
+  );
+  const uniqueFileIds = new Set(
+    filteredResults.map((r) => `${r.source.courseId}:${r.source.fileId}`),
+  );
   const singleFileBroadMatch = uniqueFileIds.size === 1 && wordCount < 6;
 
   if (explicitBroadQuery) return { enabled: true, reason: "explicit_broad_query", triggerWord };
@@ -866,7 +932,10 @@ function scoreKnownCourseMatch(
   }
 
   if (normalizedHint) {
-    if (normalizedCode && (normalizedCode.includes(normalizedHint) || normalizedHint.includes(normalizedCode))) {
+    if (
+      normalizedCode &&
+      (normalizedCode.includes(normalizedHint) || normalizedHint.includes(normalizedCode))
+    ) {
       score += 90;
     }
     if (normalizedName.includes(normalizedHint) || normalizedHint.includes(normalizedName)) {
@@ -938,7 +1007,8 @@ export async function resolveTargetAgainstKnownCourses(
   }
 
   const [best, secondBest] = scored;
-  const hasStrongMatch = best.score >= 70 || (best.score >= 45 && (!secondBest || best.score - secondBest.score >= 20));
+  const hasStrongMatch =
+    best.score >= 70 || (best.score >= 45 && (!secondBest || best.score - secondBest.score >= 20));
   if (!hasStrongMatch) {
     return target;
   }
@@ -1012,9 +1082,8 @@ export async function resolveModuleHintToCourse(
       // Romertall-modulen ("IV. Nettverksprotokoller...") — da er
       // "leksjon 11" aldri i modulnavnet men alltid i item-titler.
       const hintInModName = normalizedModName.includes(normalizedHint);
-      const matchingItem = items.find((item) =>
-        item.title &&
-        normaliserCanvasSporsmal(item.title).includes(normalizedHint),
+      const matchingItem = items.find(
+        (item) => item.title && normaliserCanvasSporsmal(item.title).includes(normalizedHint),
       );
       if (!hintInModName && !matchingItem) continue;
 
@@ -1130,7 +1199,7 @@ async function hentKommendeTimerForChat(userId: string): Promise<string | null> 
     // (planner-items uten calendar_event-type). Uten separasjon ville modellen
     // svare på «når er neste time?» med en oppgavefrist hvis Canvas blokkerer
     // calendar_events men planner returnerer assignments.
-    const formaterLinje = (item: typeof items[number]): string | null => {
+    const formaterLinje = (item: (typeof items)[number]): string | null => {
       const start = new Date(item.due_at);
       if (Number.isNaN(start.getTime())) return null;
       const dato = start.toLocaleDateString("nb-NO", {
@@ -1277,7 +1346,10 @@ function formaterKursoversiktFraLagring(
     const label = formatCourseLabel(course.courseName, course.course_code);
     kontekst += `- ${label}\n`;
     if (course.moduler && course.moduler.length > 0) {
-      kontekst += `  Moduler: ${course.moduler.map((m) => m.name).slice(0, 5).join(", ")}`;
+      kontekst += `  Moduler: ${course.moduler
+        .map((m) => m.name)
+        .slice(0, 5)
+        .join(", ")}`;
       if (course.moduler.length > 5) {
         kontekst += ` (+${course.moduler.length - 5} til)`;
       }
@@ -1310,7 +1382,10 @@ async function hentSynkroniserteEmnerFraRedis(userId: string): Promise<SyncedCou
   }
 }
 
-async function hentKjentEmnekatalog(userId: string, hiddenCourseIds?: Set<number>): Promise<SyncedCourse[]> {
+async function hentKjentEmnekatalog(
+  userId: string,
+  hiddenCourseIds?: Set<number>,
+): Promise<SyncedCourse[]> {
   const [redisEmner, lagredeEmner] = await Promise.all([
     hentSynkroniserteEmnerFraRedis(userId),
     getStoredCourseCatalog(userId),
@@ -1325,10 +1400,7 @@ async function hentKjentEmnekatalog(userId: string, hiddenCourseIds?: Set<number
     }));
   }
 
-  const redisMetadata = new Map<
-    string,
-    { moduleTitles: string[]; fileNames: string[] }
-  >(
+  const redisMetadata = new Map<string, { moduleTitles: string[]; fileNames: string[] }>(
     await Promise.all(
       redisEmner.map(async (emne) => {
         const modulerRaw = await getCache(userKey(userId, "emne", emne.id, "moduler"));
@@ -1359,9 +1431,7 @@ async function hentKjentEmnekatalog(userId: string, hiddenCourseIds?: Set<number
     ),
   );
 
-  const lagredeEmnerMap = new Map(
-    lagredeEmner.map((emne) => [emne.courseId, emne]),
-  );
+  const lagredeEmnerMap = new Map(lagredeEmner.map((emne) => [emne.courseId, emne]));
 
   const merged = redisEmner.map((emne) => {
     const lagret = lagredeEmnerMap.get(emne.id);
@@ -1369,17 +1439,9 @@ async function hentKjentEmnekatalog(userId: string, hiddenCourseIds?: Set<number
     return {
       ...emne,
       moduleTitles: [
-        ...new Set([
-          ...(redisMeta?.moduleTitles ?? []),
-          ...(lagret?.moduleTitles ?? []),
-        ]),
+        ...new Set([...(redisMeta?.moduleTitles ?? []), ...(lagret?.moduleTitles ?? [])]),
       ],
-      fileNames: [
-        ...new Set([
-          ...(redisMeta?.fileNames ?? []),
-          ...(lagret?.fileNames ?? []),
-        ]),
-      ],
+      fileNames: [...new Set([...(redisMeta?.fileNames ?? []), ...(lagret?.fileNames ?? [])])],
     };
   });
 
@@ -1419,9 +1481,7 @@ async function finnRelevanteEmner(
   }
 
   if (target?.courseIdHint != null) {
-    const matched = emner.filter((emne) =>
-      matchesCourseId(emne.id, target.courseIdHint),
-    );
+    const matched = emner.filter((emne) => matchesCourseId(emne.id, target.courseIdHint));
     if (matched.length > 0) {
       return matched;
     }
@@ -1429,7 +1489,7 @@ async function finnRelevanteEmner(
 
   if (target.courseHint) {
     const hint = target.courseHint.toLowerCase();
-    
+
     // Eksakt eller substring-match i navn eller emnekode
     const matched = emner.filter(
       (emne) =>
@@ -1489,7 +1549,8 @@ async function finnRelevanteEmner(
 // MongoDB fallback-hjelpere
 /** Nøkkelord som indikerer at brukeren spør om kunngjøringer.
  * Bruker regex for å fange vanlige skrivefeil (f.eks. "kungjøring" uten 'n'). */
-const ANNOUNCEMENT_PATTERN = /ku+n{1,2}gj[øo]ring|beskjed|announcements?|nyhet|varsel|endring|notifications?|news|updates?|notice/i;
+const ANNOUNCEMENT_PATTERN =
+  /ku+n{1,2}gj[øo]ring|beskjed|announcements?|nyhet|varsel|endring|notifications?|news|updates?|notice/i;
 
 function isAnnouncementQuery(message: string): boolean {
   return ANNOUNCEMENT_PATTERN.test(message);
@@ -1501,21 +1562,18 @@ function isAnnouncementQuery(message: string): boolean {
  * søket på et ord som "time" matche tilfeldige Java-filer (Pinecone har
  * ingen semantisk forståelse av at "time" her betyr "forelesning").
  */
-const TIMETABLE_PATTERN = /\b(neste\s+time|neste\s+forelesn|forelesn|undervisn|timeplan|timene|timer\s+(jeg|mine|i|denne|neste)|mine\s+timer|alle\s+timer|kalender(en)?|agenda|avtaler|når\s+er\s+(min|neste|jeg)|når\s+har\s+jeg|n[åa]r er klassen|next\s+(class|lecture|lesson)|when\s+is\s+(my|the)\s+next|class\s+schedule|lecture\s+schedule|timetable|my\s+(classes|lectures|schedule))\b/i;
+const TIMETABLE_PATTERN =
+  /\b(neste\s+time|neste\s+forelesn|forelesn|undervisn|timeplan|timene|timer\s+(jeg|mine|i|denne|neste)|mine\s+timer|alle\s+timer|kalender(en)?|agenda|avtaler|når\s+er\s+(min|neste|jeg)|når\s+har\s+jeg|n[åa]r er klassen|next\s+(class|lecture|lesson)|when\s+is\s+(my|the)\s+next|class\s+schedule|lecture\s+schedule|timetable|my\s+(classes|lectures|schedule))\b/i;
 export function isTimetableQuery(message: string): boolean {
   return TIMETABLE_PATTERN.test(message);
 }
 
-const CANVAS_CONTEXT_SIGNAL_PATTERN = /\b(canvas|emne|emnet|kurs|kurset|fag|faget|modul|modulen|leksjon|leksjonen|leksjoner|forelesning|forelesningen|forelesninger|kapittel|kapitlet|chapter|lecture|lesson|pdf|pptx?|docx?|xlsx?|fil|fila|filen|materiale|materialet|pensum|oppgave|oppgaven|assignment|kunngj[øo]ring|timeplan|kalender|l[æa]ringsm[åa]l)\b/i;
+const CANVAS_CONTEXT_SIGNAL_PATTERN =
+  /\b(canvas|emne|emnet|kurs|kurset|fag|faget|modul|modulen|leksjon|leksjonen|leksjoner|forelesning|forelesningen|forelesninger|kapittel|kapitlet|chapter|lecture|lesson|pdf|pptx?|docx?|xlsx?|fil|fila|filen|materiale|materialet|pensum|oppgave|oppgaven|assignment|kunngj[øo]ring|timeplan|kalender|l[æa]ringsm[åa]l)\b/i;
 
-export function hasExplicitCanvasContextSignal(
-  message: string,
-  target?: TargetedQuery,
-): boolean {
+export function hasExplicitCanvasContextSignal(message: string, target?: TargetedQuery): boolean {
   return Boolean(
-    target?.moduleHint ||
-    target?.fileHint ||
-    CANVAS_CONTEXT_SIGNAL_PATTERN.test(message),
+    target?.moduleHint || target?.fileHint || CANVAS_CONTEXT_SIGNAL_PATTERN.test(message),
   );
 }
 
@@ -1571,9 +1629,13 @@ async function hentKunngjøringerForBruker(userId: string): Promise<Announcement
             for (const k of parsed) {
               announcements.push({ ...k, courseName });
             }
-          } catch { /* ugyldig JSON — hopp over */ }
+          } catch {
+            /* ugyldig JSON — hopp over */
+          }
         }
-      } catch { /* ugyldig emner-JSON */ }
+      } catch {
+        /* ugyldig emner-JSON */
+      }
     }
   }
 
@@ -1631,7 +1693,10 @@ function formaterKunngjøringerKontekst(announcements: AnnouncementEntry[]): str
 /**
  * Bygger lett kontekst fra MongoDB CanvasStructure (permanent fallback når Redis TTL utløper).
  */
-async function byggLettKontekstFraMongo(userId: string, prefs?: CanvasContextPreferences): Promise<string | null> {
+async function byggLettKontekstFraMongo(
+  userId: string,
+  prefs?: CanvasContextPreferences,
+): Promise<string | null> {
   try {
     const structures = await CanvasStructureModel.find({ userId }).lean<ICanvasStructure[]>();
     if (!structures || structures.length === 0) return null;
@@ -1666,17 +1731,14 @@ async function byggMålrettetKontekstFraMongo(
     let matchedStructure: (typeof structures)[number] | undefined;
 
     if (target.courseIdHint != null) {
-      matchedStructure = structures.find((s) =>
-        matchesCourseId(s.courseId, target.courseIdHint),
-      );
+      matchedStructure = structures.find((s) => matchesCourseId(s.courseId, target.courseIdHint));
     }
 
     if (!matchedStructure && target.courseHint) {
       const hint = target.courseHint.toLowerCase();
       matchedStructure = structures.find(
         (s) =>
-          s.courseName.toLowerCase().includes(hint) ||
-          s.course_code.toLowerCase().includes(hint),
+          s.courseName.toLowerCase().includes(hint) || s.course_code.toLowerCase().includes(hint),
       );
     }
 
@@ -1690,8 +1752,10 @@ async function byggMålrettetKontekstFraMongo(
     if (!matchedStructure && target.fileHint) {
       matchedStructure = structures.find((s) =>
         s.moduler.some((mod) =>
-          mod.items?.some((item) =>
-            isContentBearingModuleItemType(item.type) && titleMatchesFileHint(item.title, target.fileHint!),
+          mod.items?.some(
+            (item) =>
+              isContentBearingModuleItemType(item.type) &&
+              titleMatchesFileHint(item.title, target.fileHint!),
           ),
         ),
       );
@@ -1766,7 +1830,9 @@ async function byggMålrettetKontekstFraMongo(
     if (matchedStructure.oppgaver.length > 0 && (!prefs || prefs.assignments)) {
       kontekst += `OPPGAVER (${matchedStructure.oppgaver.length}):\n`;
       for (const oppg of matchedStructure.oppgaver) {
-        const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
+        const frist = oppg.due_at
+          ? new Date(oppg.due_at).toLocaleDateString("nb-NO")
+          : "ingen frist";
         const poeng = oppg.points_possible != null ? `${oppg.points_possible}p` : "";
         const status = isCanvasAssignmentSubmitted(oppg) ? "✓" : "⏳";
         kontekst += `- ${status} ${oppg.name} — frist: ${frist} ${poeng}\n`;
@@ -1817,7 +1883,10 @@ async function byggMålrettetKontekstFraMongo(
  * Bygger lett kontekst fra Redis-data.
  * Inkluderer: emneliste + oppgaver med frister (neste 14 dager).
  */
-async function byggLettKontekstFraRedis(userId: string, prefs?: CanvasContextPreferences): Promise<string | null> {
+async function byggLettKontekstFraRedis(
+  userId: string,
+  prefs?: CanvasContextPreferences,
+): Promise<string | null> {
   try {
     const emnerRaw = await getCache(userKey(userId, "emner"));
     if (!emnerRaw) return null;
@@ -1878,13 +1947,23 @@ async function byggModulStrukturOversikt(
     const courseId = String(matchedCourse.id);
 
     // Hent moduler fra Redis eller MongoDB
-    type ModulItem = { id?: number; title: string; type: string; content_id?: number; page_url?: string };
+    type ModulItem = {
+      id?: number;
+      title: string;
+      type: string;
+      content_id?: number;
+      page_url?: string;
+    };
     type Modul = { name: string; items?: ModulItem[] };
     let moduler: Modul[] = [];
 
     const modulerRaw = await getCache(userKey(userId, "emne", courseId, "moduler"));
     if (modulerRaw) {
-      try { moduler = JSON.parse(modulerRaw); } catch { /* ugyldig JSON */ }
+      try {
+        moduler = JSON.parse(modulerRaw);
+      } catch {
+        /* ugyldig JSON */
+      }
     }
     if (moduler.length === 0) {
       const structure = await CanvasStructureModel.findOne(
@@ -1917,7 +1996,8 @@ async function byggModulStrukturOversikt(
 
     for (const modul of moduler) {
       const items = modul.items ?? [];
-      const isTargetModule = isModuleTargeted && modulTitleMatcherHint(modul.name, target.moduleHint!);
+      const isTargetModule =
+        isModuleTargeted && modulTitleMatcherHint(modul.name, target.moduleHint!);
 
       if (isTargetModule) {
         // Målrettet modul: vis filer med innhold
@@ -1936,9 +2016,10 @@ async function byggModulStrukturOversikt(
                     .sort((a, b) => a.index - b.index)
                     .map((c) => c.text)
                     .join("\n\n");
-                  const truncated = fullText.length > MAX_FILE_CONTENT_CHARS
-                    ? fullText.substring(0, MAX_FILE_CONTENT_CHARS) + "\n[...forkortet...]"
-                    : fullText;
+                  const truncated =
+                    fullText.length > MAX_FILE_CONTENT_CHARS
+                      ? fullText.substring(0, MAX_FILE_CONTENT_CHARS) + "\n[...forkortet...]"
+                      : fullText;
                   oversikt += `\nINNHOLD FRA ${item.title}:\n${truncated}\n`;
                   filesWithContentIncluded++;
                 }
@@ -2018,7 +2099,13 @@ async function byggMålrettetKontekstFraRedis(
       try {
         const moduler = JSON.parse(modulerRaw) as Array<{
           name: string;
-          items?: Array<{ id?: number; title: string; type: string; content_id?: number; page_url?: string }>;
+          items?: Array<{
+            id?: number;
+            title: string;
+            type: string;
+            content_id?: number;
+            page_url?: string;
+          }>;
         }>;
 
         kontekst += `MODULER (${moduler.length}):\n`;
@@ -2089,7 +2176,9 @@ async function byggMålrettetKontekstFraRedis(
 
         kontekst += `OPPGAVER (${oppgaver.length}):\n`;
         for (const oppg of oppgaver) {
-          const frist = oppg.due_at ? new Date(oppg.due_at).toLocaleDateString("nb-NO") : "ingen frist";
+          const frist = oppg.due_at
+            ? new Date(oppg.due_at).toLocaleDateString("nb-NO")
+            : "ingen frist";
           const poeng = oppg.points_possible != null ? `${oppg.points_possible}p` : "";
           const status = isCanvasAssignmentSubmitted(oppg) ? "✓" : "⏳";
           kontekst += `- ${status} ${oppg.name} — frist: ${frist} ${poeng}\n`;
@@ -2362,7 +2451,9 @@ function isOrdinalModuleReferenceHint(normHint: string): boolean {
   if (/\b(oppgave|oppgaven|exercise|task|side|page|slide|lysark)\b/.test(normHint)) {
     return false;
   }
-  return /\b(forele|forelesing|lecture|leksjon|lesson|kapit|kap|chapter|modul|module|uke|week|tema|sesjon|session|time|okt|del|seksj|section)\b/.test(normHint);
+  return /\b(forele|forelesing|lecture|leksjon|lesson|kapit|kap|chapter|modul|module|uke|week|tema|sesjon|session|time|okt|del|seksj|section)\b/.test(
+    normHint,
+  );
 }
 
 function leadingNumericOrdinal(normTitle: string): string | null {
@@ -2372,25 +2463,27 @@ function leadingNumericOrdinal(normTitle: string): string | null {
 
 /** Normaliserer streng for modul-matching: lowercase, fjern ekstra mellomrom/bindestreker */
 function normaliserModulNavn(text: string): string {
-  return normaliserLedendeRomertall(text)
-    .toLowerCase()
-    // Fjern URL-escape-sekvenser (%XX) og "+" fra eventuelle URL-encodede filnavn
-    // slik at tall inne i escape-sekvenser ikke lekker inn i tall-matching.
-    .replace(/%[0-9a-f]{2}/g, " ")
-    .replace(/\+/g, " ")
-    // Norsk tegn-normalisering for kryss-dialekt matching (bokmål ↔ nynorsk).
-    // F.eks. "førelesingsnotat" (nynorsk) ↔ "forelesning" (bokmål) — etter ø→o
-    // kan stem-matching nedenfor fange "forele"-prefikset i begge former.
-    .replace(/ø/g, "o")
-    .replace(/å/g, "a")
-    .replace(/æ/g, "ae")
-    .replace(/[-_]/g, " ")
-    // Splitt bokstav↔siffer slik at "Kapittel1.pdf" blir "kapittel 1.pdf"
-    // og tall-matchingen nedenfor finner "1" som eget ord.
-    .replace(/([a-z])(\d)/g, "$1 $2")
-    .replace(/(\d)([a-z])/g, "$1 $2")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    normaliserLedendeRomertall(text)
+      .toLowerCase()
+      // Fjern URL-escape-sekvenser (%XX) og "+" fra eventuelle URL-encodede filnavn
+      // slik at tall inne i escape-sekvenser ikke lekker inn i tall-matching.
+      .replace(/%[0-9a-f]{2}/g, " ")
+      .replace(/\+/g, " ")
+      // Norsk tegn-normalisering for kryss-dialekt matching (bokmål ↔ nynorsk).
+      // F.eks. "førelesingsnotat" (nynorsk) ↔ "forelesning" (bokmål) — etter ø→o
+      // kan stem-matching nedenfor fange "forele"-prefikset i begge former.
+      .replace(/ø/g, "o")
+      .replace(/å/g, "a")
+      .replace(/æ/g, "ae")
+      .replace(/[-_]/g, " ")
+      // Splitt bokstav↔siffer slik at "Kapittel1.pdf" blir "kapittel 1.pdf"
+      // og tall-matchingen nedenfor finner "1" som eget ord.
+      .replace(/([a-z])(\d)/g, "$1 $2")
+      .replace(/(\d)([a-z])/g, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 /** Sjekker om moduleTitle matcher moduleHint med fleksibel substring-matching */
@@ -2410,17 +2503,15 @@ export function modulTitleMatcherHint(moduleTitle: string, hint: string): boolea
     // hint-tallet og slutter med nøyaktig 2 sifre (typisk årssuffiks, f.eks.
     // "Forelesning126.pdf" = forelesning 1 + semester-suffiks 26).
     const hasYearSuffixMatch = normalizedHintNumbers.some((num) =>
-      titleNumberStrings.some((tnum) =>
-        tnum.length === num.length + 2 && tnum.startsWith(num),
-      ),
+      titleNumberStrings.some((tnum) => tnum.length === num.length + 2 && tnum.startsWith(num)),
     );
     if (!hasExactOverlap && !hasYearSuffixMatch) return false;
 
     const leadingOrdinal = leadingNumericOrdinal(normTitle);
     if (
-      leadingOrdinal
-      && normalizedHintNumbers.includes(leadingOrdinal)
-      && isOrdinalModuleReferenceHint(normHint)
+      leadingOrdinal &&
+      normalizedHintNumbers.includes(leadingOrdinal) &&
+      isOrdinalModuleReferenceHint(normHint)
     ) {
       return true;
     }
@@ -2447,11 +2538,46 @@ export function modulTitleMatcherHint(moduleTitle: string, hint: string): boolea
 
 const HYBRID_LEXICAL_GUARD_STOPWORDS = new Set([
   ...COURSE_MATCH_STOPWORDS,
-  "hvem", "hva", "hvilken", "hvilke", "hvordan", "hvorfor", "hvor", "nar", "når",
-  "kan", "kunne", "du", "jeg", "meg", "det", "den", "dette", "disse", "ogsa", "også",
-  "forklar", "forklare", "fortell", "vis", "si", "var", "er",
-  "who", "what", "which", "how", "why", "where", "when",
-  "can", "could", "you", "me", "explain", "tell",
+  "hvem",
+  "hva",
+  "hvilken",
+  "hvilke",
+  "hvordan",
+  "hvorfor",
+  "hvor",
+  "nar",
+  "når",
+  "kan",
+  "kunne",
+  "du",
+  "jeg",
+  "meg",
+  "det",
+  "den",
+  "dette",
+  "disse",
+  "ogsa",
+  "også",
+  "forklar",
+  "forklare",
+  "fortell",
+  "vis",
+  "si",
+  "var",
+  "er",
+  "who",
+  "what",
+  "which",
+  "how",
+  "why",
+  "where",
+  "when",
+  "can",
+  "could",
+  "you",
+  "me",
+  "explain",
+  "tell",
 ]);
 
 function tokensForHybridLexicalGuard(value: string): string[] {
@@ -2503,9 +2629,7 @@ export function hasStrongLexicalMatchForHybridResults(
 
   const sourceTokens = tokensForHybridLexicalGuard(
     results
-      .map((result) =>
-        `${result.source.fileName} ${result.source.moduleTitle} ${result.text}`,
-      )
+      .map((result) => `${result.source.fileName} ${result.source.moduleTitle} ${result.text}`)
       .join(" "),
   );
 
@@ -2536,9 +2660,10 @@ function filtrerHybridResultater(
     // generiske modulnavn ("Files") mens kapittel-nummer ligger i filnavnet
     // ("Kapittel1.pdf", "Forelesning 2.pdf"). Uten filnavn-matching treffer
     // hint som "kapittel 1" ingenting.
-    const moduleMatches = filtered.filter((result) =>
-      modulTitleMatcherHint(result.source.moduleTitle, target.moduleHint!)
-      || modulTitleMatcherHint(result.source.fileName, target.moduleHint!),
+    const moduleMatches = filtered.filter(
+      (result) =>
+        modulTitleMatcherHint(result.source.moduleTitle, target.moduleHint!) ||
+        modulTitleMatcherHint(result.source.fileName, target.moduleHint!),
     );
     if (moduleMatches.length === 0) {
       // moduleHint matchet ingenting — merk som "missed" slik at caller
@@ -2618,11 +2743,19 @@ async function byggKontekstFraHybridSearch(
     if (target?.courseIdHint != null && !target?.fileHint && !target?.moduleHint) {
       const lowerMsg = message.toLowerCase();
       const COURSE_WIDE_TRIGGERS = [
-        "forelesningene", "forelesninger", "alle forelesninger",
-        "leksjonene", "leksjoner", "alle leksjoner",
-        "modulene", "alle moduler",
-        "the lectures", "all lectures", "all the lectures",
-        "all modules", "all the topics covered",
+        "forelesningene",
+        "forelesninger",
+        "alle forelesninger",
+        "leksjonene",
+        "leksjoner",
+        "alle leksjoner",
+        "modulene",
+        "alle moduler",
+        "the lectures",
+        "all lectures",
+        "all the lectures",
+        "all modules",
+        "all the topics covered",
       ];
       // Referensielle fraser peker til tidligere samtale og SKAL IKKE trigge
       // kursomfattende oversikt. Uten denne sjekken laster "begge leksjonene"
@@ -2631,12 +2764,34 @@ async function byggKontekstFraHybridSearch(
       // REFERENTIAL_PATTERN i ki.ts (samme semantikk, litt annen form — her
       // brukes includes() i stedet for regex).
       const REFERENTIAL_PHRASES = [
-        "begge", "den første", "den andre", "de to", "disse", "dem",
-        "den ene", "den over", "over nevnte", "ovennevnte", "nevnte ovenfor",
-        "both of them", "both lessons", "the two", "those", "these",
-        "svaret ditt", "forrige svar", "det du sa", "det du skrev",
-        "utdype svaret", "utdyp svaret", "fortsett", "forklar mer",
-        "gi mer detaljer", "mer om dette", "mer om det", "kan du utdype",
+        "begge",
+        "den første",
+        "den andre",
+        "de to",
+        "disse",
+        "dem",
+        "den ene",
+        "den over",
+        "over nevnte",
+        "ovennevnte",
+        "nevnte ovenfor",
+        "both of them",
+        "both lessons",
+        "the two",
+        "those",
+        "these",
+        "svaret ditt",
+        "forrige svar",
+        "det du sa",
+        "det du skrev",
+        "utdype svaret",
+        "utdyp svaret",
+        "fortsett",
+        "forklar mer",
+        "gi mer detaljer",
+        "mer om dette",
+        "mer om det",
+        "kan du utdype",
       ];
       const isReferential = REFERENTIAL_PHRASES.some((p) => lowerMsg.includes(p));
       const matchesCourseWide =
@@ -2731,7 +2886,12 @@ async function byggKontekstFraHybridSearch(
     // Returner null slik at caller kan gå videre til metadata/on-demand.
     if (filterResult.moduleHintMissed && !target?.fileHint) {
       logger.info(
-        { userId, moduleHint: target?.moduleHint, unfilteredCount: results.length, messagePreview: message.substring(0, 80) },
+        {
+          userId,
+          moduleHint: target?.moduleHint,
+          unfilteredCount: results.length,
+          messagePreview: message.substring(0, 80),
+        },
         "Hybrid søk: moduleHint ga ingen treff — faller gjennom til målrettet kontekst",
       );
       return null;
@@ -2755,11 +2915,7 @@ async function byggKontekstFraHybridSearch(
       moduleHintMissedOriginal,
     );
     if (fullDocumentDecision.enabled) {
-      const primarySelection = velgPrimaerFilForFullDocument(
-        message,
-        filteredResults,
-        results,
-      );
+      const primarySelection = velgPrimaerFilForFullDocument(message, filteredResults, results);
       let primary = primarySelection.primary;
       if (primarySelection.overridden) {
         logger.info(
@@ -2792,9 +2948,9 @@ async function byggKontekstFraHybridSearch(
         primarySelection.numericHints,
       );
       if (
-        !primarySelection.overridden
-        && !primaryAlreadyMatches
-        && primarySelection.numericHints.length > 0
+        !primarySelection.overridden &&
+        !primaryAlreadyMatches &&
+        primarySelection.numericHints.length > 0
       ) {
         const courseId = primary.source.courseId;
         const allCourseFiles = await getAllFullDocumentsForCourse(userId, courseId);
@@ -2811,7 +2967,8 @@ async function byggKontekstFraHybridSearch(
         // "Leksjon 3_Øvelse.pdf" i stedet for "3_Generics.pdf" (hovedmaterialet).
         // Canvas-filnavn er ofte URL-encoded (Leksjon+3_%C3%98velse.pdf) — må
         // decodes før tegnsubstitusjon, ellers matcher ikke "ø"→"o".
-        const EXERCISE_FILE_PATTERN = /\b(oving|ovelse|ovning|oppgave|oppgaver|fasit|losning|losningsforslag|solution|exercise)\b/i;
+        const EXERCISE_FILE_PATTERN =
+          /\b(oving|ovelse|ovning|oppgave|oppgaver|fasit|losning|losningsforslag|solution|exercise)\b/i;
         const normalizeForMatch = (s: string) => {
           let decoded = s;
           try {
@@ -2836,8 +2993,9 @@ async function byggKontekstFraHybridSearch(
         const candidates = preferredMatches.length > 0 ? preferredMatches : numericMatches;
 
         let catalogMatch = candidates[0];
-        let catalogMatchReason: "numeric_filename" | "date_sorted_nth" | null =
-          catalogMatch ? "numeric_filename" : null;
+        let catalogMatchReason: "numeric_filename" | "date_sorted_nth" | null = catalogMatch
+          ? "numeric_filename"
+          : null;
 
         if (candidates.length > 1 && target?.moduleHint) {
           const moduleHintLower = normalizeForMatch(target.moduleHint);
@@ -2850,8 +3008,20 @@ async function byggKontekstFraHybridSearch(
           // og fusk.page" vant over "Førelesingsnotat Kapittel 1 og 2.pptx"
           // fordi ingen av dem inneholdt "leksjon" — scanneren falt tilbake
           // til lexical first-match.
-          const hintIsLectureQuery = /\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj|forelesing)/.test(moduleHintLower);
-          const LECTURE_STEMS = ["forele", "kapit", "modul", "leksjon", "lesson", "notat", "pensum", "forelesing"];
+          const hintIsLectureQuery =
+            /\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj|forelesing)/.test(
+              moduleHintLower,
+            );
+          const LECTURE_STEMS = [
+            "forele",
+            "kapit",
+            "modul",
+            "leksjon",
+            "lesson",
+            "notat",
+            "pensum",
+            "forelesing",
+          ];
           // Velg kandidat som har et lecture-keyword i navnet — uansett om
           // det er samme ord som brukeren brukte.
           if (hintIsLectureQuery) {
@@ -2872,8 +3042,9 @@ async function byggKontekstFraHybridSearch(
             const currentIsWrapper = WRAPPER_EXTENSIONS.test(catalogMatch.fileName);
             if (currentIsWrapper) {
               const richAlt = candidates.find(
-                (f) => RICH_EXTENSIONS.test(f.fileName)
-                  && LECTURE_STEMS.some((stem) => normalizeForMatch(f.fileName).includes(stem)),
+                (f) =>
+                  RICH_EXTENSIONS.test(f.fileName) &&
+                  LECTURE_STEMS.some((stem) => normalizeForMatch(f.fileName).includes(stem)),
               );
               if (richAlt) catalogMatch = richAlt;
             }
@@ -2917,7 +3088,11 @@ async function byggKontekstFraHybridSearch(
         const CATALOG_MATCH_MIN_CHARS = 1500;
         const catalogHasRichContent =
           catalogMatch && catalogMatch.charCount >= CATALOG_MATCH_MIN_CHARS;
-        if (catalogMatch && catalogMatch.fileId !== primary.source.fileId && catalogHasRichContent) {
+        if (
+          catalogMatch &&
+          catalogMatch.fileId !== primary.source.fileId &&
+          catalogHasRichContent
+        ) {
           logger.info(
             {
               numericHints: primarySelection.numericHints,
@@ -2958,9 +3133,9 @@ async function byggKontekstFraHybridSearch(
           // hybrid-treff, men ikke eksamensmodul).
           const richerCandidate = candidates.find(
             (f) =>
-              f.fileId !== catalogMatch!.fileId
-              && f.fileId !== primary.source.fileId
-              && f.charCount >= CATALOG_MATCH_MIN_CHARS,
+              f.fileId !== catalogMatch!.fileId &&
+              f.fileId !== primary.source.fileId &&
+              f.charCount >= CATALOG_MATCH_MIN_CHARS,
           );
 
           let nonExamHit: HybridSearchResult | null = null;
@@ -2970,19 +3145,20 @@ async function byggKontekstFraHybridSearch(
             const looksLikeExam = (s: string) =>
               /\b(eksamen|exam|kont|prøvee|provee|tidligere)\b/i.test(s);
             const primaryLooksLikeExam =
-              looksLikeExam(primary.source.fileName ?? "")
-              || looksLikeExam(primary.source.moduleTitle ?? "");
+              looksLikeExam(primary.source.fileName ?? "") ||
+              looksLikeExam(primary.source.moduleTitle ?? "");
             if (primaryLooksLikeExam && !userAskedForExam) {
               const charCountByFileId = new Map(
                 allCourseFiles.map((f) => [f.fileId, f.charCount] as const),
               );
-              nonExamHit = filteredResults.find((r) => {
-                if (r.source.fileId === primary.source.fileId) return false;
-                if (looksLikeExam(r.source.fileName)) return false;
-                if (looksLikeExam(r.source.moduleTitle)) return false;
-                const chars = charCountByFileId.get(r.source.fileId) ?? 0;
-                return chars >= CATALOG_MATCH_MIN_CHARS;
-              }) ?? null;
+              nonExamHit =
+                filteredResults.find((r) => {
+                  if (r.source.fileId === primary.source.fileId) return false;
+                  if (looksLikeExam(r.source.fileName)) return false;
+                  if (looksLikeExam(r.source.moduleTitle)) return false;
+                  const chars = charCountByFileId.get(r.source.fileId) ?? 0;
+                  return chars >= CATALOG_MATCH_MIN_CHARS;
+                }) ?? null;
             }
           }
 
@@ -3065,10 +3241,7 @@ async function byggKontekstFraHybridSearch(
       // og fra samme kurs, men semantisk ubeslektet. Numeric-filter kjører
       // FØR DB-probe så vi ikke sløser DB-hits på filer som uansett ville
       // blitt filtrert bort.
-      if (
-        fullDocument
-        && fullDocument.charCount < MIN_RICH_PRIMARY_CHARS
-      ) {
+      if (fullDocument && fullDocument.charCount < MIN_RICH_PRIMARY_CHARS) {
         const candidateFileIds = new Set<number>();
         const allCandidates: HybridSearchResult[] = [];
         for (const pool of [filteredResults, results]) {
@@ -3084,19 +3257,17 @@ async function byggKontekstFraHybridSearch(
         const intentFilteredCandidates =
           primarySelection.numericHints.length > 0
             ? allCandidates.filter((c) =>
-                fileNameMatchesNumericHints(
-                  c.source.fileName,
-                  primarySelection.numericHints,
-                ),
+                fileNameMatchesNumericHints(c.source.fileName, primarySelection.numericHints),
               )
             : allCandidates;
 
-        const candidates = intentFilteredCandidates.slice(
-          0,
-          MAX_RICHNESS_PROBES,
-        );
+        const candidates = intentFilteredCandidates.slice(0, MAX_RICHNESS_PROBES);
 
-        const probed: Array<{ candidate: HybridSearchResult; doc: NonNullable<typeof fullDocument>; charCount: number }> = [];
+        const probed: Array<{
+          candidate: HybridSearchResult;
+          doc: NonNullable<typeof fullDocument>;
+          charCount: number;
+        }> = [];
         for (const candidate of candidates) {
           const doc = await getStoredFullDocumentForFile(
             userId,
@@ -3214,9 +3385,7 @@ async function byggKontekstFraHybridSearch(
           const primaryMatchesHints = numericHints.filter((h) =>
             fileNameMatchesNumericHints(primary.source.fileName, [h]),
           );
-          const unmatchedHints = numericHints.filter(
-            (h) => !primaryMatchesHints.includes(h),
-          );
+          const unmatchedHints = numericHints.filter((h) => !primaryMatchesHints.includes(h));
           if (unmatchedHints.length > 0) {
             const courseId = String(primary.source.courseId);
             const allCourseFiles = await getAllFullDocumentsForCourse(userId, courseId);
@@ -3230,7 +3399,9 @@ async function byggKontekstFraHybridSearch(
               let chosen = matches[0];
               if (matches.length > 1 && target?.moduleHint) {
                 const moduleHintLower = target.moduleHint.toLowerCase().replace(/ø/g, "o");
-                const keywordStem = moduleHintLower.match(/\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj)/)?.[1];
+                const keywordStem = moduleHintLower.match(
+                  /\b(forele|kapit|modul|leksjon|lesson|uke|week|tema|seksj)/,
+                )?.[1];
                 if (keywordStem) {
                   const typed = matches.find((f) =>
                     f.fileName.toLowerCase().replace(/ø/g, "o").includes(keywordStem),
@@ -3273,10 +3444,7 @@ async function byggKontekstFraHybridSearch(
         // (results) slik at intent-matchende filer under rerank-grensen
         // fortsatt fanges opp.
         const MAX_INTENT_SUPPLEMENTS = 3;
-        if (
-          numericHints.length > 0
-          && supplementBlock.length < supplementBudget
-        ) {
+        if (numericHints.length > 0 && supplementBlock.length < supplementBudget) {
           const intentMatchingOthers: HybridSearchResult[] = [];
           const addedForSupplement = new Set<number>(seenFileIds);
           for (const pool of [filteredResults, results]) {
@@ -3284,12 +3452,7 @@ async function byggKontekstFraHybridSearch(
               if (addedForSupplement.has(r.source.fileId)) continue;
               if (r.source.fileId === primary.source.fileId) continue;
               if (r.source.courseId !== primary.source.courseId) continue;
-              if (
-                !fileNameMatchesNumericHints(
-                  r.source.fileName,
-                  numericHints,
-                )
-              ) {
+              if (!fileNameMatchesNumericHints(r.source.fileName, numericHints)) {
                 continue;
               }
               addedForSupplement.add(r.source.fileId);
@@ -3317,9 +3480,7 @@ async function byggKontekstFraHybridSearch(
               fileName: otherFullDoc.fileName,
               score: other.score,
               chunkCount: 1,
-              ...(otherFullDoc.externalUrl
-                ? { sourceUrl: otherFullDoc.externalUrl }
-                : {}),
+              ...(otherFullDoc.externalUrl ? { sourceUrl: otherFullDoc.externalUrl } : {}),
             });
             addedCount += 1;
             logger.info(
@@ -3334,8 +3495,7 @@ async function byggKontekstFraHybridSearch(
           }
         }
 
-        const primaryCourseLabel =
-          `[Kurs: ${primary.source.courseId}${primary.source.courseName ? ` - ${primary.source.courseName}` : ""}]`;
+        const primaryCourseLabel = `[Kurs: ${primary.source.courseId}${primary.source.courseName ? ` - ${primary.source.courseName}` : ""}]`;
         const kontekst =
           "<canvas-kursdata>\n" +
           `--- FIL-INNHOLD (FULLT DOKUMENT): ${primaryCourseLabel} ${fullDocument.fileName} ---\n` +
@@ -3395,8 +3555,7 @@ async function byggKontekstFraHybridSearch(
           );
         }
 
-        const primaryExternalUrl =
-          fullDocument.externalUrl ?? primary.source.externalUrl;
+        const primaryExternalUrl = fullDocument.externalUrl ?? primary.source.externalUrl;
         const fullDocKilder: ContextSource[] = [
           {
             courseId: String(primary.source.courseId),
@@ -3458,12 +3617,19 @@ async function byggKontekstFraHybridSearch(
     const MAX_EXPANDED_CHARS = 14000; // topFile opptil 11k + sekundære opptil 1.5k
     const MAX_TOPFILE_EXPANDED_CHARS = 11000;
     const MAX_SECONDARY_EXPANDED_CHARS = 1500;
-    const expandedChunks: Array<{ text: string; source: typeof filteredResults[0]["source"]; index: number }> = [];
+    const expandedChunks: Array<{
+      text: string;
+      source: (typeof filteredResults)[0]["source"];
+      index: number;
+    }> = [];
     let totalExpandedChars = 0;
     let filesExpanded = 0;
 
     // Grupper etter fileId og samle matchede indekser
-    const fileMatchCounts = new Map<string, { count: number; source: typeof filteredResults[0]["source"]; indexes: Set<number> }>();
+    const fileMatchCounts = new Map<
+      string,
+      { count: number; source: (typeof filteredResults)[0]["source"]; indexes: Set<number> }
+    >();
     for (const result of filteredResults) {
       const fileKey = `${result.source.courseId}:${result.source.fileId}`;
       const existing = fileMatchCounts.get(fileKey);
@@ -3480,13 +3646,12 @@ async function byggKontekstFraHybridSearch(
     }
 
     // Identifiser topFile: høyeste score først, deretter flest matcher.
-    const topResult = [...filteredResults]
-      .sort((a, b) => {
-        if (Math.abs(b.score - a.score) > 0.0001) return b.score - a.score;
-        const aCount = fileMatchCounts.get(`${a.source.courseId}:${a.source.fileId}`)?.count ?? 0;
-        const bCount = fileMatchCounts.get(`${b.source.courseId}:${b.source.fileId}`)?.count ?? 0;
-        return bCount - aCount;
-      })[0];
+    const topResult = [...filteredResults].sort((a, b) => {
+      if (Math.abs(b.score - a.score) > 0.0001) return b.score - a.score;
+      const aCount = fileMatchCounts.get(`${a.source.courseId}:${a.source.fileId}`)?.count ?? 0;
+      const bCount = fileMatchCounts.get(`${b.source.courseId}:${b.source.fileId}`)?.count ?? 0;
+      return bCount - aCount;
+    })[0];
     const topFileKey = `${topResult.source.courseId}:${topResult.source.fileId}`;
     const topFileInfo = fileMatchCounts.get(topFileKey);
 
@@ -3495,12 +3660,28 @@ async function byggKontekstFraHybridSearch(
       .filter(([key]) => key !== topFileKey)
       .sort((a, b) => b[1].count - a[1].count);
 
-    const expansionOrder: Array<{ fileInfo: { count: number; source: typeof filteredResults[0]["source"]; indexes: Set<number> }; reason: "topFile" | "secondary"; budgetCap: number }> = [];
+    const expansionOrder: Array<{
+      fileInfo: {
+        count: number;
+        source: (typeof filteredResults)[0]["source"];
+        indexes: Set<number>;
+      };
+      reason: "topFile" | "secondary";
+      budgetCap: number;
+    }> = [];
     if (topFileInfo) {
-      expansionOrder.push({ fileInfo: topFileInfo, reason: "topFile", budgetCap: MAX_TOPFILE_EXPANDED_CHARS });
+      expansionOrder.push({
+        fileInfo: topFileInfo,
+        reason: "topFile",
+        budgetCap: MAX_TOPFILE_EXPANDED_CHARS,
+      });
     }
     for (const [, fileInfo] of secondaryFiles) {
-      expansionOrder.push({ fileInfo, reason: "secondary", budgetCap: MAX_SECONDARY_EXPANDED_CHARS });
+      expansionOrder.push({
+        fileInfo,
+        reason: "secondary",
+        budgetCap: MAX_SECONDARY_EXPANDED_CHARS,
+      });
     }
 
     for (const { fileInfo, reason, budgetCap } of expansionOrder) {
@@ -3517,10 +3698,7 @@ async function byggKontekstFraHybridSearch(
         // Hopp over hvis filen har få chunks (lite å ekspandere)
         if (allFileChunks.length <= fileInfo.indexes.size + 2) continue;
 
-        const remainingBudget = Math.min(
-          budgetCap,
-          MAX_EXPANDED_CHARS - totalExpandedChars,
-        );
+        const remainingBudget = Math.min(budgetCap, MAX_EXPANDED_CHARS - totalExpandedChars);
         if (remainingBudget <= 0) continue;
         const additionalChunks = selectChunksForExpansion(
           allFileChunks,
@@ -3675,7 +3853,9 @@ async function hentModulFilerOnDemand(
     // On-demand-filparseren støtter kun Canvas File-items. Page/ExternalUrl
     // håndteres av crawler/sync-sporet; hvis vi sender dem hit mangler
     // content_id og Canvas-kallet blir /api/v1/files/undefined.
-    type OnDemandFileItem = ICanvasStructure["moduler"][0]["items"][number] & { content_id: number };
+    type OnDemandFileItem = ICanvasStructure["moduler"][0]["items"][number] & {
+      content_id: number;
+    };
     const filItems = matchedModule.items.filter(
       (item): item is OnDemandFileItem =>
         item.type === "File" && typeof item.content_id === "number",
@@ -3710,10 +3890,10 @@ async function hentModulFilerOnDemand(
     }
 
     const filesToFetch = filItems.slice(0, ON_DEMAND_MAX_FILES);
-    
-    const fetchFileWithTimeout = async (item: typeof filItems[0]): Promise<FileResult> => {
+
+    const fetchFileWithTimeout = async (item: (typeof filItems)[0]): Promise<FileResult> => {
       const contentId = item.content_id;
-      
+
       // Wrapper med timeout
       const timeoutPromise = new Promise<null>((resolve) =>
         setTimeout(() => resolve(null), ON_DEMAND_PER_FILE_TIMEOUT_MS),
@@ -3741,21 +3921,29 @@ async function hentModulFilerOnDemand(
 
           let content: string | null = null;
           if (isPdf) {
-            const pdfResult = await fetchPdfContent(canvasToken, {
-              id: fileData.id,
-              filename: fileData.filename,
-              url: fileData.url,
-              size: fileData.size,
-              mime_type: fileData.mime_type,
-            }, baseUrl);
+            const pdfResult = await fetchPdfContent(
+              canvasToken,
+              {
+                id: fileData.id,
+                filename: fileData.filename,
+                url: fileData.url,
+                size: fileData.size,
+                mime_type: fileData.mime_type,
+              },
+              baseUrl,
+            );
             content = pdfResult?.content ?? null;
           } else {
-            const buf = await fetchFileContent(canvasToken, {
-              id: fileData.id,
-              filename: fileData.filename,
-              url: fileData.url,
-              size: fileData.size,
-            }, baseUrl);
+            const buf = await fetchFileContent(
+              canvasToken,
+              {
+                id: fileData.id,
+                filename: fileData.filename,
+                url: fileData.url,
+                size: fileData.size,
+              },
+              baseUrl,
+            );
             if (buf) {
               const result = await extractTextFromFile(buf, fileData.filename);
               if (result && result.content.trim().length > 0) content = result.content;
@@ -3777,19 +3965,20 @@ async function hentModulFilerOnDemand(
 
     // Hent alle filer parallelt
     const results = await Promise.allSettled(filesToFetch.map(fetchFileWithTimeout));
-    
+
     let hentetFiler = 0;
     const kilderByFileId = new Map<number, ContextSource>();
     for (const result of results) {
       if (result.status !== "fulfilled") continue;
       const { title, type, content, fileData } = result.value;
-      
+
       kontekst += `- [${type}] ${title}\n`;
-      
+
       if (!content || content.trim().length === 0) continue;
 
       // Inkluder i kontekst (maks 4000 tegn per fil)
-      const truncated = content.length > 4000 ? content.substring(0, 4000) + "\n[...forkortet...]" : content;
+      const truncated =
+        content.length > 4000 ? content.substring(0, 4000) + "\n[...forkortet...]" : content;
       kontekst += `\nINNHOLD FRA ${title}:\n${truncated}\n`;
       hentetFiler++;
 
@@ -3825,7 +4014,10 @@ async function hentModulFilerOnDemand(
             chunks,
             fullText: content,
           }).catch((err) => {
-            logger.warn({ err, userId, fileId: fileData.id }, "On-demand lagring feilet (ikke-kritisk)");
+            logger.warn(
+              { err, userId, fileId: fileData.id },
+              "On-demand lagring feilet (ikke-kritisk)",
+            );
           });
         }
       }
@@ -3871,9 +4063,7 @@ async function finnMatchendeEkstraksjonsFeil(
   if (!target.fileHint && !target.moduleHint) return [];
   if (target.courseIdHint == null) return [];
 
-  const failures = await getExtractionFailuresForCourses(userId, [
-    String(target.courseIdHint),
-  ]);
+  const failures = await getExtractionFailuresForCourses(userId, [String(target.courseIdHint)]);
   if (failures.length === 0) return [];
 
   const matched = new Map<number, IFileExtractionStatus>();
@@ -3892,8 +4082,7 @@ async function finnMatchendeEkstraksjonsFeil(
       if (matched.has(f.fileId)) continue;
       const moduleMatches =
         !!f.moduleTitle && modulTitleMatcherHint(f.moduleTitle, target.moduleHint);
-      const numMatches =
-        numHints.length > 0 && fileNameMatchesNumericHints(f.fileName, numHints);
+      const numMatches = numHints.length > 0 && fileNameMatchesNumericHints(f.fileName, numHints);
       if (moduleMatches || numMatches) {
         matched.set(f.fileId, f);
       }
@@ -4061,9 +4250,7 @@ export async function loadCanvasContext(
     );
   }
 
-  return state.syncWaited
-    ? { ...resultMedNotat, syncWaited: true }
-    : resultMedNotat;
+  return state.syncWaited ? { ...resultMedNotat, syncWaited: true } : resultMedNotat;
 }
 
 async function loadCanvasContextCore(
@@ -4078,14 +4265,19 @@ async function loadCanvasContextCore(
   contextPrefs?: CanvasContextPreferences,
   hiddenCourseIds?: Set<number>,
 ): Promise<ContextResult> {
-
   // general_chat trenger ingen kontekst
   if (intent === "general_chat") {
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
   // Alle Canvas-datatyper deaktivert av bruker — hopp over kontekstlasting
-  if (contextPrefs && !contextPrefs.courses && !contextPrefs.assignments && !contextPrefs.announcements && !contextPrefs.events) {
+  if (
+    contextPrefs &&
+    !contextPrefs.courses &&
+    !contextPrefs.assignments &&
+    !contextPrefs.announcements &&
+    !contextPrefs.events
+  ) {
     return { kontekst: "", hasCanvasData: false, source: "none" };
   }
 
@@ -4097,11 +4289,28 @@ async function loadCanvasContextCore(
   // ikke blokkerer resultater pga. ord som "leksjonene", "forelesningene" osv.
   // courseHint beholdes alltid — det er alltid spesifikt nok til å identifisere et kurs.
   const GENERIC_MODULE_HINTS = new Set([
-    "leksjonene", "leksjon", "leksjonen",
-    "forelesningene", "forelesning", "forelesningen", "forelesningane",
-    "modulene", "modul", "modulen",
-    "innhold", "pensum", "faget", "kurset", "emnet", "emner", "fagene",
-    "alt", "alle", "materialet", "stoffet", "leksjonane",
+    "leksjonene",
+    "leksjon",
+    "leksjonen",
+    "forelesningene",
+    "forelesning",
+    "forelesningen",
+    "forelesningane",
+    "modulene",
+    "modul",
+    "modulen",
+    "innhold",
+    "pensum",
+    "faget",
+    "kurset",
+    "emnet",
+    "emner",
+    "fagene",
+    "alt",
+    "alle",
+    "materialet",
+    "stoffet",
+    "leksjonane",
   ]);
 
   const sanitizedTarget: TargetedQuery | undefined = target
@@ -4169,13 +4378,12 @@ async function loadCanvasContextCore(
   const hasStoredAIContent = await hasStoredContentForUser(userId);
   const wantsCourseOverview = Boolean(message && isCourseOverviewQuery(message));
   const shouldPreferStructuredContext = Boolean(message && isStructuredCanvasQuery(message));
-  const wantsAnnouncements = Boolean(message && isAnnouncementQuery(message)) && (!contextPrefs || contextPrefs.announcements);
-  const wantsTimetable = Boolean(message && isTimetableQuery(message)) && (!contextPrefs || contextPrefs.events);
-  const hasSpecificTarget = !!(
-    hasCourseTarget(target) ||
-    target?.moduleHint ||
-    target?.fileHint
-  );
+  const wantsAnnouncements =
+    Boolean(message && isAnnouncementQuery(message)) &&
+    (!contextPrefs || contextPrefs.announcements);
+  const wantsTimetable =
+    Boolean(message && isTimetableQuery(message)) && (!contextPrefs || contextPrefs.events);
+  const hasSpecificTarget = !!(hasCourseTarget(target) || target?.moduleHint || target?.fileHint);
   const hasExplicitCanvasSignal = Boolean(
     message && hasExplicitCanvasContextSignal(message, target),
   );
@@ -4195,7 +4403,12 @@ async function loadCanvasContextCore(
       announcementBlockEarly = formaterKunngjøringerKontekst(announcements);
       const courseNames = [...new Set(announcements.map((a) => a.courseName))];
       logger.info(
-        { userId, count: announcements.length, courses: courseNames, contextAddedLength: announcementBlockEarly.length },
+        {
+          userId,
+          count: announcements.length,
+          courses: courseNames,
+          contextAddedLength: announcementBlockEarly.length,
+        },
         "Kunngjøringer pre-bygget for kontekst-injeksjon",
       );
     } else {
@@ -4227,13 +4440,23 @@ async function loadCanvasContextCore(
 
       const [lecturesResult, plannerResult] = await Promise.allSettled([
         fetchCanvasLectures(canvasToken, { baseUrl, startDate, endDate }),
-        fetchPlannerItems(canvasToken, { start_date: startDate, end_date: endDate, baseUrl, maxPages: 3 }),
+        fetchPlannerItems(canvasToken, {
+          start_date: startDate,
+          end_date: endDate,
+          baseUrl,
+          maxPages: 3,
+        }),
       ]);
 
       const fromLectures =
         lecturesResult.status === "fulfilled"
           ? lecturesResult.value.data
-              .filter((e) => e.startAt && Date.parse(e.startAt) >= now && Date.parse(e.startAt) <= now + lookAheadMs)
+              .filter(
+                (e) =>
+                  e.startAt &&
+                  Date.parse(e.startAt) >= now &&
+                  Date.parse(e.startAt) <= now + lookAheadMs,
+              )
               .map((event) => ({
                 title: event.title,
                 due_at: event.startAt!,
@@ -4283,19 +4506,21 @@ async function loadCanvasContextCore(
 
       const lectureFailed = lecturesResult.status === "rejected";
       const plannerFailed = plannerResult.status === "rejected";
-      const lecturesErr = lectureFailed ? (lecturesResult.reason as { code?: string; httpStatus?: number }) : null;
-      const plannerErr = plannerFailed ? (plannerResult.reason as { code?: string; httpStatus?: number }) : null;
+      const lecturesErr = lectureFailed
+        ? (lecturesResult.reason as { code?: string; httpStatus?: number })
+        : null;
+      const plannerErr = plannerFailed
+        ? (plannerResult.reason as { code?: string; httpStatus?: number })
+        : null;
       const lectureBlockedByCanvas =
-        lectureFailed && (lecturesErr?.code === "permission_denied" || lecturesErr?.httpStatus === 403);
+        lectureFailed &&
+        (lecturesErr?.code === "permission_denied" || lecturesErr?.httpStatus === 403);
       const plannerBlockedByCanvas =
-        plannerFailed && (plannerErr?.code === "permission_denied" || plannerErr?.httpStatus === 403);
+        plannerFailed &&
+        (plannerErr?.code === "permission_denied" || plannerErr?.httpStatus === 403);
 
       if (kommendeTimer.length > 0) {
-        await setCache(
-          userKey(userId, "kalender", "kommende"),
-          JSON.stringify(kommendeTimer),
-          600,
-        );
+        await setCache(userKey(userId, "kalender", "kommende"), JSON.stringify(kommendeTimer), 600);
         logger.info(
           {
             userId,
@@ -4324,7 +4549,14 @@ async function loadCanvasContextCore(
         );
       } else {
         logger.info(
-          { userId, lectureFailed, plannerFailed, fromLectures: fromLectures.length, fromPlanner: fromPlanner.length, plannerBlockedByCanvas },
+          {
+            userId,
+            lectureFailed,
+            plannerFailed,
+            fromLectures: fromLectures.length,
+            fromPlanner: fromPlanner.length,
+            plannerBlockedByCanvas,
+          },
           "On-demand henting av kalender ga ingen kommende timer/frister",
         );
       }
@@ -4353,10 +4585,7 @@ async function loadCanvasContextCore(
         "Timeplan markert som blokkert av Canvas — modellen får ærlig forklaring",
       );
     } else {
-      logger.info(
-        { userId },
-        "Bruker spurte om timeplan, men ingen kalenderdata tilgjengelig",
-      );
+      logger.info({ userId }, "Bruker spurte om timeplan, men ingen kalenderdata tilgjengelig");
     }
   }
 
@@ -4373,10 +4602,16 @@ async function loadCanvasContextCore(
       resultat = "<canvas-kursdata>\n" + resultat + "\n</canvas-kursdata>";
     }
     if (announcementBlockEarly) {
-      resultat = resultat.replace("</canvas-kursdata>", announcementBlockEarly + "\n</canvas-kursdata>");
+      resultat = resultat.replace(
+        "</canvas-kursdata>",
+        announcementBlockEarly + "\n</canvas-kursdata>",
+      );
     }
     if (timetableBlockEarly) {
-      resultat = resultat.replace("</canvas-kursdata>", timetableBlockEarly + "\n</canvas-kursdata>");
+      resultat = resultat.replace(
+        "</canvas-kursdata>",
+        timetableBlockEarly + "\n</canvas-kursdata>",
+      );
     }
     return resultat;
   };
@@ -4389,7 +4624,12 @@ async function loadCanvasContextCore(
     // de pre-bygde blokkene.
     if (announcementBlockEarly || timetableBlockEarly) {
       logger.info(
-        { userId, intent, hasAnnouncements: !!announcementBlockEarly, hasTimetable: !!timetableBlockEarly },
+        {
+          userId,
+          intent,
+          hasAnnouncements: !!announcementBlockEarly,
+          hasTimetable: !!timetableBlockEarly,
+        },
         "wantsCourseOverview overstyrt — bruker har spurt spesifikt om kunngjøringer/timeplan",
       );
       const kombinert =
@@ -4426,7 +4666,9 @@ async function loadCanvasContextCore(
       );
       // Trigger bakgrunns-sync for å oppdatere Redis
       if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+          priorityCourseId: target?.courseIdHint ?? undefined,
+        }).catch((err) => {
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
@@ -4439,7 +4681,9 @@ async function loadCanvasContextCore(
       "Canvas-kontekst: ingen lagret kursoversikt — trigger sync",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+        priorityCourseId: target?.courseIdHint ?? undefined,
+      }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
@@ -4458,14 +4702,23 @@ async function loadCanvasContextCore(
   // kildelisten med irrelevante treff. Timeplanen ligger allerede i
   // timetableBlockEarly og injiseres via canvas_full-grenen lenger ned.
   let hybridAlreadyAttempted = false;
-  if (!shouldPreferStructuredContext && hasStoredAIContent && message && target?.chunkHint && !wantsTimetable) {
+  if (
+    !shouldPreferStructuredContext &&
+    hasStoredAIContent &&
+    message &&
+    target?.chunkHint &&
+    !wantsTimetable
+  ) {
     hybridAlreadyAttempted = true;
-    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
+    const hybridResult = await byggKontekstFraHybridSearch(
+      userId,
+      message,
+      target,
+      hiddenCourseIds,
+      baseUrl,
+    );
     if (hybridResult) {
-      if (
-        shouldProtectImplicitCanvasLight &&
-        isWeakVectorOnlyHybridContext(hybridResult)
-      ) {
+      if (shouldProtectImplicitCanvasLight && isWeakVectorOnlyHybridContext(hybridResult)) {
         logger.info(
           {
             userId,
@@ -4485,19 +4738,34 @@ async function loadCanvasContextCore(
       if (hasCourseTarget(target)) {
         const strukturOversikt = await byggModulStrukturOversikt(userId, target, hiddenCourseIds);
         if (strukturOversikt) {
-          kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
+          kontekst = kontekst.replace(
+            "</canvas-kursdata>",
+            strukturOversikt + "\n</canvas-kursdata>",
+          );
         }
       }
       // Strukturert data (kunngjøringer/timeplan) ligger ikke i Pinecone, så
       // hybrid-søket finner dem aldri — injiser direkte fra de pre-bygde blokkene.
       if (announcementBlockEarly) {
-        kontekst = kontekst.replace("</canvas-kursdata>", announcementBlockEarly + "\n</canvas-kursdata>");
+        kontekst = kontekst.replace(
+          "</canvas-kursdata>",
+          announcementBlockEarly + "\n</canvas-kursdata>",
+        );
       }
       if (timetableBlockEarly) {
-        kontekst = kontekst.replace("</canvas-kursdata>", timetableBlockEarly + "\n</canvas-kursdata>");
+        kontekst = kontekst.replace(
+          "</canvas-kursdata>",
+          timetableBlockEarly + "\n</canvas-kursdata>",
+        );
       }
       logger.info(
-        { userId, intent, chunkHint: target.chunkHint, source: "vector", contextLength: kontekst.length },
+        {
+          userId,
+          intent,
+          chunkHint: target.chunkHint,
+          source: "vector",
+          contextLength: kontekst.length,
+        },
         "Canvas-kontekst lastet fra hybrid søk (chunkHint-trigget)",
       );
       return {
@@ -4533,13 +4801,23 @@ async function loadCanvasContextCore(
   if (intent === "canvas_light") {
     // Faglige spørsmål havner av og til feilaktig i canvas_light uten chunkHint.
     // Prøv hybrid-søk også her når vi har lagret AI-innhold.
-    if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message && !wantsAnnouncements && !wantsTimetable) {
-      const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
+    if (
+      !hybridAlreadyAttempted &&
+      !shouldPreferStructuredContext &&
+      hasStoredAIContent &&
+      message &&
+      !wantsAnnouncements &&
+      !wantsTimetable
+    ) {
+      const hybridResult = await byggKontekstFraHybridSearch(
+        userId,
+        message,
+        target,
+        hiddenCourseIds,
+        baseUrl,
+      );
       if (hybridResult) {
-        if (
-          shouldProtectImplicitCanvasLight &&
-          isWeakVectorOnlyHybridContext(hybridResult)
-        ) {
+        if (shouldProtectImplicitCanvasLight && isWeakVectorOnlyHybridContext(hybridResult)) {
           logger.info(
             {
               userId,
@@ -4555,9 +4833,16 @@ async function loadCanvasContextCore(
 
         let kontekst = hybridResult.kontekst;
         if (hasCourseTarget(target)) {
-          const strukturOversikt = await byggModulStrukturOversikt(userId, target!, hiddenCourseIds);
+          const strukturOversikt = await byggModulStrukturOversikt(
+            userId,
+            target!,
+            hiddenCourseIds,
+          );
           if (strukturOversikt) {
-            kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
+            kontekst = kontekst.replace(
+              "</canvas-kursdata>",
+              strukturOversikt + "\n</canvas-kursdata>",
+            );
           }
         }
         logger.info(
@@ -4586,9 +4871,18 @@ async function loadCanvasContextCore(
     if (wantsAnnouncements && !hasSpecificTarget) {
       const announcements = await hentKunngjøringerForBruker(userId);
       if (announcements.length > 0) {
-        const kontekst = "<canvas-kursdata>\n" + formaterKunngjøringerKontekst(announcements) + "\n</canvas-kursdata>";
+        const kontekst =
+          "<canvas-kursdata>\n" +
+          formaterKunngjøringerKontekst(announcements) +
+          "\n</canvas-kursdata>";
         logger.info(
-          { userId, intent, source: "redis", count: announcements.length, contextLength: kontekst.length },
+          {
+            userId,
+            intent,
+            source: "redis",
+            count: announcements.length,
+            contextLength: kontekst.length,
+          },
           "Canvas-kontekst lastet som kunngjøringsoversikt",
         );
         return { kontekst, hasCanvasData: true, source: "redis" };
@@ -4597,7 +4891,12 @@ async function loadCanvasContextCore(
 
     if (hasSpecificTarget && target) {
       if (hasRedisSyncData) {
-        const redisKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
+        const redisKontekst = await byggMålrettetKontekstFraRedis(
+          userId,
+          target,
+          contextPrefs,
+          hiddenCourseIds,
+        );
         if (redisKontekst) {
           const beriket = injiserStrukturerteBlokker(redisKontekst);
           logger.info(
@@ -4616,7 +4915,9 @@ async function loadCanvasContextCore(
           "Canvas-kontekst lastet fra MongoDB (målrettet metadata fallback)",
         );
         if (redisAvailable) {
-          syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+          syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+            priorityCourseId: target?.courseIdHint ?? undefined,
+          }).catch((err) => {
             logger.warn({ err, userId }, "Bakgrunns-sync feilet etter målrettet metadata-fallback");
           });
         }
@@ -4629,7 +4930,9 @@ async function loadCanvasContextCore(
         "Redis+MongoDB mangler data — trigger sync (målrettet metadata)",
       );
       if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+          priorityCourseId: target?.courseIdHint ?? undefined,
+        }).catch((err) => {
           logger.warn({ err, userId }, "Bakgrunns-sync feilet");
         });
       }
@@ -4663,7 +4966,9 @@ async function loadCanvasContextCore(
       );
       // Trigger bakgrunns-sync for å oppdatere Redis
       if (redisAvailable) {
-        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+        syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+          priorityCourseId: target?.courseIdHint ?? undefined,
+        }).catch((err) => {
           logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
         });
       }
@@ -4676,7 +4981,9 @@ async function loadCanvasContextCore(
       "Redis+MongoDB mangler data — trigger sync (lett)",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+        priorityCourseId: target?.courseIdHint ?? undefined,
+      }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
@@ -4696,12 +5003,21 @@ async function loadCanvasContextCore(
   // Trinn 0: Hybrid søk (Pinecone + BM25 → RRF → Cohere Rerank)
   // Hopp over om chunkHint-stien allerede kjørte identisk søk.
   if (!hybridAlreadyAttempted && !shouldPreferStructuredContext && hasStoredAIContent && message) {
-    const hybridResult = await byggKontekstFraHybridSearch(userId, message, target, hiddenCourseIds, baseUrl);
+    const hybridResult = await byggKontekstFraHybridSearch(
+      userId,
+      message,
+      target,
+      hiddenCourseIds,
+      baseUrl,
+    );
     if (hybridResult) {
       let kontekst = hybridResult.kontekst;
       // Injiser kunngjøringer
       if (announcementBlock) {
-        kontekst = kontekst.replace("</canvas-kursdata>", announcementBlock + "\n</canvas-kursdata>");
+        kontekst = kontekst.replace(
+          "</canvas-kursdata>",
+          announcementBlock + "\n</canvas-kursdata>",
+        );
       }
       // Injiser timeplan (kommer typisk når hybrid-søk rotet seg bort i kode-
       // chunks for et generelt ord som "time").
@@ -4712,7 +5028,10 @@ async function loadCanvasContextCore(
       if (hasCourseTarget(target)) {
         const strukturOversikt = await byggModulStrukturOversikt(userId, target!, hiddenCourseIds);
         if (strukturOversikt) {
-          kontekst = kontekst.replace("</canvas-kursdata>", strukturOversikt + "\n</canvas-kursdata>");
+          kontekst = kontekst.replace(
+            "</canvas-kursdata>",
+            strukturOversikt + "\n</canvas-kursdata>",
+          );
         }
       }
       logger.info(
@@ -4758,10 +5077,21 @@ async function loadCanvasContextCore(
     const chunkKontekst = await byggKontekstFraChunks(userId, message, target, hiddenCourseIds);
     if (chunkKontekst) {
       logger.info(
-        { userId, intent, source: "chunks", contextLength: chunkKontekst.kontekst.length, sources: chunkKontekst.kilder.length },
+        {
+          userId,
+          intent,
+          source: "chunks",
+          contextLength: chunkKontekst.kontekst.length,
+          sources: chunkKontekst.kilder.length,
+        },
         "Canvas-kontekst lastet fra chunk-søk (keyword)",
       );
-      return { kontekst: chunkKontekst.kontekst, hasCanvasData: true, source: "chunks", kilder: chunkKontekst.kilder };
+      return {
+        kontekst: chunkKontekst.kontekst,
+        hasCanvasData: true,
+        source: "chunks",
+        kilder: chunkKontekst.kilder,
+      };
     }
   }
 
@@ -4772,7 +5102,12 @@ async function loadCanvasContextCore(
 
     // Prøv Redis først
     if (hasRedisSyncData) {
-      metadataKontekst = await byggMålrettetKontekstFraRedis(userId, target, contextPrefs, hiddenCourseIds);
+      metadataKontekst = await byggMålrettetKontekstFraRedis(
+        userId,
+        target,
+        contextPrefs,
+        hiddenCourseIds,
+      );
       if (metadataKontekst) metadataSource = "redis";
     }
 
@@ -4804,9 +5139,15 @@ async function loadCanvasContextCore(
         try {
           const ON_DEMAND_TIMEOUT_MS = 5000;
           const onDemandPromise = hentModulFilerOnDemand(
-            userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined,
+            userId,
+            canvasToken,
+            target.moduleHint,
+            baseUrl,
+            target.courseIdHint ?? undefined,
           );
-          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), ON_DEMAND_TIMEOUT_MS));
+          const timeoutPromise = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), ON_DEMAND_TIMEOUT_MS),
+          );
           const onDemandResult = await Promise.race([onDemandPromise, timeoutPromise]);
 
           if (onDemandResult) {
@@ -4843,7 +5184,12 @@ async function loadCanvasContextCore(
         { userId, intent, target, source: metadataSource, contextLength: cleanKontekst.length },
         "Målrettet Canvas-kontekst lastet (kun metadata)",
       );
-      return { kontekst: cleanKontekst, hasCanvasData: true, source: metadataSource!, metadataOnly: true };
+      return {
+        kontekst: cleanKontekst,
+        hasCanvasData: true,
+        source: metadataSource!,
+        metadataOnly: true,
+      };
     }
 
     // Ingen metadata i det hele tatt — prøv full on-demand som siste utvei
@@ -4852,7 +5198,13 @@ async function loadCanvasContextCore(
         { userId, intent, target, source: "on-demand" },
         "Redis+MongoDB mangler all data — prøver on-demand henting fra Canvas API",
       );
-      const onDemandResult = await hentModulFilerOnDemand(userId, canvasToken, target.moduleHint, baseUrl, target.courseIdHint ?? undefined);
+      const onDemandResult = await hentModulFilerOnDemand(
+        userId,
+        canvasToken,
+        target.moduleHint,
+        baseUrl,
+        target.courseIdHint ?? undefined,
+      );
       if (onDemandResult) {
         return {
           kontekst: onDemandResult.kontekst,
@@ -4869,7 +5221,9 @@ async function loadCanvasContextCore(
       "Redis+MongoDB+on-demand mangler data — trigger sync (målrettet)",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+        priorityCourseId: target?.courseIdHint ?? undefined,
+      }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet");
       });
     }
@@ -4899,7 +5253,9 @@ async function loadCanvasContextCore(
       "canvas_full uten mål — lett kontekst fra MongoDB (fallback)",
     );
     if (redisAvailable) {
-      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+      syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+        priorityCourseId: target?.courseIdHint ?? undefined,
+      }).catch((err) => {
         logger.warn({ err, userId }, "Bakgrunns-sync feilet etter MongoDB-fallback");
       });
     }
@@ -4912,7 +5268,9 @@ async function loadCanvasContextCore(
     "Redis+MongoDB mangler data — trigger sync (canvas_full uten mål)",
   );
   if (redisAvailable) {
-    syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, { priorityCourseId: target?.courseIdHint ?? undefined }).catch((err) => {
+    syncCanvasDataForUser(userId, canvasToken, baseUrl, signal, {
+      priorityCourseId: target?.courseIdHint ?? undefined,
+    }).catch((err) => {
       logger.warn({ err, userId }, "Bakgrunns-sync feilet");
     });
   }

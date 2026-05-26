@@ -8,12 +8,12 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.11.3",
-    "@clerk/backend": "^3.4.7",
-    "@clerk/testing": "^2.0.27",
+    "@clerk/backend": "^3.4.12",
+    "@clerk/testing": "^2.0.32",
     "@playwright/test": "^1.60.0",
     "dotenv": "^17.4.2",
     "mongoose": "^9.6.2",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3"
   }
 }

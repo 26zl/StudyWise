@@ -43,14 +43,14 @@ async function killPorts() {
           }
         }
       } catch (err) {
-        const msg = (err && typeof err === "object" && "message" in err) ? err.message : String(err);
+        const msg = err && typeof err === "object" && "message" in err ? err.message : String(err);
         if (msg.includes("is not listening") || msg.includes("No process running")) {
           console.log(`· Port ${port} was not in use`);
         } else {
           console.warn(`! Could not kill port ${port}: ${msg}`);
         }
       }
-    })
+    }),
   );
 }
 // Fjerner Next.js dev lock-filen hvis den finnes
