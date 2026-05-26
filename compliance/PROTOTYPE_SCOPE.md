@@ -1,6 +1,6 @@
 # Prototype-scope og institusjonell avgrensning
 
-> **Sist oppdatert:** 2026-05-08
+> **Sist oppdatert:** 2026-05-26
 >
 > Dette dokumentet forklarer hvordan StudyWise skal forstås som
 > bachelorprototype, og hva som må avklares før en eventuell reell
@@ -13,8 +13,9 @@ teknisk demonstrator for hvordan Canvas-data, kalender, KI-assistanse og
 studieplanlegging kan samles i en felles studieflate.
 
 StudyWise er ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre
-læresteder. Den offentlige deployen brukes for demonstrasjon, dokumentasjon og
-avgrenset testing.
+læresteder. Prosjektet fikk karakter A. Den offentlige deployen ble brukt for
+demonstrasjon, dokumentasjon og avgrenset testing, men produksjonsmiljøet er nå
+tatt ned etter prosjektslutt.
 
 ## Canvas-integrasjon
 

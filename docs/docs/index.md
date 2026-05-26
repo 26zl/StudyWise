@@ -21,19 +21,19 @@ features:
 
 # Om prosjektet
 
-**StudyWise** er en KI-basert studieassistent utviklet som bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026. Målet med prosjektet er å gi studenter ett samlet verktøy som kobler sammen læringsplattformen Canvas med kunstig intelligens, slik at studenter kan jobbe smartere og mer effektivt med studiene sine.
+**StudyWise** er en KI-basert studieassistent utviklet som bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026. Prosjektet fikk karakter A. Målet med prosjektet er å gi studenter ett samlet verktøy som kobler sammen læringsplattformen Canvas med kunstig intelligens, slik at studenter kan jobbe smartere og mer effektivt med studiene sine.
 
 Prosjektet kombinerer datainnhenting fra Canvas LMS med KI-drevet analyse og interaksjon, alt tilgjengelig gjennom et moderne og responsivt dashboard. Studenter kan blant annet få oversikt over emner og frister, stille spørsmål til en KI-assistent, og analysere dokumenter — uten å måtte veksle mellom flere verktøy.
 
-::: warning Prosjektet er under aktiv utvikling
-StudyWise er et pågående bachelorprosjekt (2026) og en teknisk prototype. Det er ikke en offisiell tjeneste fra USN, Canvas/Instructure eller andre læresteder. Funksjonalitet, design og tekniske løsninger kan endres. Dokumentasjonen holdes så oppdatert som mulig; ved avvik sjekk kildekoden.
+::: info Status etter prosjektslutt
+StudyWise ble levert som bachelorprosjekt i 2026 og fikk karakter A. Den offentlige demoen / produksjonslike deployen er tatt ned etter prosjektslutt. Dokumentasjonen beskriver arkitektur og funksjonalitet slik løsningen var ved innlevering og demonstrasjon.
 :::
 
 ## Arkitektur
 
 StudyWise er bygd som et **pnpm-monorepo** med fem pakker: `frontend`, `backend`, `common` (delte Zod-skjemaer og TypeScript-typer), `docs` og `tests` (integrasjons-/E2E-testkjøring). Frontend og backend deler datakontrakter gjennom `common`, som sikrer konsistens i validering og typer på tvers av hele stacken.
 
-Alle applikasjonskall mot StudyWise-backend går via frontend og Cloudflare-edge. Next.js proxyer alle `/api/*`-forespørsler videre til `https://api.studwize.page`, som går gjennom Cloudflare før Express-backenden på Heroku nås. Enkelte klientnære tredjepartstjenester, som Clerk, Cloudflare Turnstile, Datadog RUM og PostHog, kan likevel kalles direkte fra nettleseren. Backend er den autoritative sikkerhetsgrensen for StudyWise-data: autorisering, validering og datahenting skjer server-side.
+I den produksjonslike deployen gikk alle applikasjonskall mot StudyWise-backend via frontend og Cloudflare-edge. Next.js proxyet alle `/api/*`-forespørsler videre til `https://api.studwize.page`, som gikk gjennom Cloudflare før Express-backenden på Heroku ble nådd. Enkelte klientnære tredjepartstjenester, som Clerk, Cloudflare Turnstile, Datadog RUM og PostHog, kunne likevel kalles direkte fra nettleseren. Backend var den autoritative sikkerhetsgrensen for StudyWise-data: autorisering, validering og datahenting skjedde server-side.
 
 ### Dataflyt
 
@@ -116,7 +116,7 @@ Innlogging via Clerk med støtte for e-post/passord, Google og Microsoft SSO. Br
 
 ### Admin og drift
 
-Admin har et eget panel for vedlikehold, brukerhåndtering og publisering av globale systemmeldinger (banner til brukere og/eller melding på driftsstatussiden). Offentlig [statusside](https://www.studwize.page/status) viser overordnet driftsstatus for kjernetjenestene slik at brukere kan sjekke at alt fungerer før de logger inn.
+Admin har et eget panel for vedlikehold, brukerhåndtering og publisering av globale systemmeldinger (banner til brukere og/eller melding på driftsstatussiden). Under prosjektperioden viste den offentlige [statussiden](https://www.studwize.page/status) overordnet driftsstatus for kjernetjenestene slik at brukere kunne sjekke at alt fungerte før de logget inn. Denne produksjonsdeployen er nå tatt ned.
 
 ## Sikkerhet og personvern
 
@@ -133,7 +133,7 @@ Sikkerhet er integrert i hele stacken:
 
 ### Avgrensninger og videre hardening
 
-StudyWise er en bachelorprototype i produksjonslik drift. Videre arbeid bør prioritere institusjonsgodkjent Canvas-integrasjon (OAuth/LTI/developer key), avklaring av Sikt/personvern ved videre brukertesting, ny autentisert penetrasjonstest etter siste sikkerhetsendringer, videre optimalisering av Heroku-minnebruk og vurdering av passkeys og institusjonelle autentiseringspolicyer. Tredjepartsavhengigheter som Cloudflare, Vercel, Heroku, Clerk og KI-leverandører er bevisste arkitekturvalg og må vurderes videre i risiko- og personvernarbeid.
+StudyWise var en bachelorprototype i produksjonslik drift, og den offentlige deployen er nå tatt ned etter prosjektslutt. Videre arbeid bør prioritere institusjonsgodkjent Canvas-integrasjon (OAuth/LTI/developer key), avklaring av Sikt/personvern ved videre brukertesting, ny autentisert penetrasjonstest etter siste sikkerhetsendringer, videre optimalisering av Heroku-minnebruk og vurdering av passkeys og institusjonelle autentiseringspolicyer. Tredjepartsavhengigheter som Cloudflare, Vercel, Heroku, Clerk og KI-leverandører er bevisste arkitekturvalg og må vurderes videre i risiko- og personvernarbeid.
 
 ## Testing og kvalitetssikring
 
@@ -173,7 +173,7 @@ Sikkerheten er automatisert i CI-pipelinen:
 | Dokumentasjon | GitHub Pages                   | Ved endringer i `docs/`           |
 | CDN/WAF       | Cloudflare                     | Alltid aktiv                      |
 
-Offentlig demo / produksjonslik deploy er tilgjengelig på [studwize.page](https://www.studwize.page).
+Offentlig demo / produksjonslik deploy var tidligere tilgjengelig på [studwize.page](https://www.studwize.page), men er tatt ned etter prosjektslutt.
 
 ## Dokumentasjon og policyer
 

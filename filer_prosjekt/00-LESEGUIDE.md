@@ -6,8 +6,10 @@ Denne mappen inneholder supplerende materiale til bacheloroppgaven om StudyWise.
 
 StudyWise er en KI-basert studieassistent for høyere utdanning. Løsningen kobler seg til Canvas LMS via brukerens egen token, lar studenten bygge en privat kunnskapsbase, og bruker Claude, Pinecone og Cohere til å gi svar med faglig kontekst.
 
-- Demo: <https://www.studwize.page>
-- API-status: <https://api.studwize.page/health>
+- Bachelorresultat: karakter A.
+- Produksjon: offentlig demo / produksjonslik deploy er tatt ned etter prosjektslutt.
+- Tidligere demo: <https://www.studwize.page> (ikke lenger aktiv)
+- Tidligere API-status: <https://api.studwize.page/health> (ikke lenger aktiv)
 - Teknisk dokumentasjon: <https://26zl.github.io/StudyWise/>
 - Stack: TypeScript, Next.js, Express, MongoDB, Redis, Pinecone, Anthropic Claude, Cohere, Clerk, Cloudflare, Vercel og Heroku.
 

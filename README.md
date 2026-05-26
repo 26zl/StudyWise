@@ -10,13 +10,16 @@
 [![pnpm](https://img.shields.io/badge/pnpm-10.33.4-F69220?logo=pnpm&logoColor=white)](./package.json)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](./tsconfig.base.json)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Bachelorresultat: A](https://img.shields.io/badge/Bachelorresultat-A-success)](#bachelorgruppen)
 
 En KI-basert studieassistent for høyere utdanning med integrasjon mot Canvas LMS.
 Bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026 — gruppe 3.
+Prosjektet fikk karakter A.
 
-- **Offentlig demo / produksjonslik deploy:** <https://www.studwize.page>
+- **Produksjon:** Den offentlige demoen / produksjonslike deployen er tatt ned etter prosjektslutt.
+- **Tidligere offentlig demo / produksjonslik deploy:** <https://www.studwize.page> (ikke lenger aktiv)
 - **Dokumentasjon:** <https://26zl.github.io/StudyWise/>
-- **Statusside:** <https://www.studwize.page/status>
+- **Tidligere statusside:** <https://www.studwize.page/status> (ikke lenger aktiv)
 
 > For en raskere orientering i prosjektet, se [leseguiden](filer_prosjekt/00-LESEGUIDE.md) og [diagrammene](filer_prosjekt/diagrammer/).
 
@@ -24,8 +27,9 @@ Bacheloroppgave i IT ved Universitetet i Sørøst-Norge (USN), 2026 — gruppe 3
 
 StudyWise er en bachelorprototype og teknisk demonstrator, ikke en offisiell
 tjeneste fra USN, Canvas/Instructure eller andre læresteder. Den offentlige
-deployen brukes for å demonstrere hva som er teknisk mulig med Canvas-data,
-KI-assistanse og studieplanlegging i én flate.
+deployen ble brukt for å demonstrere hva som er teknisk mulig med Canvas-data,
+KI-assistanse og studieplanlegging i én flate, men produksjonsmiljøet er nå
+tatt ned.
 
 Dagens Canvas-kobling bruker personlig API-token som brukeren selv oppretter i
 Canvas. Dette er et bevisst prototypevalg for bachelorprosjektet. En reell
@@ -55,7 +59,12 @@ Monorepo med fem pakker (`common`, `backend`, `frontend`, `docs`, `tests`) admin
 
 ## Deploy- og driftsarkitektur
 
-Frontend kjører på Vercel bak Cloudflare, mens backend kjører på Heroku bak `api.studwize.page`. Next.js proxyer `/api/*` videre til Cloudflare API-edge, og Express-backenden avviser direkte origin-trafikk som ikke kommer via Cloudflare. `common`-pakken er kontrakten mellom frontend, backend og tester, med delte Zod-skjemaer og TypeScript-typer.
+Under prosjektperioden kjørte frontend på Vercel bak Cloudflare, mens backend
+kjørte på Heroku bak `api.studwize.page`. Next.js proxyet `/api/*` videre til
+Cloudflare API-edge, og Express-backenden avviste direkte origin-trafikk som
+ikke kom via Cloudflare. Den offentlige produksjonslike deployen er nå tatt ned.
+`common`-pakken er kontrakten mellom frontend, backend og tester, med delte
+Zod-skjemaer og TypeScript-typer.
 
 ## Kom i gang
 
