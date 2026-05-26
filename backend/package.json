@@ -21,7 +21,7 @@
     "@pinecone-database/pinecone": "^7.2.0",
     "adm-zip": "^0.5.17",
     "ai": "^6.0.189",
-    "bullmq": "^5.76.11",
+    "bullmq": "^5.77.0",
     "cheerio": "^1.2.0",
     "common": "workspace:*",
     "compression": "^1.8.1",

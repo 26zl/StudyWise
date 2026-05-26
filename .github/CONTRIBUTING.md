@@ -336,10 +336,11 @@ pnpm kill:dev
 ### Før du committer
 
 ```bash
+pnpm format
 pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build
 ```
 
-**Pre-commit-hook:** Repoet har Husky + lint-staged **konfigurert**, men hooken er **midlertidig deaktivert** (se `.husky/pre-commit`). Kjør derfor `pnpm format` manuelt før commit inntil hooken reaktiveres. Sjekker i kommandoen over (`pnpm test:unit && pnpm typecheck && pnpm lint && pnpm lint:md && pnpm build`) håndheves av CI på hver PR.
+**Pre-commit-hook:** Repoet har Husky + lint-staged aktivert. `.husky/pre-commit` kjører `pnpm lint-staged`, som bruker Prettier på staged filer før commit. Sjekkene i kommandoen over håndheves også av CI på hver PR.
 
 ### GitHub Actions-sikkerhet
 

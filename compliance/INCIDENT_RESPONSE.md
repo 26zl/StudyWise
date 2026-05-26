@@ -5,7 +5,7 @@
 > forhold til GDPR Art. 33 (72-timers varsling til Datatilsynet) og
 > Art. 34 (varsling til berørte brukere ved høy risiko).
 >
-> **Sist oppdatert:** 2026-04-18
+> **Sist oppdatert:** 2026-05-26
 
 ## Prinsipp
 
@@ -100,8 +100,8 @@ alle steg med tidspunkt underveis.
 1. Generer ny nøkkel.
 2. Sett `ENCRYPTION_KEY_PREV` til gamle nøkkel (dual-read).
 3. Deploy.
-4. Kjør `pnpm --filter backend run db:reset-encrypted` for å re-kryptere med
-   ny nøkkel (se scripts/reset-encrypted-data.mjs).
+4. Kjør `pnpm db:reset-encrypted --confirm` for å slette/tilbakestille data
+   og felt som er kryptert med gammel nøkkel (se scripts/reset-encrypted-data.mjs).
 5. Fjern `ENCRYPTION_KEY_PREV` etter fullført rotasjon.
 6. Varsle om token-lekkasje til berørte brukere.
 

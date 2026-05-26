@@ -23,7 +23,7 @@ These guardrails exist because StudyWise handles personal data, Canvas tokens, c
 9. **Never bypass git safety.** No `git push --force` to `main`, no `git commit --no-verify`, no `git commit --no-gpg-sign`, no `git rebase -i` on shared branches. The pre-commit hook is active (runs `lint-staged`), and the same checks run in CI on PRs — do not work around either.
 10. **Never weaken GitHub Actions trust boundaries.** Do not introduce `pull_request_target`. Do not add shared package-manager caches (`actions/cache`, `cache: pnpm`, restore keys, etc.), global `npm install -g`, or `curl | sh` installers to deploy, publish, release or otherwise privileged workflows with secrets or write permissions. `pnpm lint:actions-security` enforces this.
 11. **Never weaken pnpm supply-chain guardrails.** Keep `minimumReleaseAge: 7200` in `pnpm-workspace.yaml` unless a human explicitly approves a security exception. Prefer narrow `minimumReleaseAgeExclude` entries for urgent, reviewed fixes over lowering the global delay.
-12. **Never run destructive operations** without explicit human confirmation: `pnpm db:reset-encrypted`, dropping a Mongo collection, deleting Pinecone records, `git reset --hard`, `git clean -f`. These are not reversible.
+12. **Never run destructive operations** without explicit human confirmation: `pnpm db:reset-encrypted`, `pnpm data:nuke --confirm` (wipes all Mongo/Redis/Pinecone/Clerk data for the configured env), dropping a Mongo collection, deleting Pinecone records, `git reset --hard`, `git clean -f`. These are not reversible.
 
 ### Required practices — always do these
 
@@ -131,6 +131,7 @@ pnpm clean:all              # Remove node_modules and build artifacts
 pnpm clean:install          # Full clean reinstall + rebuild
 pnpm lint:soft-delete       # Lint soft-delete patterns
 pnpm db:reset-encrypted     # Reset encrypted DB fields (key rotation helper)
+pnpm data:nuke              # Wipe ALL app data for the env in backend/.env (Mongo + Redis + Pinecone + Clerk). Dry-run by default; real delete needs --confirm --phrase SLETT_ALT_STUDYWISE_DATA. Set NODE_DNS_SERVERS=8.8.8.8,8.8.4.4 in backend/.env if mongodb+srv:// fails with "querySrv ECONNREFUSED".
 ```
 
 Per-package scripts (run with `pnpm --filter <pkg> <script>`): `dev`, `build`, `lint`, `typecheck`, `test`, `test:watch`.

@@ -1,6 +1,6 @@
 # Observability-stack: Datadog og Grafana
 
-Hvordan signaler fra applikasjonen flyter til Datadog (us5) og videre til det eksterne Grafana-dashboardet. Frontend bruker Datadog RUM Browser SDK (`@datadog/browser-rum` v6.33.0, initialisert i `frontend/app/components/layout/DatadogRum.tsx:65-154` med service-navn `studywise-frontend`). Backend bruker Node.js APM-agenten `dd-trace` v5.102.0 (initialisert tidlig i `backend/src/datadog.ts:11-52` og importert først i `backend/src/index.ts:15`, med service-navn `studywise-backend`). Begge skrur seg av hvis `DD_API_KEY` mangler.
+Hvordan signaler fra applikasjonen flyter til Datadog (us5) og videre til det eksterne Grafana-dashboardet. Frontend bruker Datadog RUM Browser SDK (`@datadog/browser-rum` v6.33.0, initialisert i `frontend/app/components/layout/DatadogRum.tsx:65-154` med service-navn `studywise-frontend`). Backend bruker Node.js APM-agenten `dd-trace` v5.104.0 (initialisert tidlig i `backend/src/datadog.ts:11-52` og importert først i `backend/src/index.ts:15`, med service-navn `studywise-backend`). Begge skrur seg av hvis `DD_API_KEY` mangler.
 
 BullMQ-worker kjører i samme prosess som Express-backenden (`Procfile:1` har kun én `web`-prosess, og `backend/src/queues/index.ts:1-9` beskriver én unified worker). BullMQ-spans rapporteres derfor under `studywise-backend`-tjenesten via dd-trace's auto-instrumentation av Redis-klienten, ikke som en egen Datadog-service. Tag-distribusjonen er kritisk: APM-traces har `service:studywise-backend`, RUM-events har `service:studywise-frontend`, mens Heroku-dynoinfrastrukturmetrikker mangler `service:`-tag og må filtreres med `dynotype:web` / `dyno:web.N`.
 
@@ -12,7 +12,7 @@ Grafana lever som ekstern instans og henter all data via Datadog-pluginen mot us
 flowchart LR
     subgraph App["Applikasjonslag"]
         FE["studywise-frontend<br/>Next.js 16 på Vercel<br/>@datadog/browser-rum v6.33.0<br/>DatadogRum.tsx"]
-        BE["studywise-backend<br/>Express 5 på Heroku web dynos<br/>dd-trace v5.102.0 (backend/src/datadog.ts)<br/>──────────────<br/>Inkluderer BullMQ-worker<br/>i samme prosess<br/>(backend/src/queues/index.ts)"]
+        BE["studywise-backend<br/>Express 5 på Heroku web dynos<br/>dd-trace v5.104.0 (backend/src/datadog.ts)<br/>──────────────<br/>Inkluderer BullMQ-worker<br/>i samme prosess<br/>(backend/src/queues/index.ts)"]
     end
 
     subgraph HerokuPlat["Heroku-plattform (utenfor repo)"]

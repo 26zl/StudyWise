@@ -117,9 +117,12 @@ pnpm test:auth:e2e        # E2E-tester (Playwright)
 
 # Vedlikehold
 pnpm update               # Sikker dependency-oppdatering innenfor semver + minimumReleaseAge
-pnpm clean:install        # Full reinstall
+pnpm clean:all            # Fjern node_modules og build-artefakter
+pnpm clean:install        # Full reinstall + rebuild
 pnpm knip                 # Finn ubrukt kode
 pnpm syncpack:list        # Sjekk versjonssynkronisering
+pnpm db:reset-encrypted   # Tørrkjøring: vis krypterte data/felt som kan resettes ved nøkkelrotasjon
+pnpm data:nuke            # Tørrkjøring: vis full miljø-sletting; faktisk sletting krever --confirm + sikkerhetsfrase
 ```
 
 Installer pakker med `--filter`: `pnpm --filter frontend add <pakke>`
@@ -143,7 +146,7 @@ lokal webhook-tunnel, og docs/VitePress startes ikke av Compose. Kjør
 
 ## Git hooks og kvalitetssjekker
 
-Kvalitetssjekker kjøres manuelt lokalt og automatisk i CI. Før større commits anbefales:
+Husky pre-commit-hooken er aktiv og kjører `lint-staged`, som formaterer staged filer med Prettier før commit. Før større commits anbefales også:
 
 ```bash
 pnpm format
