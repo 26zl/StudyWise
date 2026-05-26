@@ -20,13 +20,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  deploy-disabled:
+    name: Vercel deploy disabled
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    if: github.event.workflow_run.conclusion == 'success' && vars.VERCEL_DEPLOY_ENABLED != 'true'
+
+    steps:
+      - name: Explain skipped deploy
+        run: |
+          echo "Vercel frontend deploy is disabled."
+          echo "Set repository variable VERCEL_DEPLOY_ENABLED=true and refresh VERCEL_* secrets to re-enable."
+
   deploy:
     name: Deploy frontend to Vercel
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Deploy kun når både CI og Playwright E2E er grønne (Functional Testing trigges av CI).
     # Dette gir Heroku-parity: alle checks må være grønne før frontend deployes.
-    if: github.event.workflow_run.conclusion == 'success'
+    # Vercel-prosjektet ble tatt ned etter prosjektslutt. Behold workflowen,
+    # men kjør den bare når repo-variable VERCEL_DEPLOY_ENABLED er satt til true.
+    if: github.event.workflow_run.conclusion == 'success' && vars.VERCEL_DEPLOY_ENABLED == 'true'
 
     steps:
       - name: Harden Runner
